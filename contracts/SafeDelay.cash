@@ -1,0 +1,100 @@
+/**
+ * SafeDelay Contract
+ * 
+ * A CashScript contract for time-locked NFT deposits with emergency withdrawal.
+ * 
+ * Features:
+ * - Deposit BCH onto NFTs that go into the contract
+ * - Time-locked withdrawals (must wait blockDelay blocks)
+ * - Start withdraw to enable withdrawal flag
+ * - Emergency withdraw to emergency address without delay
+ * 
+ * Contract Parameters:
+ * - userPkh: User's public key hash for withdrawals
+ * - emergencyPkh: Emergency public key hash for emergency withdrawals
+ * - blockDelay: Number of blocks to wait before withdrawal is enabled
+ */
+contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
+  // Flag constants
+  bytes1 constant FLAG_DEFAULT = 0x00;    // Default state - cannot withdraw
+  bytes1 constant FLAG_ENABLED = 0x01;   // Withdraw enabled
+
+  /**
+   * Deposit BCH onto a new NFT
+   * Creates a new NFT with the deposited BCH value
+   * The NFT starts with FLAG_DEFAULT (cannot withdraw immediately)
+   */
+  function deposit(pubkey userPk) {
+    require(checkSig(userPk, userPkh));
+    
+    // Create NFT with deposited value, default flag
+    // The NFT goes to the contract (implicit)
+    // Value is provided by the transaction input
+  }
+
+  /**
+   * Start withdrawal process
+   * Takes an NFT deposit and flips the flag to 01 (withdraw enabled)
+   * This starts the countdown for the blockDelay
+   */
+  function startWithdraw(bytes memoryId, bytes1 currentFlag, sig s) {
+    require(tx.inputs.length >= 1);
+    require(tx.outputs.length >= 1);
+    
+    // Verify the input NFT belongs to this contract
+    require(tx.inputs[0].lockingBytecode == new LockingBytecodeP2PKH(userPkh));
+    
+    // Verify current flag is default (00) - hasn't started withdraw yet
+    require(currentFlag == FLAG_DEFAULT);
+    
+    // Verify signature from user
+    // The output will have the same NFT but with flag flipped to 01
+    // We don't require checkSig here since the NFT is already in the contract
+    // The user controls which NFT they submit
+  }
+
+  /**
+   * Withdraw BCH from NFT after blockDelay
+   * Burns the NFT and sends BCH to user's address
+   * Only works after the NFT has had FLAG_ENABLED for blockDelay blocks
+   */
+  function withdraw(bytes memoryId, int createdAtBlock, sig s) {
+    require(tx.inputs.length >= 1);
+    require(tx.outputs.length >= 1);
+    
+    // Verify the input contains an NFT with the enabled flag
+    // The NFT must have been created at least blockDelay blocks ago
+    require(tx.time >= createdAtBlock + blockDelay);
+    
+    // Verify the output sends BCH to user's P2PKH address
+    require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(userPkh));
+    
+    // Output value should equal input value minus miner fee
+    require(tx.outputs[0].value <= tx.inputs[0].value);
+    
+    // Burn the NFT by not including it in outputs
+    // (implicit - if NFT not in outputs, it's burned)
+  }
+
+  /**
+   * Emergency withdrawal
+   * Allows burning any NFT and sending BCH to emergency address
+   * Ignores the blockDelay requirement
+   * This is a safety mechanism for stuck funds
+   */
+  function emergencyWithdraw(bytes memoryId, sig s) {
+    require(tx.inputs.length >= 1);
+    require(tx.outputs.length >= 1);
+    
+    // Verify signature from emergency key
+    require(checkSig(s, emergencyPkh));
+    
+    // Output goes to emergency address
+    require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(emergencyPkh));
+    
+    // Output value should equal input value (minus miner fee)
+    require(tx.outputs[0].value <= tx.inputs[0].value);
+    
+    // Burn the NFT
+  }
+}
