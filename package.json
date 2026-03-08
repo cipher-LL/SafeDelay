@@ -1,0 +1,28 @@
+{
+  "name": "safedelay",
+  "version": "1.0.0",
+  "description": "Time-locked wallet smart contract for Bitcoin Cash",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "compile": "cashc src/SafeDelay.cash --hex --output dist/",
+    "test": "echo \"No tests configured\" && exit 0"
+  },
+  "keywords": [
+    "cashscript",
+    "bitcoin-cash",
+    "smart-contract",
+    "timelock",
+    "wallet"
+  ],
+  "author": "Lifestone Labs",
+  "license": "MIT",
+  "dependencies": {
+    "cashscript": "^0.10.5"
+  },
+  "devDependencies": {
+    "cashc": "^0.12.1",
+    "typescript": "^5.0.0"
+  }
+}
