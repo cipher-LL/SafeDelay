@@ -36,6 +36,10 @@ contract SafeDelay(
     function deposit(pubkey depositorPk, sig depositorSig) {
         require(checkSig(depositorSig, depositorPk));
         
+        // Validate depositor's input is P2PKH and matches their public key
+        // This ensures the depositor funded the transaction from a P2PKH address
+        require(tx.inputs[1].lockingBytecode == new LockingBytecodeP2PKH(hash160(depositorPk)));
+        
         // Output 0: Recreate contract with combined balance
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);
