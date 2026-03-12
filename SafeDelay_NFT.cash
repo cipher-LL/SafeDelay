@@ -56,27 +56,41 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, bytes20 recoverPkh, in
     // Verify input1 is user's P2PKH address
     require(tx.inputs[1].lockingBytecode == new LockingBytecodeP2PKH(userPkh));
     
-    // Can only extend when NFT is in locked state (flag = 0x00)
-    require(currentFlag == 0x00);
+    // Can extend from locked state (0x00) to extended state (0x02)
+    // or add more blocks to already extended state (0x02)
+    require(currentFlag == 0x00 || currentFlag == 0x02);
     require(addBlocks > 0);
     
-    // Current commitment must have extend flag (0x02)
-    require(tx.inputs[0].nftCommitment.length >= 2);
-    require(tx.inputs[0].nftCommitment.slice(tx.inputs[0].nftCommitment.length - 1, 1) == 0x02);
-    
-    // Get current extended blocks
-    int currentExtended = int(tx.inputs[0].nftCommitment.slice(tx.inputs[0].nftCommitment.length - 2, 1));
-    int newExtended = currentExtended + addBlocks;
-    require(newExtended <= 255);
-    
-    // Output has updated extended blocks count
-    require(tx.outputs[0].nftCommitment.length >= 2);
-    require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x02);
-    require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 2, 1) == bytes1(newExtended));
-    
-    // Rest of commitment stays the same
-    require(tx.outputs[0].nftCommitment.slice(0, tx.outputs[0].nftCommitment.length - 2) == 
-            tx.inputs[0].nftCommitment.slice(0, tx.inputs[0].nftCommitment.length - 2));
+    // For new extensions (0x00 -> 0x02), commitment is just 1 byte
+    // For continued extensions (0x02 -> 0x02), commitment has 2 bytes
+    if (currentFlag == 0x00) {
+      // New extension - output should have flag 0x02 with addBlocks
+      require(tx.outputs[0].nftCommitment.length >= 2);
+      require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x02);
+      require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 2, 1) == bytes1(addBlocks));
+      
+      // Rest of commitment stays the same (just the flag byte changes)
+      require(tx.outputs[0].nftCommitment.slice(0, tx.outputs[0].nftCommitment.length - 1) == 
+              tx.inputs[0].nftCommitment.slice(0, tx.inputs[0].nftCommitment.length - 1));
+    } else {
+      // Continue extension - current commitment must have extend flag (0x02)
+      require(tx.inputs[0].nftCommitment.length >= 2);
+      require(tx.inputs[0].nftCommitment.slice(tx.inputs[0].nftCommitment.length - 1, 1) == 0x02);
+      
+      // Get current extended blocks
+      int currentExtended = int(tx.inputs[0].nftCommitment.slice(tx.inputs[0].nftCommitment.length - 2, 1));
+      int newExtended = currentExtended + addBlocks;
+      require(newExtended <= 255);
+      
+      // Output has updated extended blocks count
+      require(tx.outputs[0].nftCommitment.length >= 2);
+      require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x02);
+      require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 2, 1) == bytes1(newExtended));
+      
+      // Rest of commitment stays the same
+      require(tx.outputs[0].nftCommitment.slice(0, tx.outputs[0].nftCommitment.length - 2) == 
+              tx.inputs[0].nftCommitment.slice(0, tx.inputs[0].nftCommitment.length - 2));
+    }
   }
 
   /**
@@ -85,7 +99,8 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, bytes20 recoverPkh, in
   function startWithdraw(bytes memoryId, bytes currentFlag, int extendedBlocks, pubkey userPk, sig s) {
     require(true || memoryId.length >= 0);
     require(checkSig(s, userPk));
-    require(currentFlag == 0x00 || currentFlag == 0x02); require(true || extendedBlocks >= 0);
+    require(currentFlag == 0x00 || currentFlag == 0x02);
+    require(extendedBlocks >= 0);
     
     require(tx.outputs[0].nftCommitment.length > 0);
     require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x01);
