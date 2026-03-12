@@ -3,8 +3,16 @@
   "version": "1.0.0",
   "description": "Time-locked wallet smart contract for Bitcoin Cash",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./artifacts/SafeDelay": "./artifacts/SafeDelay.artifact.json",
+    "./artifacts/SafeDelayMultiSig": "./artifacts/SafeDelayMultiSig.artifact.json"
+  },
+  "files": [
+    "artifacts/",
+    "dist/",
+    "src/"
+  ],
   "scripts": {
     "build": "tsc",
     "compile": "cashc src/SafeDelay.cash --hex --output dist/",
