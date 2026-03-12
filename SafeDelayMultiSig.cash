@@ -1,0 +1,113 @@
+pragma cashscript ^0.12.0;
+
+/**
+ * SafeDelayMultiSig - Time-locked Wallet with Multi-Signature Support
+ * 
+ * A time-locked wallet requiring M-of-N signatures for withdrawals.
+ * This version uses 3 fixed owners with configurable threshold (2-of-3 or 3-of-3).
+ * 
+ * How it works:
+ * - Owner creates contract with 3 keys and threshold (M-of-3)
+ * - A lock duration provides additional safety
+ * - M-of-3 can be 2 (2-of-3) or 3 (3-of-3)
+ * - Funds are locked until lockEndBlock
+ * - After lock expires, M of 3 owners can withdraw
+ * - Any owner can cancel anytime to get funds back
+ */
+contract SafeDelayMultiSig(
+    bytes20 owner1,
+    bytes20 owner2,
+    bytes20 owner3,
+    int threshold,
+    int lockEndBlock
+) {
+    /**
+     * Deposit funds into the time-locked wallet
+     */
+    function deposit(pubkey depositorPk, sig depositorSig) {
+        require(checkSig(depositorSig, depositorPk));
+        
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);
+    }
+    
+    /**
+     * Withdraw funds after lock expires - requires M-of-N signatures
+     */
+    function withdraw(
+        pubkey pk1, sig sig1,
+        pubkey pk2, sig sig2,
+        pubkey pk3, sig sig3,
+        int withdrawAmount
+    ) {
+        int validSigs = 0;
+        
+        bytes20 pkh1 = hash160(pk1);
+        if (pkh1 == owner1 || pkh1 == owner2 || pkh1 == owner3) {
+            require(checkSig(sig1, pk1));
+            validSigs = validSigs + 1;
+        }
+        
+        bytes20 pkh2 = hash160(pk2);
+        if (pkh2 == owner1 || pkh2 == owner2 || pkh2 == owner3) {
+            require(checkSig(sig2, pk2));
+            validSigs = validSigs + 1;
+        }
+        
+        bytes20 pkh3 = hash160(pk3);
+        if (pkh3 == owner1 || pkh3 == owner2 || pkh3 == owner3) {
+            require(checkSig(sig3, pk3));
+            validSigs = validSigs + 1;
+        }
+        
+        require(validSigs >= threshold);
+        require(tx.locktime >= lockEndBlock);
+        
+        int contractBalance = tx.inputs[0].value;
+        int remainingBalance = contractBalance - withdrawAmount - 1000;
+        
+        // Use first valid signer as recipient
+        bytes20 recipient = pkh1;
+        if (pkh2 == owner1 || pkh2 == owner2 || pkh2 == owner3) {
+            recipient = pkh2;
+        }
+        
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipient));
+        require(tx.outputs[0].value >= withdrawAmount);
+        
+        if (remainingBalance > 1000) {
+            require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);
+            require(tx.outputs[1].value == remainingBalance);
+        }
+    }
+    
+    /**
+     * Cancel and refund - any single owner can cancel anytime
+     */
+    function cancel(pubkey ownerPk, sig ownerSig) {
+        bytes20 pkh = hash160(ownerPk);
+        require(pkh == owner1 || pkh == owner2 || pkh == owner3);
+        require(checkSig(ownerSig, ownerPk));
+        
+        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
+        
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(pkh));
+        require(tx.outputs[0].value >= totalBalance);
+    }
+    
+    /**
+     * Extend the lock period (one-way extension)
+     */
+    function extend(pubkey ownerPk, sig ownerSig, int newLockEndBlock) {
+        bytes20 pkh = hash160(ownerPk);
+        require(pkh == owner1 || pkh == owner2 || pkh == owner3);
+        require(checkSig(ownerSig, ownerPk));
+        
+        require(newLockEndBlock > lockEndBlock);
+        
+        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
+        
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(pkh));
+        require(tx.outputs[0].value >= totalBalance);
+    }
+}

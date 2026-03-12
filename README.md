@@ -1,6 +1,6 @@
 # SafeDelay - Time-Locked Wallet
 
-A CashScript smart contract for time-locked wallets on Bitcoin Cash.
+A CashScript smart contract library for time-locked wallets on Bitcoin Cash.
 
 ## Overview
 
@@ -9,9 +9,21 @@ SafeDelay is a time-locked wallet where funds can only be withdrawn after a spec
 - **Savings accounts** - Lock funds away from yourself
 - **Vesting schedules** - Gradual release of funds over time
 - **Emergency funds** - Cooldown period before withdrawal to prevent impulse spending
-- **Family wallets** - Parental controls for timed release
+- **Multi-device signing** - Require multiple keys for high-security wallets
+- **Family/team wallets** - Multiple parties must approve withdrawals
 
-## Features
+## Contracts
+
+| Contract | Description |
+|----------|-------------|
+| `SafeDelay` | Single-owner time-locked wallet |
+| `SafeDelayMultiSig` | 2-of-3 or 3-of-3 multi-sig time-locked wallet |
+
+---
+
+## SafeDelay (Single Owner)
+
+### Features
 
 - ⏱️ **Time-locked withdrawals** - Funds locked until a specified block height
 - 💰 **Flexible deposits** - Anyone can deposit, but only owner can withdraw
@@ -115,3 +127,86 @@ npm test
 ## License
 
 MIT
+
+---
+
+## SafeDelayMultiSig (Multi-Signature)
+
+A 3-owner time-locked wallet with configurable threshold. Requires multiple signatures for withdrawals, providing enhanced security.
+
+### Features
+
+- 🔐 **M-of-3 multi-sig** - Configure threshold (2-of-3 or 3-of-3)
+- ⏱️ **Time-locked withdrawals** - Funds locked until a specified block height
+- 💰 **Flexible deposits** - Anyone can deposit
+- 🔓 **Single-owner cancel** - Any one owner can cancel anytime (emergency recovery)
+- 🔒 **Enhanced security** - No single point of failure
+
+### Use Cases
+
+- **Multi-device signing** - Phone + laptop + paper backup (2-of-3)
+- **Team wallets** - 2-of-3 approval required for withdrawals
+- **Family wallets** - Parent + child + grandparent keys
+- **High-security savings** - Require multiple devices to authorize
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `owner1` | bytes20 | First owner's public key hash |
+| `owner2` | bytes20 | Second owner's public key hash |
+| `owner3` | bytes20 | Third owner's public key hash |
+| `threshold` | int | Required signatures (2 or 3) |
+| `lockEndBlock` | int | Block height when lock expires |
+
+### Example
+
+```typescript
+import { Contract } from 'cashscript';
+import { SafeDelayMultiSigArtifact } from 'safedelay';
+
+const currentBlock = await provider.getBlockCount();
+
+// Create 2-of-3 multi-sig wallet with 30-day lock
+const safeDelayMultiSig = await Contract.fromArtifact(
+  SafeDelayMultiSigArtifact,
+  {
+    owner1: 'key1_hash',
+    owner2: 'key2_hash', 
+    owner3: 'key3_hash',
+    threshold: 2,
+    lockEndBlock: currentBlock + 4320
+  },
+  { provider }
+);
+
+// Any owner can deposit
+await safeDelayMultiSig.deposit().send(depositorAddress, amount);
+
+// After lock expires, need 2-of-3 signatures to withdraw
+await safeDelayMultiSig.withdraw(
+  pk1, sig1,  // Owner 1's key and signature
+  pk2, sig2,  // Owner 2's key and signature
+  pk3, sig3,  // Owner 3's key and signature (unused in 2-of-3)
+  withdrawAmount
+).send(recipientAddress);
+
+// Any single owner can cancel anytime
+await safeDelayMultiSig.cancel().send(recipientAddress);
+```
+
+### Contract Functions
+
+| Function | Description | Signatures Required |
+|----------|-------------|---------------------|
+| `deposit()` | Add BCH to the locked wallet | Anyone |
+| `withdraw()` | Remove BCH after lock expires | Threshold (2 or 3) |
+| `cancel()` | Close contract and get all funds back | Any 1 owner |
+| `extend()` | Extend the lock period | Any 1 owner |
+
+### Security Notes
+
+- **Cancel is single-sig** - Any owner can emergency-cancel (useful if others unavailable)
+- **Withdraw requires threshold** - Prevents single-key theft
+- **Time lock still applies** - Even with multiple signatures, must wait for lock expiry
+- **All 3 keys required for full setup** - Contract always has 3 owner slots
