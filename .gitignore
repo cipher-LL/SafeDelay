@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+artifacts/
+
+# Debug
+*.mjs
+debug/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Test
+coverage/

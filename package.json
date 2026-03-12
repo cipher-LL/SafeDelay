@@ -2,12 +2,13 @@
   "name": "safedelay",
   "version": "1.0.0",
   "description": "Time-locked wallet smart contract for Bitcoin Cash",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "compile": "cashc src/SafeDelay.cash --hex --output dist/",
-    "test": "echo \"No tests configured\" && exit 0"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.json"
   },
   "keywords": [
     "cashscript",
@@ -22,7 +23,10 @@
     "cashscript": "^0.10.5"
   },
   "devDependencies": {
+    "@bitauth/libauth": "^3.0.0",
+    "@cashscript/utils": "^0.12.1",
     "cashc": "^0.12.1",
+    "jest": "^30.3.0",
     "typescript": "^5.0.0"
   }
 }
