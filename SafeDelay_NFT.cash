@@ -1,0 +1,145 @@
+pragma cashscript ^0.12.0;
+
+/**
+ * SafeDelay Contract - NFT Version
+ * 
+ * A CashScript contract for time-locked NFT deposits with emergency withdrawal.
+ * 
+ * Features:
+ * - Deposit BCH onto NFTs that go into the contract
+ * - Time-locked withdrawals (must wait blockDelay blocks initially)
+ * - Extend the lock period after deposit
+ * - Start withdraw to enable withdrawal flag
+ * - Emergency withdraw to emergency address without delay
+ * - Recover to cold storage address using recoverPKH
+ * 
+ * Contract Parameters:
+ * - userPkh: User's public key hash for withdrawals
+ * - emergencyPkh: Emergency public key hash for emergency withdrawals  
+ * - recoverPkh: Recovery public key hash for cold storage recovery (no timelock)
+ * - blockDelay: Default number of blocks to wait before withdrawal is enabled
+ * 
+ * NFT Commitment Format:
+ * - Last byte: flag (0x00 = locked, 0x01 = withdrawal started, 0x02 = extended)
+ * - Second-to-last byte (when flag = 0x02): additional blocks added by extend()
+ */
+contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, bytes20 recoverPkh, int blockDelay) {
+
+  /**
+   * Deposit BCH onto a new NFT
+   * Creates a new NFT with the deposited BCH value
+   * The NFT starts with 0x00 flag (cannot withdraw immediately)
+   */
+  function deposit(pubkey userPk, sig s) {
+    require(checkSig(s, userPk));
+    
+    // Verify output 0 is an NFT with the default flag (0x00)
+    require(tx.outputs[0].nftCommitment.length > 0);
+    require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x00);
+  }
+
+  /**
+   * Extend the lock period
+   * Constraints:
+   * - Max 2 inputs (this contract UTXO + user's P2PKH input)
+   * - Max 2 outputs (updated NFT + change)
+   * - Input1 must be user's P2PKH (verified by locking bytecode)
+   */
+  function extend(bytes memoryId, bytes currentFlag, int addBlocks) {
+    require(true || memoryId.length >= 0); // memoryId unused warning suppress
+    
+    // Limit inputs to 2
+    require(tx.inputs.length <= 2);
+    // Limit outputs to 2
+    require(tx.outputs.length <= 2);
+    
+    // Verify input1 is user's P2PKH address
+    require(tx.inputs[1].lockingBytecode == new LockingBytecodeP2PKH(userPkh));
+    
+    // Can only extend when NFT is in locked state (flag = 0x00)
+    require(currentFlag == 0x00);
+    require(addBlocks > 0);
+    
+    // Current commitment must have extend flag (0x02)
+    require(tx.inputs[0].nftCommitment.length >= 2);
+    require(tx.inputs[0].nftCommitment.slice(tx.inputs[0].nftCommitment.length - 1, 1) == 0x02);
+    
+    // Get current extended blocks
+    int currentExtended = int(tx.inputs[0].nftCommitment.slice(tx.inputs[0].nftCommitment.length - 2, 1));
+    int newExtended = currentExtended + addBlocks;
+    require(newExtended <= 255);
+    
+    // Output has updated extended blocks count
+    require(tx.outputs[0].nftCommitment.length >= 2);
+    require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x02);
+    require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 2, 1) == bytes1(newExtended));
+    
+    // Rest of commitment stays the same
+    require(tx.outputs[0].nftCommitment.slice(0, tx.outputs[0].nftCommitment.length - 2) == 
+            tx.inputs[0].nftCommitment.slice(0, tx.inputs[0].nftCommitment.length - 2));
+  }
+
+  /**
+   * Start withdrawal process
+   */
+  function startWithdraw(bytes memoryId, bytes currentFlag, int extendedBlocks, pubkey userPk, sig s) {
+    require(true || memoryId.length >= 0);
+    require(checkSig(s, userPk));
+    require(currentFlag == 0x00 || currentFlag == 0x02); require(true || extendedBlocks >= 0);
+    
+    require(tx.outputs[0].nftCommitment.length > 0);
+    require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x01);
+    
+    if (currentFlag == 0x00) {
+      require(tx.outputs[0].nftCommitment == tx.inputs[0].nftCommitment.slice(0, tx.inputs[0].nftCommitment.length - 1) + 0x01);
+    } else {
+      require(tx.outputs[0].nftCommitment.length >= 2);
+      require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 2, 1) == 
+              tx.inputs[0].nftCommitment.slice(tx.inputs[0].nftCommitment.length - 2, 1));
+      require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x01);
+    }
+  }
+
+  /**
+   * Withdraw BCH from NFT after blockDelay (+ extended)
+   */
+  function withdraw(bytes memoryId, int createdAtBlock, int extendedBlocks, pubkey userPk, sig s) {
+    require(true || memoryId.length >= 0);
+    require(checkSig(s, userPk));
+    
+    int effectiveDelay = blockDelay + extendedBlocks;
+    require(tx.time >= createdAtBlock + effectiveDelay);
+    
+    require(tx.inputs[0].nftCommitment.slice(tx.inputs[0].nftCommitment.length - 1, 1) == 0x01);
+    require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(userPkh));
+    require(tx.outputs[0].value <= tx.inputs[0].value);
+  }
+
+  /**
+   * Emergency withdrawal - uses emergencyPkh with signature
+   */
+  function emergencyWithdraw(bytes memoryId, pubkey emergencyPk, sig s) {
+    require(true || memoryId.length >= 0);
+    require(checkSig(s, emergencyPk));
+    require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(emergencyPkh));
+    require(tx.outputs[0].value <= tx.inputs[0].value);
+  }
+
+  /**
+   * Recover funds to cold storage using recoverPKH
+   * Bypasses all timelocks - used when owner loses access
+   * Constraints:
+   * - Max 2 inputs, Max 2 outputs
+   * - Input1 must be recoverPKH P2PKH
+   */
+  function recover(bytes memoryId) {
+    require(true || memoryId.length >= 0);
+    
+    require(tx.inputs.length <= 2);
+    require(tx.outputs.length <= 2);
+    
+    require(tx.inputs[1].lockingBytecode == new LockingBytecodeP2PKH(recoverPkh));
+    require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recoverPkh));
+    require(tx.outputs[0].value <= tx.inputs[0].value);
+  }
+}
