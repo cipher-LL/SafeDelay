@@ -202,11 +202,22 @@ await safeDelayMultiSig.cancel().send(recipientAddress);
 | `deposit()` | Add BCH to the locked wallet | Anyone |
 | `withdraw()` | Remove BCH after lock expires | Threshold (2 or 3) |
 | `cancel()` | Close contract and get all funds back | Any 1 owner |
-| `extend()` | Extend the lock period | Any 1 owner |
+| `extend()` | Extend the lock period | Threshold (2 or 3) |
 
 ### Security Notes
 
 - **Cancel is single-sig** - Any owner can emergency-cancel (useful if others unavailable)
 - **Withdraw requires threshold** - Prevents single-key theft
+- **Extend requires threshold** - Extending the lock is a significant security decision requiring M-of-N consensus
 - **Time lock still applies** - Even with multiple signatures, must wait for lock expiry
 - **All 3 keys required for full setup** - Contract always has 3 owner slots
+
+### Extending the Lock Period
+
+The `extend()` function requires M-of-N threshold signatures (same as withdraw). This ensures that extending the lock period is a collective decision, not unilateral.
+
+The function works by:
+1. M-of-3 owners sign the extend transaction
+2. All funds are returned to the first valid signer
+3. Owners coordinate to create a new SafeDelayMultiSig contract with the new `lockEndBlock`
+4. Funds are redeposited into the new contract
