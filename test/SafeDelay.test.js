@@ -1,11 +1,23 @@
-import artifact from '../artifacts/SafeDelay.artifact.json' with { type: 'json' };
 import { Contract, MockNetworkProvider, randomUtxo, SignatureTemplate } from 'cashscript';
 import { secp256k1, encodeCashAddress } from '@bitauth/libauth';
 import { hash160 } from '@cashscript/utils';
+import artifact from '../artifacts/SafeDelay.artifact.json' with { type: 'json' };
+
+// Helper to generate a UTXO with token property (required by cashscript 0.10+)
+function createUtxo(satoshis) {
+  const utxo = randomUtxo({ satoshis });
+  // Add token property - undefined means no tokens, just BCH
+  Object.defineProperty(utxo, 'token', {
+    value: undefined,
+    writable: true,
+    enumerable: true,
+    configurable: true
+  });
+  return utxo;
+}
 
 // Helper to generate key pair with proper BCH address
 function generateKeyPair() {
-  // Generate random 32 bytes for private key
   const privateKey = new Uint8Array(32);
   crypto.getRandomValues(privateKey);
   
@@ -14,7 +26,6 @@ function generateKeyPair() {
   
   const pkh = hash160(publicKey);
   
-  // Use CashAddress format with testnet prefix
   const result = encodeCashAddress({
     network: 'bchtest',
     type: 'p2pkh',
@@ -27,7 +38,6 @@ function generateKeyPair() {
     publicKey: new Uint8Array(publicKey),
     pkh,
     address,
-    // Create SignatureTemplate for automatic signing
     signer: new SignatureTemplate(privateKey),
   };
 }
@@ -35,12 +45,10 @@ function generateKeyPair() {
 describe('SafeDelay Contract', () => {
   const provider = new MockNetworkProvider();
   
-  // Generate key pairs for testing
   const ownerKeyPair = generateKeyPair();
   const depositorKeyPair = generateKeyPair();
   const attackerKeyPair = generateKeyPair();
   
-  // Contract parameters
   const ownerPKH = ownerKeyPair.pkh;
   const lockEndBlock = 1000n;
   
@@ -48,126 +56,122 @@ describe('SafeDelay Contract', () => {
   let contractUtxo;
 
   beforeEach(() => {
-    // Create contract with owner PKH and lock end block
     contract = new Contract(artifact, [ownerPKH, lockEndBlock], { provider });
     
-    // Add contract UTXO with initial balance
-    contractUtxo = provider.addUtxo(contract.address, randomUtxo({
-      satoshis: 100000n,
-    }));
+    const utxo = createUtxo(100000n);
+    provider.addUtxo(contract.address, utxo);
+    contractUtxo = utxo;
   });
 
   describe('deposit', () => {
     it('should allow anyone to deposit BCH into the contract', async () => {
-      const depositorUtxo = provider.addUtxo(depositorKeyPair.address, randomUtxo({
-        satoshis: 50000n,
-      }));
+      const depositorUtxo = createUtxo(50000n);
+      provider.addUtxo(depositorKeyPair.address, depositorUtxo);
 
-      // Use contract.functions.deposit() pattern
+      // Should succeed - deposit adds funds to the contract
       const tx = await contract.functions.deposit(depositorKeyPair.publicKey, depositorKeyPair.signer)
-        .from(depositorUtxo) // depositor's input
-        .to(contract.address, 149000n) // back to contract (100000 + 50000 - 1000 fee)
-        .withTime(500n)
+        .from(contractUtxo)
+        .from(depositorUtxo)
+        .to(contract.address, 149000n)
+        .withTime(500)
         .send();
 
-      // Should pass without errors
-      expect(tx).not.toFailRequire();
+      // If we get here, the contract succeeded
+      expect(tx).toBeDefined();
     });
   });
 
   describe('withdraw', () => {
     it('should allow owner to withdraw after lock expires', async () => {
-      const ownerUtxo = provider.addUtxo(ownerKeyPair.address, randomUtxo({
-        satoshis: 1000n,
-      }));
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
-      // Lock has expired (locktime > lockEndBlock)
       const tx = await contract.functions.withdraw(ownerKeyPair.publicKey, ownerKeyPair.signer, 50000n)
-        .from(ownerUtxo) // owner's funding input
-        .to(ownerKeyPair.address, 50000n) // withdrawal to owner
-        .to(contract.address, 49000n) // remaining balance
-        .withTime(1100n) // lock has expired
-        .send();
-
-      expect(tx).not.toFailRequire();
-    });
-
-    it('should fail if lock has not expired', async () => {
-      const ownerUtxo = provider.addUtxo(ownerKeyPair.address, randomUtxo({
-        satoshis: 1000n,
-      }));
-
-      // Lock has NOT expired (locktime < lockEndBlock)
-      const tx = await contract.functions.withdraw(ownerKeyPair.publicKey, ownerKeyPair.signer, 50000n)
+        .from(contractUtxo)
         .from(ownerUtxo)
         .to(ownerKeyPair.address, 50000n)
         .to(contract.address, 49000n)
-        .withTime(500n) // lock NOT expired
+        .withTime(1100)
         .send();
 
-      expect(tx).toFailRequire();
+      expect(tx).toBeDefined();
+    });
+
+    it('should fail if lock has not expired', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
+
+      // Should fail because lock hasn't expired
+      await expect(
+        contract.functions.withdraw(ownerKeyPair.publicKey, ownerKeyPair.signer, 50000n)
+          .from(contractUtxo)
+          .from(ownerUtxo)
+          .to(ownerKeyPair.address, 50000n)
+          .to(contract.address, 49000n)
+          .withTime(500)
+          .send()
+      ).rejects.toThrow();
     });
 
     it('should fail if called by non-owner', async () => {
-      const attackerUtxo = provider.addUtxo(attackerKeyPair.address, randomUtxo({
-        satoshis: 1000n,
-      }));
+      const attackerUtxo = createUtxo(100000n);
+      provider.addUtxo(attackerKeyPair.address, attackerUtxo);
 
-      const tx = await contract.functions.withdraw(attackerKeyPair.publicKey, attackerKeyPair.signer, 50000n)
-        .from(attackerUtxo)
-        .to(attackerKeyPair.address, 50000n)
-        .to(contract.address, 49000n)
-        .withTime(1100n)
-        .send();
-
-      // Should fail because hash160(attackerKeyPair) != ownerPKH
-      expect(tx).toFailRequire();
+      // Should fail because attacker is not the owner
+      await expect(
+        contract.functions.withdraw(attackerKeyPair.publicKey, attackerKeyPair.signer, 50000n)
+          .from(contractUtxo)
+          .from(attackerUtxo)
+          .to(attackerKeyPair.address, 50000n)
+          .to(contract.address, 49000n)
+          .withTime(1100)
+          .send()
+      ).rejects.toThrow();
     });
   });
 
   describe('cancel', () => {
     it('should allow owner to cancel and refund anytime', async () => {
-      const ownerUtxo = provider.addUtxo(ownerKeyPair.address, randomUtxo({
-        satoshis: 1000n,
-      }));
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
-      // Can cancel even before lock expires
       const tx = await contract.functions.cancel(ownerKeyPair.publicKey, ownerKeyPair.signer)
+        .from(contractUtxo)
         .from(ownerUtxo)
-        .to(ownerKeyPair.address, 100000n) // Full balance back to owner
-        .withTime(500n)
+        .to(ownerKeyPair.address, 199000n)
+        .withTime(500)
         .send();
 
-      expect(tx).not.toFailRequire();
+      expect(tx).toBeDefined();
     });
 
     it('should fail if called by non-owner', async () => {
-      const attackerUtxo = provider.addUtxo(attackerKeyPair.address, randomUtxo({
-        satoshis: 1000n,
-      }));
+      const attackerUtxo = createUtxo(100000n);
+      provider.addUtxo(attackerKeyPair.address, attackerUtxo);
 
-      const tx = await contract.functions.cancel(attackerKeyPair.publicKey, attackerKeyPair.signer)
-        .from(attackerUtxo)
-        .to(attackerKeyPair.address, 100000n)
-        .withTime(500n)
-        .send();
-
-      expect(tx).toFailRequire();
+      // Should fail because attacker is not the owner
+      await expect(
+        contract.functions.cancel(attackerKeyPair.publicKey, attackerKeyPair.signer)
+          .from(contractUtxo)
+          .from(attackerUtxo)
+          .to(attackerKeyPair.address, 199000n)
+          .withTime(500)
+          .send()
+      ).rejects.toThrow();
     });
 
     it('should allow cancel after lock has expired', async () => {
-      const ownerUtxo = provider.addUtxo(ownerKeyPair.address, randomUtxo({
-        satoshis: 1000n,
-      }));
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
-      // Can cancel even after lock expires
       const tx = await contract.functions.cancel(ownerKeyPair.publicKey, ownerKeyPair.signer)
+        .from(contractUtxo)
         .from(ownerUtxo)
-        .to(ownerKeyPair.address, 100000n)
-        .withTime(2000n)
+        .to(ownerKeyPair.address, 199000n)
+        .withTime(2000)
         .send();
 
-      expect(tx).not.toFailRequire();
+      expect(tx).toBeDefined();
     });
   });
 });

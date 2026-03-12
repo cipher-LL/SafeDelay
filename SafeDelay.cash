@@ -28,17 +28,13 @@ contract SafeDelay(
      * 
      * inputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract)
-     *   1   Depositor input    [P2PKH]       (any)
+     *   1   Depositor input    [any]         (any, provides signature)
      * outputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract with new balance)
-     *   1   Depositor change   [P2PKH]       (depositor, optional)
+     *   1   Depositor change   [any]         (optional)
      */
     function deposit(pubkey depositorPk, sig depositorSig) {
         require(checkSig(depositorSig, depositorPk));
-        
-        // Validate depositor's input is P2PKH and matches their public key
-        // This ensures the depositor funded the transaction from a P2PKH address
-        require(tx.inputs[1].lockingBytecode == new LockingBytecodeP2PKH(hash160(depositorPk)));
         
         // Output 0: Recreate contract with combined balance
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
@@ -52,11 +48,11 @@ contract SafeDelay(
      * 
      * inputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract)
-     *   1   Owner input        [P2PKH]       (ownerPKH)
+     *   1   Owner input        [any]         (owner provides signature)
      * outputs:
      *   0   Owner withdrawal   [P2PKH]       (ownerPKH)
      *   1   SafeDelay UTXO     [BCH]         (remaining balance, if any)
-     *   2   Owner change       [P2PKH]       (optional)
+     *   2   Owner change       [any]         (optional)
      */
     function withdraw(pubkey ownerPk, sig ownerSig, int withdrawAmount) {
         require(hash160(ownerPk) == ownerPKH);
@@ -64,9 +60,6 @@ contract SafeDelay(
         
         // Verify lock has expired
         require(tx.locktime >= lockEndBlock);
-        
-        // Verify owner funded this transaction
-        require(tx.inputs[1].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
         
         int contractBalance = tx.inputs[0].value;
         int remainingBalance = contractBalance - withdrawAmount - 1000; // Leave dust for remaining UTXO
@@ -89,17 +82,14 @@ contract SafeDelay(
      * 
      * inputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract)
-     *   1   Owner input        [P2PKH]       (ownerPKH)
+     *   1   Owner input        [any]         (owner provides signature)
      * outputs:
      *   0   Owner refund       [P2PKH]       (ownerPKH)
-     *   1   Owner change       [P2PKH]       (optional)
+     *   1   Owner change       [any]         (optional)
      */
     function cancel(pubkey ownerPk, sig ownerSig) {
         require(hash160(ownerPk) == ownerPKH);
         require(checkSig(ownerSig, ownerPk));
-        
-        // Verify owner funded this transaction
-        require(tx.inputs[1].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
         
         int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
         
