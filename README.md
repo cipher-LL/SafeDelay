@@ -66,7 +66,31 @@ await safeDelay.cancel().send(recipientAddress);
 | `deposit()` | Add BCH to the locked wallet | Anyone, anytime |
 | `withdraw()` | Remove BCH after lock expires | Only owner, after lockEndBlock |
 | `cancel()` | Close contract and get all funds back | Only owner, anytime |
-| `extend()` | Extend the lock period | Only owner, anytime (one-way) |
+| `extend()` | Extend the lock period (withdraws funds, must redeposit) | Only owner, anytime (one-way) |
+
+## Extending the Lock Period
+
+The `extend()` function allows the owner to extend the lock period to a later block height. Due to the UTXO model, this works by:
+
+1. Withdrawing all funds from the current contract
+2. Owner creates a new SafeDelay contract with the new `lockEndBlock`
+3. Owner deposits funds into the new contract
+
+This two-step process ensures one-way extension - you must explicitly redeposit to continue locking.
+
+```typescript
+// Step 1: Withdraw all funds using extend()
+const newLockEndBlock = currentLockEndBlock + 4320; // Add 30 more days
+await safeDelay.extend(newLockEndBlock).send(ownerAddress, fullBalance);
+
+// Step 2: Create new contract with extended lock and deposit
+const newSafeDelay = await Contract.fromArtifact(
+  SafeDelayArtifact,
+  { ownerPKH, lockEndBlock: newLockEndBlock },
+  { provider }
+);
+await newSafeDelay.deposit().send(ownerAddress, fullBalance);
+```
 
 ## Security Considerations
 

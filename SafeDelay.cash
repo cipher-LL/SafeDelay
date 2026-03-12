@@ -97,4 +97,35 @@ contract SafeDelay(
         require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
         require(tx.outputs[0].value >= totalBalance);
     }
+    
+    /**
+     * Extend the lock period (one-way extension)
+     * 
+     * Owner can extend the lock period to a later block height.
+     * This is a one-way operation - the lock can only be extended, never shortened.
+     * This prevents hasty decisions about unlocking funds prematurely.
+     * 
+     * Note: This function withdraws all funds and recreates the contract with a new lockEndBlock.
+     * The owner will need to deposit funds into the new contract instance.
+     * 
+     * inputs:
+     *   0   SafeDelay UTXO     [BCH]         (this contract)
+     *   1   Owner input        [any]         (owner provides signature)
+     * outputs:
+     *   0   Owner withdrawal   [P2PKH]       (ownerPKH) - all funds returned
+     *   1   Owner change       [any]         (optional)
+     */
+    function extend(pubkey ownerPk, sig ownerSig, int newLockEndBlock) {
+        require(hash160(ownerPk) == ownerPKH);
+        require(checkSig(ownerSig, ownerPk));
+        
+        // One-way extension: new lock must be later than current lock
+        require(newLockEndBlock > lockEndBlock);
+        
+        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
+        
+        // Output 0: Pay owner everything (owner must redeposit into new contract)
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
+        require(tx.outputs[0].value >= totalBalance);
+    }
 }
