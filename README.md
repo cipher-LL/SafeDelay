@@ -39,6 +39,47 @@ SafeDelay is a time-locked wallet where funds can only be withdrawn after a spec
 npm install safedelay
 ```
 
+### TypeScript Support
+
+This package includes TypeScript type definitions. Import types directly:
+
+```typescript
+// Import contract types
+import {
+  SafeDelayArtifact,
+  SafeDelayConfig,
+  SafeDelayUtxo,
+  SafeDelayEvent,
+  SafeDelayMultiSigArtifact,
+  SafeDelayMultiSigConfig,
+  SafeDelayMultiSigUtxo,
+  calculateLockBlocks,
+  isLockExpired
+} from 'safedelay';
+
+// Or import just the types
+import type {
+  SafeDelayConfig,
+  SafeDelayUtxo,
+  WithdrawParams,
+  DepositParams,
+  CancelParams
+} from 'safedelay/types';
+
+// Type-safe contract configuration
+const config: SafeDelayConfig = {
+  ownerPublicKeyHash: 'your_40_char_hex_pkh',
+  lockEndBlock: 850000
+};
+
+// Type-safe function parameters
+const withdrawParams = {
+  ownerPrivateKey: 'WIF_private_key',
+  ownerAddress: 'cash_address',
+  withdrawAmount: 100000n // bigint for satoshis
+};
+```
+
 ### Basic Example
 
 ```typescript

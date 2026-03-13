@@ -50,9 +50,74 @@ export interface SafeDelayUtxo extends Utxo {
 }
 
 /**
- * Contract artifact interface (from compiled .json artifact)
+ * Configuration for deploying SafeDelayMultiSig contract
  */
-export interface SafeDelayArtifact {
+export interface SafeDelayMultiSigConfig {
+  owner1: string;    // 40 hex chars (20 bytes) - first owner's p2pkh address without prefix
+  owner2: string;    // 40 hex chars (20 bytes) - second owner's p2pkh address without prefix
+  owner3: string;    // 40 hex chars (20 bytes) - third owner's p2pkh address without prefix
+  threshold: number; // Required signatures (2 or 3)
+  lockEndBlock: number; // Block height when lock expires
+}
+
+/**
+ * Parameters for SafeDelayMultiSig deposit function
+ */
+export interface SafeDelayMultiSigDepositParams {
+  depositorPrivateKey: string;  // WIF format
+  depositorAddress: string;     // CashAddress format
+}
+
+/**
+ * Parameters for SafeDelayMultiSig withdraw function
+ * Requires M-of-N signatures from the 3 owners
+ */
+export interface SafeDelayMultiSigWithdrawParams {
+  privateKey1: string;     // WIF format - must be owner1
+  privateKey2: string;     // WIF format - can be owner2 or owner3
+  privateKey3: string;     // WIF format - can be owner2 or owner3
+  owner1Address: string;  // CashAddress format for owner1
+  withdrawAmount: bigint; // Amount in satoshis
+}
+
+/**
+ * Parameters for SafeDelayMultiSig cancel function
+ * Any single owner can cancel anytime
+ */
+export interface SafeDelayMultiSigCancelParams {
+  ownerPrivateKey: string;  // WIF format - any of the 3 owners
+  ownerAddress: string;     // CashAddress format
+}
+
+/**
+ * Parameters for SafeDelayMultiSig extend function
+ * Requires M-of-N signatures
+ */
+export interface SafeDelayMultiSigExtendParams {
+  privateKey1: string;      // WIF format - must be owner1
+  privateKey2: string;      // WIF format - can be owner2 or owner3
+  privateKey3: string;      // WIF format - can be owner2 or owner3
+  owner1Address: string;    // CashAddress format for owner1
+  newLockEndBlock: number;  // New lock end block (must be > current)
+}
+
+/**
+ * SafeDelayMultiSig UTXO with metadata
+ */
+export interface SafeDelayMultiSigUtxo extends Utxo {
+  safeDelayMultiSigData: {
+    owner1: string;
+    owner2: string;
+    owner3: string;
+    threshold: number;
+    lockEndBlock: number;
+  };
+}
+
+/**
+ * Contract artifact interface for SafeDelayMultiSig
+ */
+export interface SafeDelayMultiSigArtifact {
   name: string;
   constructorInputs: Array<{
     name: string;
@@ -66,6 +131,9 @@ export interface SafeDelayArtifact {
       inputs: Array<{ name: string; type: string }>;
     };
     cancel: {
+      inputs: Array<{ name: string; type: string }>;
+    };
+    extend: {
       inputs: Array<{ name: string; type: string }>;
     };
   };
