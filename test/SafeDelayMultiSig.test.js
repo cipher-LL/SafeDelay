@@ -92,6 +92,7 @@ describe('SafeDelayMultiSig Contract', () => {
         owner1.publicKey, owner1.signer,
         owner2.publicKey, owner2.signer,
         owner3.publicKey, owner3.signer,
+        owner1.pkh,
         100000n
       )
         .from(contractUtxo)
@@ -116,6 +117,7 @@ describe('SafeDelayMultiSig Contract', () => {
         owner1.publicKey, owner1.signer,
         owner2.publicKey, owner2.signer,
         owner3.publicKey, owner3.signer,
+        owner1.pkh,
         100000n
       )
         .from(utxo3of3)
@@ -137,6 +139,7 @@ describe('SafeDelayMultiSig Contract', () => {
           owner1.publicKey, owner1.signer,
           owner2.publicKey, owner2.signer,
           owner3.publicKey, owner3.signer,
+          owner1.pkh,
           100000n
         )
           .from(contractUtxo)
@@ -157,6 +160,7 @@ describe('SafeDelayMultiSig Contract', () => {
           owner1.publicKey, owner1.signer,
           owner1.publicKey, owner1.signer,
           owner1.publicKey, owner1.signer,
+          owner1.pkh,
           100000n
         )
           .from(contractUtxo)
@@ -177,6 +181,7 @@ describe('SafeDelayMultiSig Contract', () => {
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
+          owner1.pkh,
           100000n
         )
           .from(contractUtxo)
@@ -197,7 +202,8 @@ describe('SafeDelayMultiSig Contract', () => {
       const tx = await contract.functions.cancel(
         owner1.publicKey, owner1.signer,
         owner2.publicKey, owner2.signer,
-        owner3.publicKey, owner3.signer
+        owner3.publicKey, owner3.signer,
+        owner1.pkh
       )
         .from(contractUtxo)
         .from(ownerUtxo)
@@ -216,7 +222,8 @@ describe('SafeDelayMultiSig Contract', () => {
         contract.functions.cancel(
           owner1.publicKey, owner1.signer,
           attacker.publicKey, attacker.signer,
-          attacker.publicKey, attacker.signer
+          attacker.publicKey, attacker.signer,
+          owner1.pkh
         )
           .from(contractUtxo)
           .from(ownerUtxo)
@@ -234,7 +241,8 @@ describe('SafeDelayMultiSig Contract', () => {
         contract.functions.cancel(
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
-          attacker.publicKey, attacker.signer
+          attacker.publicKey, attacker.signer,
+          owner1.pkh
         )
           .from(contractUtxo)
           .from(attackerUtxo)

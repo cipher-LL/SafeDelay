@@ -26,11 +26,13 @@ contract SafeDelayMultiSig(
     /**
      * Withdraw funds after lock expires - requires M-of-N signatures
      * pk1 must be owner1, pk2/pk3 can be any of the other owners
+     * Funds are sent to the specified recipient (must be one of the owners)
      */
     function withdraw(
         pubkey pk1, sig sig1,
         pubkey pk2, sig sig2,
         pubkey pk3, sig sig3,
+        bytes20 recipient,
         int withdrawAmount
     ) {
         int validSigs = 0;
@@ -61,8 +63,11 @@ contract SafeDelayMultiSig(
         require(validSigs >= threshold);
         require(tx.locktime >= lockEndBlock);
         
-        // Verify first output pays the withdrawal amount to owner1
-        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(owner1));
+        // Recipient must be one of the owners
+        require(recipient == owner1 || recipient == owner2 || recipient == owner3);
+        
+        // Verify first output pays the withdrawal amount to the recipient
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipient));
         require(tx.outputs[0].value >= withdrawAmount);
         
         // If there's a second output, it should be the contract (remaining balance)
@@ -73,11 +78,13 @@ contract SafeDelayMultiSig(
     
     /**
      * Cancel and refund - requires M-of-N signatures
+     * Funds are sent to the specified recipient (must be one of the owners)
      */
     function cancel(
         pubkey pk1, sig sig1,
         pubkey pk2, sig sig2,
-        pubkey pk3, sig sig3
+        pubkey pk3, sig sig3,
+        bytes20 recipient
     ) {
         int validSigs = 0;
         
@@ -106,8 +113,8 @@ contract SafeDelayMultiSig(
         
         require(validSigs >= threshold);
         
-        // Cancel sends all funds to owner1 immediately (no time lock)
-        // Just verify the first output goes to owner1
-        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(owner1));
+        // Cancel sends all funds to the specified recipient (any P2PKH address)
+        // The 2-of-3 signatures already prove authorization
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipient));
     }
 }
