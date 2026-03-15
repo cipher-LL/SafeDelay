@@ -1,0 +1,142 @@
+pragma cashscript ^0.12.0;
+
+/**
+ * SafeDelayMultiSig - Multi-Signature Time-locked Wallet Contract
+ * 
+ * A time-locked wallet requiring multiple signatures to withdraw or cancel.
+ * Useful for family wallets, business savings, or emergency funds with trusted co-signers.
+ * 
+ * How it works:
+ * - Owners create contract with a lock duration and required signature threshold
+ * - Funds are locked until lockEndBlock
+ * - After lock expires, threshold signatures can withdraw
+ * - Cancel requires threshold signatures (returns funds immediately)
+ * 
+ * Security model:
+ * - Multiple owners (up to 3)
+ * - Configurable threshold (e.g., 2 of 3)
+ * - Time-lock enforced on withdraw
+ * - Cancel bypasses time-lock but requires threshold signatures
+ */
+contract SafeDelayMultiSig(
+    bytes20 owner1,
+    bytes20 owner2,
+    bytes20 owner3,
+    int requiredSigs,
+    int lockEndBlock
+) {
+    /**
+     * Deposit funds into the time-locked wallet
+     * 
+     * Anyone can deposit BCH. Extends the lock but keeps existing lockEndBlock.
+     */
+    function deposit(pubkey depositorPk, sig depositorSig) {
+        require(checkSig(depositorSig, depositorPk));
+        
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);
+    }
+    
+    /**
+     * Withdraw funds after lock expires
+     * 
+     * Requires threshold signatures, and only after lockEndBlock has passed.
+     * 
+     * inputs:
+     *   0 SafeDelayMultiSig UTXO  [BCH]
+     *   1 Owner input 1            [any]
+     *   2 Owner input 2           [any]
+     *   3 Owner input 3           [any]
+     * outputs:
+     *   0 Owner withdrawal        [P2PKH]
+     *   1 SafeDelayMultiSig UTXO  [BCH]    (remaining)
+     *   2 Owner change             [any]
+     */
+    function withdraw(
+        pubkey pk1, sig s1,
+        pubkey pk2, sig s2,
+        pubkey pk3, sig s3,
+        int withdrawAmount,
+        bytes20 recipientPKH
+    ) {
+        int sigCount = 0;
+        
+        bytes20 pkh1 = hash160(pk1);
+        bytes20 pkh2 = hash160(pk2);
+        bytes20 pkh3 = hash160(pk3);
+        
+        if (pkh1 == owner1 || pkh1 == owner2 || pkh1 == owner3) {
+            require(checkSig(s1, pk1));
+            sigCount = sigCount + 1;
+        }
+        if (pkh2 == owner1 || pkh2 == owner2 || pkh2 == owner3) {
+            require(checkSig(s2, pk2));
+            sigCount = sigCount + 1;
+        }
+        if (pkh3 == owner1 || pkh3 == owner2 || pkh3 == owner3) {
+            require(checkSig(s3, pk3));
+            sigCount = sigCount + 1;
+        }
+        
+        require(sigCount >= requiredSigs);
+        require(tx.locktime >= lockEndBlock);
+        
+        int contractBalance = tx.inputs[0].value;
+        int remainingBalance = contractBalance - withdrawAmount - 1000;
+        
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipientPKH));
+        require(tx.outputs[0].value >= withdrawAmount);
+        
+        if (remainingBalance > 1000) {
+            require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);
+            require(tx.outputs[1].value == remainingBalance);
+        }
+    }
+    
+    /**
+     * Cancel and refund - requires threshold signatures
+     * 
+     * All owners get all funds back immediately (bypasses time lock).
+     * Uses up to 3 owner inputs. Pass owner pubkeys that match the contract owners.
+     * 
+     * inputs:
+     *   0 SafeDelayMultiSig UTXO  [BCH]
+     *   1+ Owner inputs            [any]
+     * outputs:
+     *   0 Owner refund           [P2PKH]
+     *   1 Owner change           [any]
+     */
+    function cancel(
+        pubkey pk1, sig s1,
+        pubkey pk2, sig s2,
+        pubkey pk3, sig s3,
+        bytes20 recipientPKH
+    ) {
+        int sigCount = 0;
+        
+        bytes20 pkh1 = hash160(pk1);
+        bytes20 pkh2 = hash160(pk2);
+        bytes20 pkh3 = hash160(pk3);
+        
+        if (pkh1 == owner1 || pkh1 == owner2 || pkh1 == owner3) {
+            require(checkSig(s1, pk1));
+            sigCount = sigCount + 1;
+        }
+        if (pkh2 == owner1 || pkh2 == owner2 || pkh2 == owner3) {
+            require(checkSig(s2, pk2));
+            sigCount = sigCount + 1;
+        }
+        if (pkh3 == owner1 || pkh3 == owner2 || pkh3 == owner3) {
+            require(checkSig(s3, pk3));
+            sigCount = sigCount + 1;
+        }
+        
+        require(sigCount >= requiredSigs);
+        
+        // Total from contract UTXO only (owner inputs may be empty)
+        int totalBalance = tx.inputs[0].value - 1000;
+        
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipientPKH));
+        require(tx.outputs[0].value >= totalBalance);
+    }
+}
