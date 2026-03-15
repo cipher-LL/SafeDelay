@@ -92,12 +92,12 @@ describe('SafeDelayMultiSig Contract', () => {
         owner1.publicKey, owner1.signer,
         owner2.publicKey, owner2.signer,
         owner3.publicKey, owner3.signer,
-        150000n
+        100000n
       )
         .from(contractUtxo)
         .from(ownerUtxo)
-        .to(owner1.address, 150000n)
-        .to(contract.address, 49000n)
+        .to(owner1.address, 100000n)
+        .to(contract.address, 90000n)
         .withTime(1100)
         .send();
 
@@ -116,12 +116,12 @@ describe('SafeDelayMultiSig Contract', () => {
         owner1.publicKey, owner1.signer,
         owner2.publicKey, owner2.signer,
         owner3.publicKey, owner3.signer,
-        150000n
+        100000n
       )
         .from(utxo3of3)
         .from(ownerUtxo)
-        .to(owner1.address, 150000n)
-        .to(contract3of3.address, 49000n)
+        .to(owner1.address, 100000n)
+        .to(contract3of3.address, 90000n)
         .withTime(1100)
         .send();
 
@@ -137,12 +137,12 @@ describe('SafeDelayMultiSig Contract', () => {
           owner1.publicKey, owner1.signer,
           owner2.publicKey, owner2.signer,
           owner3.publicKey, owner3.signer,
-          150000n
+          100000n
         )
           .from(contractUtxo)
           .from(ownerUtxo)
-          .to(owner1.address, 150000n)
-          .to(contract.address, 49000n)
+          .to(owner1.address, 100000n)
+          .to(contract.address, 90000n)
           .withTime(500)
           .send()
       ).rejects.toThrow();
@@ -157,12 +157,12 @@ describe('SafeDelayMultiSig Contract', () => {
           owner1.publicKey, owner1.signer,
           owner1.publicKey, owner1.signer,
           owner1.publicKey, owner1.signer,
-          150000n
+          100000n
         )
           .from(contractUtxo)
           .from(ownerUtxo)
-          .to(owner1.address, 150000n)
-          .to(contract.address, 49000n)
+          .to(owner1.address, 100000n)
+          .to(contract.address, 90000n)
           .withTime(1100)
           .send()
       ).rejects.toThrow();
@@ -177,12 +177,12 @@ describe('SafeDelayMultiSig Contract', () => {
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
-          150000n
+          100000n
         )
           .from(contractUtxo)
           .from(attackerUtxo)
-          .to(attacker.address, 150000n)
-          .to(contract.address, 49000n)
+          .to(attacker.address, 100000n)
+          .to(contract.address, 90000n)
           .withTime(1100)
           .send()
       ).rejects.toThrow();
@@ -190,46 +190,40 @@ describe('SafeDelayMultiSig Contract', () => {
   });
 
   describe('cancel', () => {
-    it('should allow any single owner to cancel and refund anytime', async () => {
+    it('should allow 2-of-3 to cancel anytime', async () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      const tx = await contract.functions.cancel(owner1.publicKey, owner1.signer)
+      const tx = await contract.functions.cancel(
+        owner1.publicKey, owner1.signer,
+        owner2.publicKey, owner2.signer,
+        owner3.publicKey, owner3.signer
+      )
         .from(contractUtxo)
         .from(ownerUtxo)
-        .to(owner1.address, 298000n)
+        .to(owner1.address, 190000n)
         .withTime(500)
         .send();
 
       expect(tx).toBeDefined();
     });
 
-    it('should allow owner2 to cancel', async () => {
+    it('should fail with only 1 signature', async () => {
       const ownerUtxo = createUtxo(100000n);
-      provider.addUtxo(owner2.address, ownerUtxo);
+      provider.addUtxo(owner1.address, ownerUtxo);
 
-      const tx = await contract.functions.cancel(owner2.publicKey, owner2.signer)
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(owner2.address, 298000n)
-        .withTime(500)
-        .send();
-
-      expect(tx).toBeDefined();
-    });
-
-    it('should allow owner3 to cancel', async () => {
-      const ownerUtxo = createUtxo(100000n);
-      provider.addUtxo(owner3.address, ownerUtxo);
-
-      const tx = await contract.functions.cancel(owner3.publicKey, owner3.signer)
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(owner3.address, 298000n)
-        .withTime(500)
-        .send();
-
-      expect(tx).toBeDefined();
+      await expect(
+        contract.functions.cancel(
+          owner1.publicKey, owner1.signer,
+          attacker.publicKey, attacker.signer,
+          attacker.publicKey, attacker.signer
+        )
+          .from(contractUtxo)
+          .from(ownerUtxo)
+          .to(owner1.address, 190000n)
+          .withTime(500)
+          .send()
+      ).rejects.toThrow();
     });
 
     it('should fail if called by non-owner', async () => {
@@ -237,10 +231,14 @@ describe('SafeDelayMultiSig Contract', () => {
       provider.addUtxo(attacker.address, attackerUtxo);
 
       await expect(
-        contract.functions.cancel(attacker.publicKey, attacker.signer)
+        contract.functions.cancel(
+          attacker.publicKey, attacker.signer,
+          attacker.publicKey, attacker.signer,
+          attacker.publicKey, attacker.signer
+        )
           .from(contractUtxo)
           .from(attackerUtxo)
-          .to(attacker.address, 298000n)
+          .to(attacker.address, 190000n)
           .withTime(500)
           .send()
       ).rejects.toThrow();

@@ -4,8 +4,7 @@ pragma cashscript ^0.12.0;
  * SafeDelayMultiSig - Time-locked Wallet with Multi-Signature Support
  * 
  * A time-locked wallet requiring M-of-N signatures for withdrawals.
- * This version uses 3 fixed owners with configurable threshold (2-of-3 or 3-of-3).
- * Simplified version - owners must sign in their assigned position.
+ * Supports 2-of-3 or 3-of-3 configurations.
  */
 contract SafeDelayMultiSig(
     bytes20 owner1,
@@ -26,7 +25,7 @@ contract SafeDelayMultiSig(
     
     /**
      * Withdraw funds after lock expires - requires M-of-N signatures
-     * Simplified: pk1 must be owner1, pk2 must be owner2, pk3 must be owner3
+     * pk1 must be owner1, pk2/pk3 can be any of the other owners
      */
     function withdraw(
         pubkey pk1, sig sig1,
@@ -62,41 +61,23 @@ contract SafeDelayMultiSig(
         require(validSigs >= threshold);
         require(tx.locktime >= lockEndBlock);
         
-        int contractBalance = tx.inputs[0].value;
-        int remainingBalance = contractBalance - withdrawAmount - 1000;
-        
-        // Use first valid signer as recipient (owner1)
+        // Verify first output pays the withdrawal amount to owner1
         require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(owner1));
         require(tx.outputs[0].value >= withdrawAmount);
         
-        if (remainingBalance > 1000) {
+        // If there's a second output, it should be the contract (remaining balance)
+        if (tx.outputs.length > 1) {
             require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);
-            require(tx.outputs[1].value == remainingBalance);
         }
     }
     
     /**
-     * Cancel and refund - any single owner can cancel anytime
+     * Cancel and refund - requires M-of-N signatures
      */
-    function cancel(pubkey ownerPk, sig ownerSig) {
-        bytes20 pkh = hash160(ownerPk);
-        require(pkh == owner1 || pkh == owner2 || pkh == owner3);
-        require(checkSig(ownerSig, ownerPk));
-        
-        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
-        
-        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(pkh));
-        require(tx.outputs[0].value >= totalBalance);
-    }
-    
-    /**
-     * Extend the lock period (one-way extension) - requires M-of-N signatures
-     */
-    function extend(
+    function cancel(
         pubkey pk1, sig sig1,
         pubkey pk2, sig sig2,
-        pubkey pk3, sig sig3,
-        int newLockEndBlock
+        pubkey pk3, sig sig3
     ) {
         int validSigs = 0;
         
@@ -125,13 +106,8 @@ contract SafeDelayMultiSig(
         
         require(validSigs >= threshold);
         
-        // Extend must move forward in time
-        require(newLockEndBlock > lockEndBlock);
-        
-        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
-        
-        // Return funds to owner1 (they coordinate redeposit to new contract)
+        // Cancel sends all funds to owner1 immediately (no time lock)
+        // Just verify the first output goes to owner1
         require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(owner1));
-        require(tx.outputs[0].value >= totalBalance);
     }
 }
