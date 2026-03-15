@@ -1,45 +1,40 @@
 {
   "name": "safedelay",
   "version": "1.0.0",
+  "private": true,
   "description": "Time-locked wallet smart contract for Bitcoin Cash",
   "type": "module",
-  "exports": {
-    ".": {
-      "types": "./src/types/index.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
-    "./types": "./src/types/index.ts",
-    "./artifacts/SafeDelay": "./artifacts/SafeDelay.artifact.json",
-    "./artifacts/SafeDelayMultiSig": "./artifacts/SafeDelayMultiSig.artifact.json"
-  },
-  "files": [
-    "artifacts/",
-    "dist/",
-    "src/"
-  ],
   "scripts": {
-    "build": "tsc",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
     "compile": "cashc src/SafeDelay.cash --hex --output dist/",
+    "compile:contracts": "cashc src/*.cash --hex --output dist/",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.json"
   },
-  "keywords": [
-    "cashscript",
-    "bitcoin-cash",
-    "smart-contract",
-    "timelock",
-    "wallet"
-  ],
-  "author": "Lifestone Labs",
-  "license": "MIT",
   "dependencies": {
-    "cashscript": "^0.10.5"
+    "@bitauth/libauth": "^3.0.0",
+    "@electrum-cash/network": "^4.2.1",
+    "@reown/appkit": "1.8.14",
+    "@reown/appkit-common": "1.8.14",
+    "@walletconnect/sign-client": "~2.23.0",
+    "@walletconnect/types": "^2.23.0",
+    "@walletconnect/universal-provider": "~2.23.0",
+    "cashscript": "^0.10.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "styled-components": "^6.3.6"
   },
   "devDependencies": {
     "@bitauth/libauth": "^3.0.0",
     "@cashscript/utils": "^0.12.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/styled-components": "^5.1.36",
+    "@vitejs/plugin-react": "^4.3.0",
     "cashc": "^0.12.1",
     "jest": "^30.3.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vite": "^6.3.0"
   }
 }
