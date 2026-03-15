@@ -7,7 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "compile": "cashc src/SafeDelay.cash --hex --output dist/",
+    "compile": "cashc src/SafeDelay.cash --hex --output artifacts/",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.json"
   },
   "keywords": [
@@ -20,7 +20,7 @@
   "author": "Lifestone Labs",
   "license": "MIT",
   "dependencies": {
-    "cashscript": "^0.10.5"
+    "cashscript": "^0.12.1"
   },
   "devDependencies": {
     "@bitauth/libauth": "^3.0.0",
