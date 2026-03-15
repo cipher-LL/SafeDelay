@@ -139,4 +139,52 @@ contract SafeDelayMultiSig(
         require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipientPKH));
         require(tx.outputs[0].value >= totalBalance);
     }
+    
+    /**
+     * Extend the lock period (one way extension)
+     * 
+     * Requires threshold signatures. New lock must be later than current lock.
+     * This function withdraws all funds. Owners must redeposit into new contract.
+     * 
+     * inputs:
+     *   0 SafeDelayMultiSig UTXO  [BCH]
+     *   1+ Owner inputs            [any]
+     * outputs:
+     *   0 Owner withdrawal        [P2PKH]
+     *   1 Owner change           [any]
+     */
+    function extend(
+        pubkey pk1, sig s1,
+        pubkey pk2, sig s2,
+        pubkey pk3, sig s3,
+        int newLockEndBlock,
+        bytes20 recipientPKH
+    ) {
+        int sigCount = 0;
+        
+        bytes20 pkh1 = hash160(pk1);
+        bytes20 pkh2 = hash160(pk2);
+        bytes20 pkh3 = hash160(pk3);
+        
+        if (pkh1 == owner1 || pkh1 == owner2 || pkh1 == owner3) {
+            require(checkSig(s1, pk1));
+            sigCount = sigCount + 1;
+        }
+        if (pkh2 == owner1 || pkh2 == owner2 || pkh2 == owner3) {
+            require(checkSig(s2, pk2));
+            sigCount = sigCount + 1;
+        }
+        if (pkh3 == owner1 || pkh3 == owner2 || pkh3 == owner3) {
+            require(checkSig(s3, pk3));
+            sigCount = sigCount + 1;
+        }
+        
+        require(sigCount >= requiredSigs);
+        require(newLockEndBlock > lockEndBlock);
+        
+        int totalBalance = tx.inputs[0].value - 1000;
+        
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipientPKH));
+        require(tx.outputs[0].value >= totalBalance);
+    }
 }

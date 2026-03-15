@@ -1,0 +1,261 @@
+{
+  "contractName": "SafeDelayMultiSig",
+  "constructorInputs": [
+    {
+      "name": "owner1",
+      "type": "bytes20"
+    },
+    {
+      "name": "owner2",
+      "type": "bytes20"
+    },
+    {
+      "name": "owner3",
+      "type": "bytes20"
+    },
+    {
+      "name": "requiredSigs",
+      "type": "int"
+    },
+    {
+      "name": "lockEndBlock",
+      "type": "int"
+    }
+  ],
+  "abi": [
+    {
+      "name": "deposit",
+      "inputs": [
+        {
+          "name": "depositorPk",
+          "type": "pubkey"
+        },
+        {
+          "name": "depositorSig",
+          "type": "sig"
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "inputs": [
+        {
+          "name": "pk1",
+          "type": "pubkey"
+        },
+        {
+          "name": "s1",
+          "type": "sig"
+        },
+        {
+          "name": "pk2",
+          "type": "pubkey"
+        },
+        {
+          "name": "s2",
+          "type": "sig"
+        },
+        {
+          "name": "pk3",
+          "type": "pubkey"
+        },
+        {
+          "name": "s3",
+          "type": "sig"
+        },
+        {
+          "name": "withdrawAmount",
+          "type": "int"
+        },
+        {
+          "name": "recipientPKH",
+          "type": "bytes20"
+        }
+      ]
+    },
+    {
+      "name": "cancel",
+      "inputs": [
+        {
+          "name": "pk1",
+          "type": "pubkey"
+        },
+        {
+          "name": "s1",
+          "type": "sig"
+        },
+        {
+          "name": "pk2",
+          "type": "pubkey"
+        },
+        {
+          "name": "s2",
+          "type": "sig"
+        },
+        {
+          "name": "pk3",
+          "type": "pubkey"
+        },
+        {
+          "name": "s3",
+          "type": "sig"
+        },
+        {
+          "name": "recipientPKH",
+          "type": "bytes20"
+        }
+      ]
+    },
+    {
+      "name": "extend",
+      "inputs": [
+        {
+          "name": "pk1",
+          "type": "pubkey"
+        },
+        {
+          "name": "s1",
+          "type": "sig"
+        },
+        {
+          "name": "pk2",
+          "type": "pubkey"
+        },
+        {
+          "name": "s2",
+          "type": "sig"
+        },
+        {
+          "name": "pk3",
+          "type": "pubkey"
+        },
+        {
+          "name": "s3",
+          "type": "sig"
+        },
+        {
+          "name": "newLockEndBlock",
+          "type": "int"
+        },
+        {
+          "name": "recipientPKH",
+          "type": "bytes20"
+        }
+      ]
+    }
+  ],
+  "bytecode": "OP_5 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_7 OP_ROLL OP_7 OP_ROLL OP_CHECKSIGVERIFY OP_0 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_NUMEQUALVERIFY OP_2DROP OP_2DROP OP_2DROP OP_1 OP_ELSE OP_5 OP_PICK OP_1 OP_NUMEQUAL OP_IF OP_0 OP_7 OP_PICK OP_HASH160 OP_10 OP_PICK OP_HASH160 OP_13 OP_PICK OP_HASH160 OP_2 OP_PICK OP_5 OP_PICK OP_EQUAL OP_3 OP_PICK OP_7 OP_PICK OP_EQUAL OP_BOOLOR OP_3 OP_ROLL OP_7 OP_PICK OP_EQUAL OP_BOOLOR OP_IF OP_10 OP_PICK OP_10 OP_PICK OP_CHECKSIGVERIFY OP_2 OP_PICK OP_1ADD OP_3 OP_ROLL OP_DROP OP_SWAP OP_TOALTSTACK OP_SWAP OP_FROMALTSTACK OP_ENDIF OP_OVER OP_4 OP_PICK OP_EQUAL OP_2 OP_PICK OP_6 OP_PICK OP_EQUAL OP_BOOLOR OP_ROT OP_6 OP_PICK OP_EQUAL OP_BOOLOR OP_IF OP_11 OP_PICK OP_11 OP_PICK OP_CHECKSIGVERIFY OP_OVER OP_1ADD OP_ROT OP_DROP OP_SWAP OP_ENDIF OP_DUP OP_3 OP_ROLL OP_EQUAL OP_OVER OP_4 OP_ROLL OP_EQUAL OP_BOOLOR OP_SWAP OP_3 OP_ROLL OP_EQUAL OP_BOOLOR OP_IF OP_9 OP_PICK OP_9 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ENDIF OP_LESSTHANOREQUAL OP_VERIFY OP_TXLOCKTIME OP_LESSTHANOREQUAL OP_VERIFY OP_0 OP_UTXOVALUE OP_8 OP_PICK OP_SUB e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_11 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_9 OP_ROLL OP_GREATERTHANOREQUAL OP_VERIFY OP_DUP e803 OP_GREATERTHAN OP_IF OP_1 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_1 OP_OUTPUTVALUE OP_OVER OP_NUMEQUALVERIFY OP_ENDIF OP_2DROP OP_2DROP OP_2DROP OP_2DROP OP_1 OP_ELSE OP_5 OP_PICK OP_2 OP_NUMEQUAL OP_IF OP_0 OP_7 OP_PICK OP_HASH160 OP_10 OP_PICK OP_HASH160 OP_13 OP_PICK OP_HASH160 OP_2 OP_PICK OP_5 OP_PICK OP_EQUAL OP_3 OP_PICK OP_7 OP_PICK OP_EQUAL OP_BOOLOR OP_3 OP_ROLL OP_7 OP_PICK OP_EQUAL OP_BOOLOR OP_IF OP_10 OP_PICK OP_10 OP_PICK OP_CHECKSIGVERIFY OP_2 OP_PICK OP_1ADD OP_3 OP_ROLL OP_DROP OP_SWAP OP_TOALTSTACK OP_SWAP OP_FROMALTSTACK OP_ENDIF OP_OVER OP_4 OP_PICK OP_EQUAL OP_2 OP_PICK OP_6 OP_PICK OP_EQUAL OP_BOOLOR OP_ROT OP_6 OP_PICK OP_EQUAL OP_BOOLOR OP_IF OP_11 OP_PICK OP_11 OP_PICK OP_CHECKSIGVERIFY OP_OVER OP_1ADD OP_ROT OP_DROP OP_SWAP OP_ENDIF OP_DUP OP_3 OP_ROLL OP_EQUAL OP_OVER OP_4 OP_ROLL OP_EQUAL OP_BOOLOR OP_SWAP OP_3 OP_ROLL OP_EQUAL OP_BOOLOR OP_IF OP_9 OP_PICK OP_9 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ENDIF OP_LESSTHANOREQUAL OP_VERIFY OP_0 OP_UTXOVALUE e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_11 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_LESSTHANOREQUAL OP_VERIFY OP_2DROP OP_2DROP OP_2DROP OP_2DROP OP_1 OP_ELSE OP_5 OP_ROLL OP_3 OP_NUMEQUALVERIFY OP_0 OP_6 OP_PICK OP_HASH160 OP_9 OP_PICK OP_HASH160 OP_12 OP_PICK OP_HASH160 OP_2 OP_PICK OP_5 OP_PICK OP_EQUAL OP_3 OP_PICK OP_7 OP_PICK OP_EQUAL OP_BOOLOR OP_3 OP_ROLL OP_7 OP_PICK OP_EQUAL OP_BOOLOR OP_IF OP_9 OP_PICK OP_9 OP_PICK OP_CHECKSIGVERIFY OP_2 OP_PICK OP_1ADD OP_3 OP_ROLL OP_DROP OP_SWAP OP_TOALTSTACK OP_SWAP OP_FROMALTSTACK OP_ENDIF OP_OVER OP_4 OP_PICK OP_EQUAL OP_2 OP_PICK OP_6 OP_PICK OP_EQUAL OP_BOOLOR OP_ROT OP_6 OP_PICK OP_EQUAL OP_BOOLOR OP_IF OP_10 OP_PICK OP_10 OP_PICK OP_CHECKSIGVERIFY OP_OVER OP_1ADD OP_ROT OP_DROP OP_SWAP OP_ENDIF OP_DUP OP_3 OP_ROLL OP_EQUAL OP_OVER OP_4 OP_ROLL OP_EQUAL OP_BOOLOR OP_SWAP OP_3 OP_ROLL OP_EQUAL OP_BOOLOR OP_IF OP_8 OP_PICK OP_8 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ENDIF OP_LESSTHANOREQUAL OP_VERIFY OP_7 OP_ROLL OP_LESSTHAN OP_VERIFY OP_0 OP_UTXOVALUE e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_9 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_LESSTHANOREQUAL OP_VERIFY OP_2DROP OP_2DROP OP_2DROP OP_1 OP_ENDIF OP_ENDIF OP_ENDIF",
+  "source": "pragma cashscript ^0.12.0;\n\n/**\n * SafeDelayMultiSig - Multi-Signature Time-locked Wallet Contract\n * \n * A time-locked wallet requiring multiple signatures to withdraw or cancel.\n * Useful for family wallets, business savings, or emergency funds with trusted co-signers.\n * \n * How it works:\n * - Owners create contract with a lock duration and required signature threshold\n * - Funds are locked until lockEndBlock\n * - After lock expires, threshold signatures can withdraw\n * - Cancel requires threshold signatures (returns funds immediately)\n * \n * Security model:\n * - Multiple owners (up to 3)\n * - Configurable threshold (e.g., 2 of 3)\n * - Time-lock enforced on withdraw\n * - Cancel bypasses time-lock but requires threshold signatures\n */\ncontract SafeDelayMultiSig(\n    bytes20 owner1,\n    bytes20 owner2,\n    bytes20 owner3,\n    int requiredSigs,\n    int lockEndBlock\n) {\n    /**\n     * Deposit funds into the time-locked wallet\n     * \n     * Anyone can deposit BCH. Extends the lock but keeps existing lockEndBlock.\n     */\n    function deposit(pubkey depositorPk, sig depositorSig) {\n        require(checkSig(depositorSig, depositorPk));\n        \n        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);\n        require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);\n    }\n    \n    /**\n     * Withdraw funds after lock expires\n     * \n     * Requires threshold signatures, and only after lockEndBlock has passed.\n     * \n     * inputs:\n     *   0 SafeDelayMultiSig UTXO  [BCH]\n     *   1 Owner input 1            [any]\n     *   2 Owner input 2           [any]\n     *   3 Owner input 3           [any]\n     * outputs:\n     *   0 Owner withdrawal        [P2PKH]\n     *   1 SafeDelayMultiSig UTXO  [BCH]    (remaining)\n     *   2 Owner change             [any]\n     */\n    function withdraw(\n        pubkey pk1, sig s1,\n        pubkey pk2, sig s2,\n        pubkey pk3, sig s3,\n        int withdrawAmount,\n        bytes20 recipientPKH\n    ) {\n        int sigCount = 0;\n        \n        bytes20 pkh1 = hash160(pk1);\n        bytes20 pkh2 = hash160(pk2);\n        bytes20 pkh3 = hash160(pk3);\n        \n        if (pkh1 == owner1 || pkh1 == owner2 || pkh1 == owner3) {\n            require(checkSig(s1, pk1));\n            sigCount = sigCount + 1;\n        }\n        if (pkh2 == owner1 || pkh2 == owner2 || pkh2 == owner3) {\n            require(checkSig(s2, pk2));\n            sigCount = sigCount + 1;\n        }\n        if (pkh3 == owner1 || pkh3 == owner2 || pkh3 == owner3) {\n            require(checkSig(s3, pk3));\n            sigCount = sigCount + 1;\n        }\n        \n        require(sigCount >= requiredSigs);\n        require(tx.locktime >= lockEndBlock);\n        \n        int contractBalance = tx.inputs[0].value;\n        int remainingBalance = contractBalance - withdrawAmount - 1000;\n        \n        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipientPKH));\n        require(tx.outputs[0].value >= withdrawAmount);\n        \n        if (remainingBalance > 1000) {\n            require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);\n            require(tx.outputs[1].value == remainingBalance);\n        }\n    }\n    \n    /**\n     * Cancel and refund - requires threshold signatures\n     * \n     * All owners get all funds back immediately (bypasses time lock).\n     * Uses up to 3 owner inputs. Pass owner pubkeys that match the contract owners.\n     * \n     * inputs:\n     *   0 SafeDelayMultiSig UTXO  [BCH]\n     *   1+ Owner inputs            [any]\n     * outputs:\n     *   0 Owner refund           [P2PKH]\n     *   1 Owner change           [any]\n     */\n    function cancel(\n        pubkey pk1, sig s1,\n        pubkey pk2, sig s2,\n        pubkey pk3, sig s3,\n        bytes20 recipientPKH\n    ) {\n        int sigCount = 0;\n        \n        bytes20 pkh1 = hash160(pk1);\n        bytes20 pkh2 = hash160(pk2);\n        bytes20 pkh3 = hash160(pk3);\n        \n        if (pkh1 == owner1 || pkh1 == owner2 || pkh1 == owner3) {\n            require(checkSig(s1, pk1));\n            sigCount = sigCount + 1;\n        }\n        if (pkh2 == owner1 || pkh2 == owner2 || pkh2 == owner3) {\n            require(checkSig(s2, pk2));\n            sigCount = sigCount + 1;\n        }\n        if (pkh3 == owner1 || pkh3 == owner2 || pkh3 == owner3) {\n            require(checkSig(s3, pk3));\n            sigCount = sigCount + 1;\n        }\n        \n        require(sigCount >= requiredSigs);\n        \n        // Total from contract UTXO only (owner inputs may be empty)\n        int totalBalance = tx.inputs[0].value - 1000;\n        \n        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipientPKH));\n        require(tx.outputs[0].value >= totalBalance);\n    }\n    \n    /**\n     * Extend the lock period (one way extension)\n     * \n     * Requires threshold signatures. New lock must be later than current lock.\n     * This function withdraws all funds. Owners must redeposit into new contract.\n     * \n     * inputs:\n     *   0 SafeDelayMultiSig UTXO  [BCH]\n     *   1+ Owner inputs            [any]\n     * outputs:\n     *   0 Owner withdrawal        [P2PKH]\n     *   1 Owner change           [any]\n     */\n    function extend(\n        pubkey pk1, sig s1,\n        pubkey pk2, sig s2,\n        pubkey pk3, sig s3,\n        int newLockEndBlock,\n        bytes20 recipientPKH\n    ) {\n        int sigCount = 0;\n        \n        bytes20 pkh1 = hash160(pk1);\n        bytes20 pkh2 = hash160(pk2);\n        bytes20 pkh3 = hash160(pk3);\n        \n        if (pkh1 == owner1 || pkh1 == owner2 || pkh1 == owner3) {\n            require(checkSig(s1, pk1));\n            sigCount = sigCount + 1;\n        }\n        if (pkh2 == owner1 || pkh2 == owner2 || pkh2 == owner3) {\n            require(checkSig(s2, pk2));\n            sigCount = sigCount + 1;\n        }\n        if (pkh3 == owner1 || pkh3 == owner2 || pkh3 == owner3) {\n            require(checkSig(s3, pk3));\n            sigCount = sigCount + 1;\n        }\n        \n        require(sigCount >= requiredSigs);\n        require(newLockEndBlock > lockEndBlock);\n        \n        int totalBalance = tx.inputs[0].value - 1000;\n        \n        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipientPKH));\n        require(tx.outputs[0].value >= totalBalance);\n    }\n}\n",
+  "debug": {
+    "bytecode": "5579009c63577a577aad00cd00c78800cc00c651c69302e803949d6d6d6d51675579519c63005779a95a79a95d79a9527955798753795779879b537a5779879b635a795a79ad52798b537a757c6b7c6c687854798752795679879b7b5679879b635b795b79ad788b7b757c6876537a8778547a879b7c537a879b6359795979ad768b7768a169c5a16900c658799402e8039400cd0376a9145b7a7e0288ac7e8800cc597aa2697602e803a06351cd00c78851cc789d686d6d6d6d51675579529c63005779a95a79a95d79a9527955798753795779879b537a5779879b635a795a79ad52798b537a757c6b7c6c687854798752795679879b7b5679879b635b795b79ad788b7b757c6876537a8778547a879b7c537a879b6359795979ad768b7768a16900c602e8039400cd0376a9145b7a7e0288ac7e8800cca1696d6d6d6d5167557a539d005679a95979a95c79a9527955798753795779879b537a5779879b6359795979ad52798b537a757c6b7c6c687854798752795679879b7b5679879b635a795a79ad788b7b757c6876537a8778547a879b7c537a879b6358795879ad768b7768a169577a9f6900c602e8039400cd0376a914597a7e0288ac7e8800cca1696d6d6d51686868",
+    "sourceMap": "33:4:38:5;;;;;34:25:34:37;;:39::50;;:8::53:1;36:27:36:28:0;:16::45:1;:59::60:0;:49::77:1;:8::79;37:27:37:28:0;:16::35:1;:49::50:0;:39::57:1;:70::71:0;:60::78:1;:39;:81::85:0;:39:::1;:8::87;33:4:38:5;;;;;55::94::0;;;;;62:23:62:24;64:31:64:34;;:23::35:1;65:31:65:34:0;;:23::35:1;66:31:66:34:0;;:23::35:1;68:12:68:16:0;;:20::26;;:12:::1;:30::34:0;;:38::44;;:30:::1;:12;:48::52:0;;:56::62;;:48:::1;:12;:64:71:9:0;69:29:69:31;;:33::36;;:12::39:1;70:23:70:31:0;;:::35:1;:12::36;;;;;;;68:64:71:9;72:12:72:16:0;:20::26;;:12:::1;:30::34:0;;:38::44;;:30:::1;:12;:48::52:0;:56::62;;:48:::1;:12;:64:75:9:0;73:29:73:31;;:33::36;;:12::39:1;74:23:74:31:0;:::35:1;:12::36;;;72:64:75:9;76:12:76:16:0;:20::26;;:12:::1;:30::34:0;:38::44;;:30:::1;:12;:48::52:0;:56::62;;:48:::1;:12;:64:79:9:0;77:29:77:31;;:33::36;;:12::39:1;78:23:78:31:0;:::35:1;:12::36;76:64:79:9;81:16:81:40;:8::42;82:16:82:27:0;:::43:1;:8::45;84:40:84:41:0;:30::48:1;85:49:85:63:0;;:31:::1;:66::70:0;:31:::1;87:27:87:28:0;:16::45:1;:49::87:0;:74::86;;:49::87:1;;;:8::89;88:27:88:28:0;:16::35:1;:39::53:0;;:16:::1;:8::55;90:12:90:28:0;:31::35;:12:::1;:37:93:9:0;91:31:91:32;:20::49:1;:63::64:0;:53::81:1;:12::83;92:31:92:32:0;:20::39:1;:43::59:0;:12::61:1;90:37:93:9;55:4:94:5;;;;;;109::141::0;;;;;115:23:115:24;117:31:117:34;;:23::35:1;118:31:118:34:0;;:23::35:1;119:31:119:34:0;;:23::35:1;121:12:121:16:0;;:20::26;;:12:::1;:30::34:0;;:38::44;;:30:::1;:12;:48::52:0;;:56::62;;:48:::1;:12;:64:124:9:0;122:29:122:31;;:33::36;;:12::39:1;123:23:123:31:0;;:::35:1;:12::36;;;;;;;121:64:124:9;125:12:125:16:0;:20::26;;:12:::1;:30::34:0;;:38::44;;:30:::1;:12;:48::52:0;:56::62;;:48:::1;:12;:64:128:9:0;126:29:126:31;;:33::36;;:12::39:1;127:23:127:31:0;:::35:1;:12::36;;;125:64:128:9;129:12:129:16:0;:20::26;;:12:::1;:30::34:0;:38::44;;:30:::1;:12;:48::52:0;:56::62;;:48:::1;:12;:64:132:9:0;130:29:130:31;;:33::36;;:12::39:1;131:23:131:31:0;:::35:1;:12::36;129:64:132:9;134:16:134:40;:8::42;137:37:137:38:0;:27::45:1;:48::52:0;:27:::1;139::139:28:0;:16::45:1;:49::87:0;:74::86;;:49::87:1;;;:8::89;140:27:140:28:0;:16::35:1;:::51;:8::53;109:4:141:5;;;;;;156::189::0;;;;163:23:163:24;165:31:165:34;;:23::35:1;166:31:166:34:0;;:23::35:1;167:31:167:34:0;;:23::35:1;169:12:169:16:0;;:20::26;;:12:::1;:30::34:0;;:38::44;;:30:::1;:12;:48::52:0;;:56::62;;:48:::1;:12;:64:172:9:0;170:29:170:31;;:33::36;;:12::39:1;171:23:171:31:0;;:::35:1;:12::36;;;;;;;169:64:172:9;173:12:173:16:0;:20::26;;:12:::1;:30::34:0;;:38::44;;:30:::1;:12;:48::52:0;:56::62;;:48:::1;:12;:64:176:9:0;174:29:174:31;;:33::36;;:12::39:1;175:23:175:31:0;:::35:1;:12::36;;;173:64:176:9;177:12:177:16:0;:20::26;;:12:::1;:30::34:0;:38::44;;:30:::1;:12;:48::52:0;:56::62;;:48:::1;:12;:64:180:9:0;178:29:178:31;;:33::36;;:12::39:1;179:23:179:31:0;:::35:1;:12::36;177:64:180:9;182:16:182:40;:8::42;183:16:183:31:0;;:::46:1;:8::48;185:37:185:38:0;:27::45:1;:48::52:0;:27:::1;187::187:28:0;:16::45:1;:49::87:0;:74::86;;:49::87:1;;;:8::89;188:27:188:28:0;:16::35:1;:::51;:8::53;156:4:189:5;;;;21:0:190:1;;",
+    "logs": [],
+    "requires": [
+      {
+        "ip": 14,
+        "line": 34
+      },
+      {
+        "ip": 19,
+        "line": 36
+      },
+      {
+        "ip": 29,
+        "line": 37
+      },
+      {
+        "ip": 72,
+        "line": 69
+      },
+      {
+        "ip": 104,
+        "line": 73
+      },
+      {
+        "ip": 130,
+        "line": 77
+      },
+      {
+        "ip": 136,
+        "line": 81
+      },
+      {
+        "ip": 139,
+        "line": 82
+      },
+      {
+        "ip": 155,
+        "line": 87
+      },
+      {
+        "ip": 161,
+        "line": 88
+      },
+      {
+        "ip": 170,
+        "line": 91
+      },
+      {
+        "ip": 174,
+        "line": 92
+      },
+      {
+        "ip": 219,
+        "line": 122
+      },
+      {
+        "ip": 251,
+        "line": 126
+      },
+      {
+        "ip": 277,
+        "line": 130
+      },
+      {
+        "ip": 283,
+        "line": 134
+      },
+      {
+        "ip": 296,
+        "line": 139
+      },
+      {
+        "ip": 300,
+        "line": 140
+      },
+      {
+        "ip": 343,
+        "line": 170
+      },
+      {
+        "ip": 375,
+        "line": 174
+      },
+      {
+        "ip": 401,
+        "line": 178
+      },
+      {
+        "ip": 407,
+        "line": 182
+      },
+      {
+        "ip": 411,
+        "line": 183
+      },
+      {
+        "ip": 424,
+        "line": 187
+      },
+      {
+        "ip": 428,
+        "line": 188
+      }
+    ]
+  },
+  "compiler": {
+    "name": "cashc",
+    "version": "0.12.1"
+  },
+  "updatedAt": "2026-03-15T01:07:31.767Z"
+}
