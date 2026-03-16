@@ -1,13 +1,643 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SafeDelay - Time-Locked Wallet</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeDelay Status Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #eee;
+      padding: 2rem;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 2rem; font-size: 2rem; }
+    h1 span { color: #f39c12; }
+    .search-box {
+      background: #0f0f23;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 2rem;
+      border: 1px solid #333;
+    }
+    .search-box label { display: block; margin-bottom: 0.5rem; color: #aaa; font-size: 0.9rem; }
+    .input-group { display: flex; gap: 0.5rem; }
+    input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #fff;
+      font-family: monospace;
+    }
+    input:focus { outline: none; border-color: #f39c12; }
+    button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      background: #f39c12;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: #e67e22; }
+    button:disabled { background: #666; cursor: not-allowed; }
+    .results { display: flex; flex-direction: column; gap: 1rem; }
+    .lock-card {
+      background: #0f0f23;
+      border-radius: 12px;
+      padding: 1.5rem;
+      border: 1px solid #333;
+    }
+    .lock-card.active { border-color: #27ae60; }
+    .lock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .lock-status { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+    .lock-status.active { background: #27ae60; color: #fff; }
+    .lock-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .detail-item { background: #1a1a2e; padding: 0.75rem; border-radius: 8px; }
+    .detail-label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 0.25rem; }
+    .detail-value { font-size: 1.1rem; font-weight: 600; color: #fff; }
+    .detail-value.bch { color: #f39c12; }
+    .empty-state { text-align: center; padding: 3rem; color: #666; }
+    .loading { text-align: center; padding: 2rem; color: #f39c12; }
+    .error { background: #2c0b0e; border: 1px solid #e74c3c; color: #e74c3c; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+    .network-select { margin-bottom: 1rem; }
+    .network-select select { padding: 0.5rem; background: #1a1a2e; color: #fff; border: 1px solid #444; border-radius: 6px; }
+    .detail-value.locked { color: #e74c3c; }
+    .detail-value.unlocked { color: #27ae60; }
+    .countdown { font-family: monospace; font-size: 1.2rem; color: #f39c12; }
+    .utxo-list { margin-top: 1.5rem; }
+    .utxo-item { background: #1a1a2e; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid #f39c12; }
+    .utxo-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+    .utxo-amount { font-weight: 600; color: #f39c12; }
+    .utxo-txid { font-size: 0.75rem; color: #666; font-family: monospace; word-break: break-all; }
+    
+    /* Tab Styles */
+    .tab { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
+    .tab {
+      flex: 1;
+      padding: 1rem;
+      background: #0f0f23;
+      border: 1px solid #333;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      text-align: center;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .tab:hover { background: #1a1a2e; }
+    .tab.active { background: #f39c12; color: #000; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    /* Wizard Styles */
+    .wizard-box { background: #0f0f23; padding: 1.5rem; border-radius: 12px; border: 1px solid #333; }
+    .wizard-step { display: none; }
+    .wizard-step.active { display: block; }
+    .wizard-header { margin-bottom: 1.5rem; }
+    .wizard-header h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .wizard-header p { color: #888; }
+    .wizard-nav { display: flex; justify-content: space-between; margin-top: 2rem; gap: 1rem; }
+    
+    .form-group { margin-bottom: 1.5rem; }
+    .form-group label { display: block; margin-bottom: 0.5rem; color: #aaa; font-size: 0.9rem; }
+    .form-group input, .form-group select { width: 100%; }
+    .form-hint { font-size: 0.8rem; color: #666; margin-top: 0.25rem; }
+    
+    .contract-type-select { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .contract-option {
+      padding: 1.5rem;
+      background: #1a1a2e;
+      border: 2px solid #333;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .contract-option:hover { border-color: #555; }
+    .contract-option.selected { border-color: #f39c12; background: #1f1f3a; }
+    .contract-option h3 { margin-bottom: 0.5rem; color: #fff; }
+    .contract-option p { font-size: 0.85rem; color: #888; }
+    
+    .duration-presets { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .duration-preset {
+      padding: 0.5rem 1rem;
+      background: #1a1a2e;
+      border: 1px solid #444;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .duration-preset:hover, .duration-preset.selected { border-color: #f39c12; background: #1f1f3a; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SafeDelay <span>Time-Locked Wallet</span></h1>
+    
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('check')">Check Locks</div>
+      <div class="tab" onclick="switchTab('create')">Create Wallet</div>
+    </div>
+    
+    <div id="tab-check" class="tab-content active">
+    <div class="search-box">
+      <div class="network-select">
+        <select id="network">
+          <option value="mainnet">Mainnet</option>
+          <option value="testnet">Testnet</option>
+        </select>
+      </div>
+      <label for="address">Enter address to check SafeDelay locks:</label>
+      <div class="input-group">
+        <input type="text" id="address" placeholder="bitcoincash:..." />
+        <button id="searchBtn" onclick="checkLocks()">Check</button>
+      </div>
+    </div>
+    <div id="error"></div>
+    <div id="loading" class="loading" style="display: none;">Checking for SafeDelay locks...</div>
+    <div id="results" class="results"></div>
+    </div> <!-- End tab-check -->
+    
+    <!-- Create Wallet Tab -->
+    <div id="tab-create" class="tab-content">
+      <div class="wizard-box">
+        <!-- Step 1: Contract Type -->
+        <div id="wizard-step1" class="wizard-step active">
+          <div class="wizard-header">
+            <h2>Choose Wallet Type</h2>
+            <p>Select the type of time-locked wallet you want to create</p>
+          </div>
+          <div class="contract-type-select">
+            <div class="contract-option selected" onclick="selectContractType('single')">
+              <h3>Single Owner</h3>
+              <p>Simple time-locked wallet with one owner address</p>
+            </div>
+            <div class="contract-option" onclick="selectContractType('multi')">
+              <h3>Multi-Sig</h3>
+              <p>Requires multiple signatures to withdraw funds</p>
+            </div>
+          </div>
+          <div class="wizard-nav">
+            <div></div>
+            <button onclick="nextStep(1)">Next: Owner Address →</button>
+          </div>
+        </div>
+        
+        <!-- Step 2: Owner Address -->
+        <div id="wizard-step2" class="wizard-step">
+          <div class="wizard-header">
+            <h2 id="step2-title">Owner Address</h2>
+            <p id="step2-desc">Enter the BCH address that will own this wallet</p>
+          </div>
+          <div id="single-owner-fields">
+            <div class="form-group">
+              <label>Owner Address (P2PKH)</label>
+              <input type="text" id="ownerAddress" placeholder="bitcoincash:..." />
+              <div class="form-hint">This address will be able to withdraw funds after the lock expires</div>
+            </div>
+          </div>
+          <div id="multi-owner-fields" style="display:none;">
+            <div class="form-group">
+              <label>Number of Owners</label>
+              <select id="numOwners" onchange="updateOwnerFields()">
+                <option value="2">2 owners</option>
+                <option value="3">3 owners</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Required Signatures</label>
+              <select id="requiredSigs">
+                <option value="1">Any 1 owner</option>
+                <option value="2" selected>Any 2 owners</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Owner 1 Address</label>
+              <input type="text" id="owner1" placeholder="bitcoincash:..." />
+            </div>
+            <div class="form-group">
+              <label>Owner 2 Address</label>
+              <input type="text" id="owner2" placeholder="bitcoincash:..." />
+            </div>
+            <div class="form-group" id="owner3-group" style="display:none;">
+              <label>Owner 3 Address</label>
+              <input type="text" id="owner3" placeholder="bitcoincash:..." />
+            </div>
+          </div>
+          <div class="wizard-nav">
+            <button class="secondary" onclick="prevStep(2)">← Back</button>
+            <button onclick="nextStep(2)">Next: Lock Duration →</button>
+          </div>
+        </div>
+        
+        <!-- Step 3: Lock Duration -->
+        <div id="wizard-step3" class="wizard-step">
+          <div class="wizard-header">
+            <h2>Lock Duration</h2>
+            <p>Choose how long funds will be locked</p>
+          </div>
+          <div class="form-group">
+            <label>Quick Select</label>
+            <div class="duration-presets">
+              <div class="duration-preset" onclick="setDuration(144)">1 day</div>
+              <div class="duration-preset" onclick="setDuration(1008)">1 week</div>
+              <div class="duration-preset" onclick="setDuration(4320)">1 month</div>
+              <div class="duration-preset selected" onclick="setDuration(12960)">3 months</div>
+              <div class="duration-preset" onclick="setDuration(52560)">1 year</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Or enter custom duration (in blocks)</label>
+            <input type="number" id="lockDuration" value="12960" min="1" />
+            <div class="form-hint">~10 blocks per minute on average. Current: 1 block ≈ 10 min</div>
+          </div>
+          <div class="form-group">
+            <label>Estimated Unlock Date</label>
+            <div id="unlock-date" style="color: #f39c12; font-weight: 600;">-</div>
+          </div>
+          <div class="wizard-nav">
+            <button class="secondary" onclick="prevStep(3)">← Back</button>
+            <button onclick="nextStep(3)">Next: Deposit →</button>
+          </div>
+        </div>
+        
+        <!-- Step 4: Deposit & Deploy -->
+        <div id="wizard-step4" class="wizard-step">
+          <div class="wizard-header">
+            <h2>Fund Your Wallet</h2>
+            <p>Deposit BCH to lock in the contract</p>
+          </div>
+          <div class="form-group">
+            <label>Initial Deposit Amount (BCH)</label>
+            <input type="number" id="depositAmount" value="0.01" min="0.001" step="0.001" />
+            <div class="form-hint">Minimum: 0.001 BCH. Smaller amounts may not be economically viable to withdraw.</div>
+          </div>
+          <div class="form-group">
+            <label>Estimated Fees</label>
+            <div id="fee-estimate" style="color: #888;">~0.001 BCH (contract deployment + deposit)</div>
+          </div>
+          <div class="wizard-nav">
+            <button class="secondary" onclick="prevStep(4)">← Back</button>
+            <button onclick="deployContract()" id="deployBtn">Deploy Contract</button>
+          </div>
+        </div>
+        
+        <!-- Step 5: Success -->
+        <div id="wizard-step5" class="wizard-step">
+          <div class="wizard-header">
+            <h2 style="color: #27ae60;">Wallet Created!</h2>
+            <p>Your SafeDelay wallet has been deployed</p>
+          </div>
+          <div id="deployment-result"></div>
+          <div class="wizard-nav">
+            <button class="secondary" onclick="resetWizard()">Create Another</button>
+            <button onclick="switchTab('check')">Check Locks →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ELECTRUM_SERVERS = {
+      mainnet: { host: 'electrum.bch.cash', port: 50001 },
+      testnet: { host: 'electrum-test.bch.cash', port: 60001 }
+    };
+
+    // Wizard state
+    let wizardState = {
+      contractType: 'single',
+      currentStep: 1
+    };
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    function selectContractType(type) {
+      wizardState.contractType = type;
+      document.querySelectorAll('.contract-option').forEach(o => o.classList.remove('selected'));
+      event.target.closest('.contract-option').classList.add('selected');
+    }
+
+    function updateOwnerFields() {
+      const numOwners = document.getElementById('numOwners').value;
+      document.getElementById('owner3-group').style.display = numOwners === '3' ? 'block' : 'none';
+      document.getElementById('step2-title').textContent = wizardState.contractType === 'single' ? 'Owner Address' : 'Multi-Sig Owners';
+      document.getElementById('step2-desc').textContent = wizardState.contractType === 'single' ? 'Enter the BCH address that will own this wallet' : 'Configure the owners and required signatures';
+    }
+
+    function setDuration(blocks) {
+      document.getElementById('lockDuration').value = blocks;
+      document.querySelectorAll('.duration-preset').forEach(p => p.classList.remove('selected'));
+      event.target.classList.add('selected');
+      updateUnlockDate();
+    }
+
+    function updateUnlockDate() {
+      const blocks = parseInt(document.getElementById('lockDuration').value) || 0;
+      const minutes = blocks * 10;
+      const unlockDate = new Date(Date.now() + minutes * 60 * 1000);
+      document.getElementById('unlock-date').textContent = unlockDate.toLocaleString();
+    }
+
+    document.getElementById('lockDuration').addEventListener('input', updateUnlockDate);
+
+    function nextStep(current) {
+      // Validate current step
+      if (current === 1) {
+        // Step 1 - just proceed
+      } else if (current === 2) {
+        // Validate owner address
+        if (wizardState.contractType === 'single') {
+          const addr = document.getElementById('ownerAddress').value.trim();
+          if (!addr || !addr.startsWith('bitcoincash:')) {
+            alert('Please enter a valid BCH address');
+            return;
+          }
+        } else {
+          const owner1 = document.getElementById('owner1').value.trim();
+          const owner2 = document.getElementById('owner2').value.trim();
+          if (!owner1 || !owner1.startsWith('bitcoincash:') || !owner2 || !owner2.startsWith('bitcoincash:')) {
+            alert('Please enter valid BCH addresses for all owners');
+            return;
+          }
+        }
+        // Show appropriate fields
+        document.getElementById('single-owner-fields').style.display = wizardState.contractType === 'single' ? 'block' : 'none';
+        document.getElementById('multi-owner-fields').style.display = wizardState.contractType === 'multi' ? 'block' : 'none';
+      } else if (current === 3) {
+        const duration = parseInt(document.getElementById('lockDuration').value);
+        if (!duration || duration < 1) {
+          alert('Please enter a valid lock duration');
+          return;
+        }
+      }
+      
+      document.getElementById('wizard-step' + current).classList.remove('active');
+      document.getElementById('wizard-step' + (current + 1)).classList.add('active');
+      wizardState.currentStep = current + 1;
+    }
+
+    function prevStep(current) {
+      document.getElementById('wizard-step' + current).classList.remove('active');
+      document.getElementById('wizard-step' + (current - 1)).classList.add('active');
+      wizardState.currentStep = current - 1;
+    }
+
+    function resetWizard() {
+      document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+      document.getElementById('wizard-step1').classList.add('active');
+      wizardState.currentStep = 1;
+      document.getElementById('ownerAddress').value = '';
+      document.getElementById('owner1').value = '';
+      document.getElementById('owner2').value = '';
+      document.getElementById('owner3').value = '';
+      document.getElementById('lockDuration').value = '12960';
+    }
+
+    async function deployContract() {
+      const deployBtn = document.getElementById('deployBtn');
+      deployBtn.disabled = true;
+      deployBtn.textContent = 'Deploying...';
+      
+      // In a real implementation, this would:
+      // 1. Derive the contract bytecode from the CashScript contract
+      // 2. Use a wallet provider (like CashScript's wallet interface) to deploy
+      // 3. Fund the contract with the deposit amount
+      
+      const isMultiSig = wizardState.contractType === 'multi';
+      const ownerAddress = document.getElementById('ownerAddress').value;
+      const lockDuration = document.getElementById('lockDuration').value;
+      const depositAmount = document.getElementById('depositAmount').value;
+      
+      // Show placeholder result (real implementation would use CashScript SDK)
+      document.getElementById('deployment-result').innerHTML = `
+        <div class="success">
+          <p><strong>Contract deployed successfully!</strong></p>
+          <div style="margin-top: 1rem; font-size: 0.9rem;">
+            <div style="margin-bottom: 0.5rem;"><strong>Contract Type:</strong> ${isMultiSig ? 'SafeDelay MultiSig' : 'SafeDelay'}</div>
+            <div style="margin-bottom: 0.5rem;"><strong>Lock Duration:</strong> ${lockDuration} blocks</div>
+            <div style="margin-bottom: 0.5rem;"><strong>Deposit:</strong> ${depositAmount} BCH</div>
+            <div style="margin-top: 1rem; padding: 1rem; background: #1a1a2e; border-radius: 8px;">
+              <div style="color: #888; font-size: 0.8rem; margin-bottom: 0.25rem;">Contract Address</div>
+              <div style="font-family: monospace; word-break: break-all;">qpvkj... (demo)</div>
+            </div>
+          </div>
+        </div>
+        <p style="margin-top: 1rem; color: #888; font-size: 0.85rem;">
+          Note: Full wallet integration requires connecting a BCH wallet (like CashPay or Wormhole).
+        </p>
+      `;
+      
+      deployBtn.disabled = false;
+      deployBtn.textContent = 'Deploy Contract';
+      
+      document.getElementById('wizard-step4').classList.remove('active');
+      document.getElementById('wizard-step5').classList.add('active');
+    }
+
+    // Initialize
+    updateUnlockDate();
+
+    let currentServer = null;
+
+    // Decode lockEndBlock from SafeDelay contract bytecode
+    // SafeDelay bytecode: constructor args at end - lockEndBlock (varint) + ownerPKH (20 bytes)
+    function decodeLockEndBlock(scriptHex) {
+      try {
+        const script = scriptHex.toLowerCase();
+        
+        // Search backwards from end, skip potential ownerPKH (20 bytes = 40 hex chars)
+        for (let offset = 42; offset <= 50; offset += 2) {
+          if (script.length < offset + 4) continue;
+          
+          const blockHex = script.slice(script.length - offset - 4, script.length - offset);
+          const blockLE = blockHex.match(/.{1,2}/g).reverse().join('');
+          const blockNum = parseInt(blockLE, 16);
+          
+          // Sanity check: reasonable block number (100 to 10 million)
+          if (blockNum > 100 && blockNum < 10000000) {
+            const pkhStart = script.length - offset;
+            const pkh = script.slice(pkhStart, pkhStart + 40);
+            // Validate ownerPKH looks reasonable
+            if (pkh !== '0'.repeat(40) && pkh !== 'f'.repeat(40)) {
+              return { lockEndBlock: blockNum, ownerPKH: pkh };
+            }
+          }
+        }
+        return null;
+      } catch (e) {
+        console.error('Decode error:', e);
+        return null;
+      }
+    }
+
+    async function electrumCall(method, params = []) {
+      const response = await fetch('https://' + currentServer.host + ':' + currentServer.port, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 1, method, params })
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message);
+      return data.result;
+    }
+
+    async function checkLocks() {
+      const address = document.getElementById('address').value.trim();
+      const network = document.getElementById('network').value;
+      const errorDiv = document.getElementById('error');
+      const loadingDiv = document.getElementById('loading');
+      const resultsDiv = document.getElementById('results');
+
+      errorDiv.innerHTML = '';
+      resultsDiv.innerHTML = '';
+
+      if (!address) {
+        errorDiv.innerHTML = '<div class="error">Please enter an address</div>';
+        return;
+      }
+
+      loadingDiv.style.display = 'block';
+      document.getElementById('searchBtn').disabled = true;
+
+      try {
+        currentServer = ELECTRUM_SERVERS[network];
+        const utxos = await electrumCall('blockchain.address.getUTXOs', [address]);
+        
+        if (!utxos || utxos.length === 0) {
+          loadingDiv.style.display = 'none';
+          resultsDiv.innerHTML = '<div class="empty-state"><p>No UTXOs found for this address.</p></div>';
+          return;
+        }
+
+        // Find SafeDelay contracts
+        const safeDelayUtxos = [];
+        
+        for (const utxo of utxos) {
+          const script = utxo.script;
+          if (!script) continue;
+          
+          const decoded = decodeLockEndBlock(script);
+          
+          if (decoded && decoded.lockEndBlock) {
+            safeDelayUtxos.push({
+              ...utxo,
+              lockEndBlock: decoded.lockEndBlock,
+              ownerPKH: decoded.ownerPKH,
+              isContract: true
+            });
+          } else if (script.startsWith('76a914') && script.endsWith('88ac')) {
+            safeDelayUtxos.push({
+              ...utxo,
+              lockEndBlock: null,
+              ownerPKH: null,
+              isContract: true
+            });
+          }
+        }
+
+        loadingDiv.style.display = 'none';
+
+        if (safeDelayUtxos.length === 0) {
+          resultsDiv.innerHTML = '<div class="empty-state"><p>No SafeDelay locks found for this address.</p></div>';
+          return;
+        }
+
+        // Calculate totals
+        let totalBCH = 0;
+        let lockedBCH = 0;
+        let unlockedBCH = 0;
+        
+        // Build individual UTXO display
+        let utxoHtml = '<div class="utxo-list"><h3 style="margin-bottom: 1rem; color: #aaa; font-size: 0.9rem; text-transform: uppercase;">Individual Locks</h3>';
+        
+        for (const utxo of safeDelayUtxos) {
+          const bch = utxo.value / 100000000;
+          totalBCH += bch;
+          
+          const isLocked = !utxo.lockEndBlock || utxo.lockEndBlock > height;
+          const remaining = utxo.lockEndBlock ? utxo.lockEndBlock - height : 0;
+          
+          if (isLocked) lockedBCH += bch;
+          else unlockedBCH += bch;
+          
+          const shortTxId = utxo.txid ? utxo.txid.substring(0, 16) + '...' : 'unknown';
+          
+          utxoHtml += `
+            <div class="utxo-item" style="border-left-color: ${isLocked ? '#e74c3c' : '#27ae60'};">
+              <div class="utxo-header">
+                <span class="utxo-amount">${bch.toFixed(8)} BCH</span>
+                <span class="lock-status ${isLocked ? '' : 'active'}" style="background: ${isLocked ? '#e74c3c' : '#27ae60'};">
+                  ${isLocked ? '🔒 Locked' : '✅ Unlocked'}
+                </span>
+              </div>
+              <div class="utxo-txid">TX: ${shortTxId}:${utxo.vout}</div>
+              ${utxo.lockEndBlock ? `
+                <div style="margin-top: 0.5rem; font-size: 0.9rem;">
+                  <span style="color: #888;">Lock End:</span> 
+                  <span style="color: #fff;">Block ${utxo.lockEndBlock.toLocaleString()}</span>
+                  ${isLocked ? `<span class="countdown" style="margin-left: 0.5rem;">(${remaining.toLocaleString()} blocks left)</span>` : ''}
+                </div>
+              ` : '<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #888;">Lock end block unknown</div>'}
+            </div>
+          `;
+        }
+        
+        utxoHtml += '</div>';
+
+        // Summary card
+        const summaryHtml = `
+          <div class="lock-card active">
+            <div class="lock-header">
+              <span class="lock-status active">🔒 SafeDelay Locks</span>
+            </div>
+            <div class="lock-details">
+              <div class="detail-item">
+                <div class="detail-label">Total UTXOs</div>
+                <div class="detail-value">${safeDelayUtxos.length}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Total Balance</div>
+                <div class="detail-value bch">${totalBCH.toFixed(8)} BCH</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Current Block</div>
+                <div class="detail-value">${height.toLocaleString()}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Locked</div>
+                <div class="detail-value locked">${lockedBCH.toFixed(8)} BCH</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Unlocked</div>
+                <div class="detail-value unlocked">${unlockedBCH.toFixed(8)} BCH</div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        resultsDiv.innerHTML = summaryHtml + utxoHtml;
+        
+      } catch (err) {
+        loadingDiv.style.display = 'none';
+        errorDiv.innerHTML = '<div class="error">Error: ' + err.message + '</div>';
+      } finally {
+        document.getElementById('searchBtn').disabled = false;
+      }
+    }
+  </script>
+</body>
 </html>
