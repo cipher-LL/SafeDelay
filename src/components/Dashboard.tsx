@@ -20,6 +20,12 @@ const Description = styled.p`
   margin-bottom: 24px;
 `;
 
+const SectionTitle = styled.h3`
+  font-size: 18px;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.9);
+`;
+
 const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -34,16 +40,58 @@ const StatCard = styled.div`
   text-align: center;
 `;
 
-const StatValue = styled.div`
+const StatValue = styled.div<{ $color?: string }>`
   font-size: 32px;
   font-weight: 700;
-  color: #4f46e5;
+  color: ${({ $color }) => $color || '#4f46e5'};
 `;
 
 const StatLabel = styled.div`
   font-size: 14px;
   color: rgba(255, 255, 255, 0.6);
   margin-top: 4px;
+`;
+
+const AnalyticsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+`;
+
+const AnalyticsCard = styled.div`
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+`;
+
+const AnalyticsValue = styled.div<{ $color?: string }>`
+  font-size: 28px;
+  font-weight: 700;
+  color: ${({ $color }) => $color || '#0AC18E'};
+  margin-bottom: 4px;
+`;
+
+const AnalyticsLabel = styled.div`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+`;
+
+const ProgressBar = styled.div`
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  margin-top: 12px;
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div<{ $percent: number }>`
+  height: 100%;
+  width: ${({ $percent }) => $percent}%;
+  background: linear-gradient(90deg, #4f46e5, #0AC18E);
+  border-radius: 4px;
+  transition: width 0.3s ease;
 `;
 
 const ContractList = styled.div`
@@ -101,13 +149,19 @@ const ActionButton = styled.button`
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s;
+  cursor: pointer;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const WithdrawButton = styled(ActionButton)`
   background: #4f46e5;
   color: white;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: #4338ca;
   }
 `;
@@ -116,7 +170,7 @@ const CancelButton = styled(ActionButton)`
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: rgba(239, 68, 68, 0.3);
   }
 `;
@@ -125,7 +179,7 @@ const DepositButton = styled(ActionButton)`
   background: rgba(16, 185, 129, 0.2);
   color: #10b981;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: rgba(16, 185, 129, 0.3);
   }
 `;
@@ -134,6 +188,91 @@ const EmptyState = styled.div`
   text-align: center;
   padding: 40px;
   color: rgba(255, 255, 255, 0.5);
+`;
+
+const TransactionSection = styled.div`
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const FilterBar = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+`;
+
+const FilterButton = styled.button<{ $active: boolean }>`
+  padding: 6px 14px;
+  border: 1px solid ${({ $active }) => $active ? '#4f46e5' : 'rgba(255, 255, 255, 0.2)'};
+  border-radius: 20px;
+  background: ${({ $active }) => $active ? 'rgba(79, 70, 229, 0.2)' : 'transparent'};
+  color: ${({ $active }) => $active ? '#4f46e5' : 'rgba(255, 255, 255, 0.6)'};
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    border-color: #4f46e5;
+  }
+`;
+
+const TransactionList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const TransactionItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  flex-wrap: wrap;
+  gap: 12px;
+`;
+
+const TransactionInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`;
+
+const TransactionIcon = styled.span<{ $type: string }>`
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background: ${({ $type }) => 
+    $type === 'deposit' ? 'rgba(16, 185, 129, 0.2)' :
+    $type === 'withdraw' ? 'rgba(239, 68, 68, 0.2)' :
+    'rgba(79, 70, 229, 0.2)'};
+`;
+
+const TransactionDetails = styled.div``;
+
+const TransactionType = styled.div`
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+`;
+
+const TransactionDate = styled.div`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+`;
+
+const TransactionAmount = styled.div<{ $type: string }>`
+  font-size: 18px;
+  font-weight: 700;
+  color: ${({ $type }) => 
+    $type === 'deposit' ? '#10b981' :
+    $type === 'withdraw' ? '#ef4444' : '#4f46e5'};
 `;
 
 interface TimeLock {
@@ -145,10 +284,21 @@ interface TimeLock {
   owners?: string[];
 }
 
+interface Transaction {
+  id: string;
+  type: 'deposit' | 'withdraw' | 'create';
+  amount: number;
+  timestamp: number;
+  txHash: string;
+  contractAddress: string;
+}
+
 export default function Dashboard() {
   const { network } = useNetwork();
   const { wallet } = useWallet();
   const [contracts, setContracts] = useState<TimeLock[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'create'>('all');
 
   // Placeholder data for demonstration
   useEffect(() => {
@@ -162,9 +312,54 @@ export default function Dashboard() {
           currentBlock: 850000,
           type: 'single',
         },
+        {
+          address: 'bitcoincash:pztest987654321fedcba',
+          balance: 3.2,
+          lockEndBlock: 870000,
+          currentBlock: 850000,
+          type: 'multisig',
+          owners: ['owner1', 'owner2', 'owner3'],
+        },
+      ]);
+      
+      // Mock transaction history
+      setTransactions([
+        {
+          id: '1',
+          type: 'create',
+          amount: 1.5,
+          timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000,
+          txHash: 'abc123def456',
+          contractAddress: 'bitcoincash:qztest123456789abcdef',
+        },
+        {
+          id: '2',
+          type: 'deposit',
+          amount: 0.5,
+          timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
+          txHash: 'def456ghi789',
+          contractAddress: 'bitcoincash:qztest123456789abcdef',
+        },
+        {
+          id: '3',
+          type: 'deposit',
+          amount: 3.2,
+          timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
+          txHash: 'ghi789jkl012',
+          contractAddress: 'bitcoincash:pztest987654321fedcba',
+        },
+        {
+          id: '4',
+          type: 'withdraw',
+          amount: 0.3,
+          timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000,
+          txHash: 'jkl012mno345',
+          contractAddress: 'bitcoincash:qztest123456789abcdef',
+        },
       ]);
     } else {
       setContracts([]);
+      setTransactions([]);
     }
   }, [wallet.connected, network]);
 
@@ -175,6 +370,36 @@ export default function Dashboard() {
     if (days === 0) return `${blocksRemaining} blocks`;
     return `${days} days`;
   };
+
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Calculate analytics
+  const totalDeposits = transactions
+    .filter(t => t.type === 'deposit')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const totalWithdrawals = transactions
+    .filter(t => t.type === 'withdraw')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const avgLockDuration = contracts.length > 0 
+    ? Math.round(contracts.reduce((sum, c) => sum + (c.lockEndBlock - c.currentBlock), 0) / contracts.length / 144)
+    : 0;
+  
+  const unlockedPercent = contracts.length > 0
+    ? Math.round((contracts.filter(c => c.lockEndBlock <= c.currentBlock).length / contracts.length) * 100)
+    : 0;
+
+  const filteredTransactions = txFilter === 'all' 
+    ? transactions 
+    : transactions.filter(t => t.type === txFilter);
 
   return (
     <DashboardContainer>
@@ -202,43 +427,126 @@ export default function Dashboard() {
         </StatCard>
       </StatsGrid>
 
-      {wallet.connected ? (
-        contracts.length > 0 ? (
-          <ContractList>
-            {contracts.map((contract) => {
-              const isLocked = contract.lockEndBlock > contract.currentBlock;
-              return (
-                <ContractCard key={contract.address}>
-                  <ContractInfo>
-                    <ContractAddress>{contract.address}</ContractAddress>
-                    <div style={{ marginTop: '8px', fontSize: '14px', color: 'rgba(255,255,255,0.6)' }}>
-                      {contract.type === 'multisig' ? 'MultiSig (2-of-3)' : 'Single Owner'} •{' '}
-                      {getTimeRemaining(contract.lockEndBlock, contract.currentBlock)} remaining
-                    </div>
-                  </ContractInfo>
-                  <ContractBalance>{contract.balance.toFixed(4)} BCH</ContractBalance>
-                  <ContractStatus $locked={isLocked}>
-                    {isLocked ? '🔒 Locked' : '✅ Unlocked'}
-                  </ContractStatus>
-                  <ContractActions>
-                    <DepositButton>Deposit</DepositButton>
-                    <WithdrawButton disabled={isLocked}>Withdraw</WithdrawButton>
-                    <CancelButton>Cancel</CancelButton>
-                  </ContractActions>
-                </ContractCard>
-              );
-            })}
-          </ContractList>
+      {/* Analytics Section */}
+      <SectionTitle>Analytics</SectionTitle>
+      <AnalyticsGrid>
+        <AnalyticsCard>
+          <AnalyticsValue>{totalDeposits.toFixed(4)} BCH</AnalyticsValue>
+          <AnalyticsLabel>Total Deposited</AnalyticsLabel>
+          <ProgressBar>
+            <ProgressFill $percent={Math.min((totalDeposits / (totalDeposits + totalWithdrawals || 1)) * 100, 100)} />
+          </ProgressBar>
+        </AnalyticsCard>
+        <AnalyticsCard>
+          <AnalyticsValue>{totalWithdrawals.toFixed(4)} BCH</AnalyticsValue>
+          <AnalyticsLabel>Total Withdrawn</AnalyticsLabel>
+          <ProgressBar>
+            <ProgressFill $percent={Math.min((totalWithdrawals / (totalDeposits + totalWithdrawals || 1)) * 100, 100)} />
+          </ProgressBar>
+        </AnalyticsCard>
+        <AnalyticsCard>
+          <AnalyticsValue>{avgLockDuration}</AnalyticsValue>
+          <AnalyticsLabel>Avg Lock Duration (days)</AnalyticsLabel>
+        </AnalyticsCard>
+        <AnalyticsCard>
+          <AnalyticsValue $color={unlockedPercent > 50 ? '#10b981' : '#f59e0b'}>{unlockedPercent}%</AnalyticsValue>
+          <AnalyticsLabel>Contracts Unlocked</AnalyticsLabel>
+          <ProgressBar>
+            <ProgressFill $percent={unlockedPercent} />
+          </ProgressBar>
+        </AnalyticsCard>
+      </AnalyticsGrid>
+
+      {/* Transaction History Section */}
+      <TransactionSection>
+        <SectionTitle>Transaction History</SectionTitle>
+        <FilterBar>
+          <FilterButton $active={txFilter === 'all'} onClick={() => setTxFilter('all')}>
+            All
+          </FilterButton>
+          <FilterButton $active={txFilter === 'deposit'} onClick={() => setTxFilter('deposit')}>
+            Deposits
+          </FilterButton>
+          <FilterButton $active={txFilter === 'withdraw'} onClick={() => setTxFilter('withdraw')}>
+            Withdrawals
+          </FilterButton>
+          <FilterButton $active={txFilter === 'create'} onClick={() => setTxFilter('create')}>
+            Created
+          </FilterButton>
+        </FilterBar>
+        
+        {wallet.connected ? (
+          filteredTransactions.length > 0 ? (
+            <TransactionList>
+              {filteredTransactions.map((tx) => (
+                <TransactionItem key={tx.id}>
+                  <TransactionInfo>
+                    <TransactionIcon $type={tx.type}>
+                      {tx.type === 'deposit' ? '↓' : tx.type === 'withdraw' ? '↑' : '✦'}
+                    </TransactionIcon>
+                    <TransactionDetails>
+                      <TransactionType>
+                        {tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}
+                      </TransactionType>
+                      <TransactionDate>{formatDate(tx.timestamp)}</TransactionDate>
+                    </TransactionDetails>
+                  </TransactionInfo>
+                  <TransactionAmount $type={tx.type}>
+                    {tx.type === 'withdraw' ? '-' : '+'}{tx.amount.toFixed(4)} BCH
+                  </TransactionAmount>
+                </TransactionItem>
+              ))}
+            </TransactionList>
+          ) : (
+            <EmptyState>No transactions found</EmptyState>
+          )
+        ) : (
+          <EmptyState>Connect your wallet to view transaction history</EmptyState>
+        )}
+      </TransactionSection>
+
+      {/* Active Contracts Section */}
+      <TransactionSection>
+        <SectionTitle>Active Contracts</SectionTitle>
+        
+        {wallet.connected ? (
+          contracts.length > 0 ? (
+            <ContractList>
+              {contracts.map((contract) => {
+                const isLocked = contract.lockEndBlock > contract.currentBlock;
+                return (
+                  <ContractCard key={contract.address}>
+                    <ContractInfo>
+                      <ContractAddress>{contract.address}</ContractAddress>
+                      <div style={{ marginTop: '8px', fontSize: '14px', color: 'rgba(255,255,255,0.6)' }}>
+                        {contract.type === 'multisig' ? 'MultiSig (2-of-3)' : 'Single Owner'} •{' '}
+                        {getTimeRemaining(contract.lockEndBlock, contract.currentBlock)} remaining
+                      </div>
+                    </ContractInfo>
+                    <ContractBalance>{contract.balance.toFixed(4)} BCH</ContractBalance>
+                    <ContractStatus $locked={isLocked}>
+                      {isLocked ? '🔒 Locked' : '✅ Unlocked'}
+                    </ContractStatus>
+                    <ContractActions>
+                      <DepositButton>Deposit</DepositButton>
+                      <WithdrawButton disabled={isLocked}>Withdraw</WithdrawButton>
+                      <CancelButton>Cancel</CancelButton>
+                    </ContractActions>
+                  </ContractCard>
+                );
+              })}
+            </ContractList>
+          ) : (
+            <EmptyState>
+              No active time-locks found. Create one to get started!
+            </EmptyState>
+          )
         ) : (
           <EmptyState>
-            No active time-locks found. Create one to get started!
+            Connect your wallet to view your time-locked wallets
           </EmptyState>
-        )
-      ) : (
-        <EmptyState>
-          Connect your wallet to view your time-locked wallets
-        </EmptyState>
-      )}
+        )}
+      </TransactionSection>
     </DashboardContainer>
   );
 }
