@@ -192,6 +192,94 @@ describe('SafeDelayMultiSig Contract', () => {
           .send()
       ).rejects.toThrow();
     });
+
+    it('should allow same owner signing twice in pk2 and pk3 positions', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(owner1.address, ownerUtxo);
+
+      // owner1 + owner2 + owner2 (same owner twice) - counts as 2 signatures
+      // This is valid contract behavior - same owner can sign in multiple positions
+      const tx = await contract.functions.withdraw(
+        owner1.publicKey, owner1.signer,
+        owner2.publicKey, owner2.signer,
+        owner2.publicKey, owner2.signer,
+        owner1.pkh,
+        100000n
+      )
+        .from(contractUtxo)
+        .from(ownerUtxo)
+        .to(owner1.address, 100000n)
+        .to(contract.address, 90000n)
+        .withTime(1100)
+        .send();
+
+      expect(tx).toBeDefined();
+    });
+
+    it('should fail if pk1 is not owner1', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(owner2.address, ownerUtxo);
+
+      // pk1 must be owner1 - trying with owner2 should fail
+      await expect(
+        contract.functions.withdraw(
+          owner2.publicKey, owner2.signer,
+          owner1.publicKey, owner1.signer,
+          owner3.publicKey, owner3.signer,
+          owner1.pkh,
+          100000n
+        )
+          .from(contractUtxo)
+          .from(ownerUtxo)
+          .to(owner1.address, 100000n)
+          .to(contract.address, 90000n)
+          .withTime(1100)
+          .send()
+      ).rejects.toThrow();
+    });
+
+    it('should fail if recipient is not an owner', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(owner1.address, ownerUtxo);
+
+      await expect(
+        contract.functions.withdraw(
+          owner1.publicKey, owner1.signer,
+          owner2.publicKey, owner2.signer,
+          owner3.publicKey, owner3.signer,
+          attacker.pkh,
+          100000n
+        )
+          .from(contractUtxo)
+          .from(ownerUtxo)
+          .to(attacker.address, 100000n)
+          .to(contract.address, 90000n)
+          .withTime(1100)
+          .send()
+      ).rejects.toThrow();
+    });
+
+    it('should allow withdrawal with exact threshold (2-of-3)', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(owner1.address, ownerUtxo);
+
+      // Exactly 2 signatures: owner1 + owner2
+      const tx = await contract.functions.withdraw(
+        owner1.publicKey, owner1.signer,
+        owner2.publicKey, owner2.signer,
+        attacker.publicKey, attacker.signer, // attacker sig will be ignored
+        owner1.pkh,
+        100000n
+      )
+        .from(contractUtxo)
+        .from(ownerUtxo)
+        .to(owner1.address, 100000n)
+        .to(contract.address, 90000n)
+        .withTime(1100)
+        .send();
+
+      expect(tx).toBeDefined();
+    });
   });
 
   describe('cancel', () => {
@@ -250,6 +338,67 @@ describe('SafeDelayMultiSig Contract', () => {
           .withTime(500)
           .send()
       ).rejects.toThrow();
+    });
+
+    it('should allow cancel with reordered signatures (owner3 then owner2)', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(owner1.address, ownerUtxo);
+
+      const tx = await contract.functions.cancel(
+        owner1.publicKey, owner1.signer,
+        owner3.publicKey, owner3.signer,
+        owner2.publicKey, owner2.signer,
+        owner1.pkh
+      )
+        .from(contractUtxo)
+        .from(ownerUtxo)
+        .to(owner1.address, 190000n)
+        .withTime(500)
+        .send();
+
+      expect(tx).toBeDefined();
+    });
+
+    it('should allow cancel to owner2 address', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(owner1.address, ownerUtxo);
+
+      const tx = await contract.functions.cancel(
+        owner1.publicKey, owner1.signer,
+        owner2.publicKey, owner2.signer,
+        owner3.publicKey, owner3.signer,
+        owner2.pkh
+      )
+        .from(contractUtxo)
+        .from(ownerUtxo)
+        .to(owner2.address, 190000n)
+        .withTime(500)
+        .send();
+
+      expect(tx).toBeDefined();
+    });
+
+    it('should allow 3-of-3 cancel', async () => {
+      const contract3of3 = new Contract(artifact, [owner1.pkh, owner2.pkh, owner3.pkh, 3n, lockEndBlock], { provider });
+      const utxo3of3 = createUtxo(200000n);
+      provider.addUtxo(contract3of3.address, utxo3of3);
+
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(owner1.address, ownerUtxo);
+
+      const tx = await contract3of3.functions.cancel(
+        owner1.publicKey, owner1.signer,
+        owner2.publicKey, owner2.signer,
+        owner3.publicKey, owner3.signer,
+        owner1.pkh
+      )
+        .from(utxo3of3)
+        .from(ownerUtxo)
+        .to(owner1.address, 190000n)
+        .withTime(500)
+        .send();
+
+      expect(tx).toBeDefined();
     });
   });
 });
