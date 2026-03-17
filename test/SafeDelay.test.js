@@ -174,4 +174,81 @@ describe('SafeDelay Contract', () => {
       expect(tx).toBeDefined();
     });
   });
+
+  describe('extend', () => {
+    it('should allow owner to extend lock to a later block', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
+
+      const newLockEndBlock = 2000n;
+      // totalBalance = 100000 + 100000 - 1000 = 199000
+
+      const tx = await contract.functions.extend(ownerKeyPair.publicKey, ownerKeyPair.signer, newLockEndBlock)
+        .from(contractUtxo)
+        .from(ownerUtxo)
+        .to(ownerKeyPair.address, 199000n)
+        .withTime(500)
+        .send();
+
+      expect(tx).toBeDefined();
+    });
+
+    it('should fail if trying to extend to an earlier block', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
+
+      // Try to extend to an earlier block (500 < 1000 original lockEndBlock)
+      const earlierLockEndBlock = 500n;
+
+      await expect(
+        contract.functions.extend(ownerKeyPair.publicKey, ownerKeyPair.signer, earlierLockEndBlock)
+          .from(contractUtxo)
+          .from(ownerUtxo)
+          .to(ownerKeyPair.address, 199000n)
+          .withTime(500)
+          .send()
+      ).rejects.toThrow();
+    });
+
+    it('should fail if called by non-owner', async () => {
+      const attackerUtxo = createUtxo(100000n);
+      provider.addUtxo(attackerKeyPair.address, attackerUtxo);
+
+      const newLockEndBlock = 2000n;
+
+      // Should fail because attacker is not the owner
+      await expect(
+        contract.functions.extend(attackerKeyPair.publicKey, attackerKeyPair.signer, newLockEndBlock)
+          .from(contractUtxo)
+          .from(attackerUtxo)
+          .to(attackerKeyPair.address, 199000n)
+          .withTime(500)
+          .send()
+      ).rejects.toThrow();
+    });
+
+    it('should allow owner to extend again after first extension', async () => {
+      // First extension
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
+
+      // Get the contract at the extended state (this is a simplified test)
+      // In practice, you'd need to track the new contract instance
+      const extendedContract = new Contract(artifact, [ownerPKH, 2000n], { provider });
+      const extendedUtxo = createUtxo(100000n);
+      provider.addUtxo(extendedContract.address, extendedUtxo);
+
+      const secondLockEndBlock = 3000n;
+      // totalBalance = 100000 + 100000 - 1000 = 199000
+
+      const tx = await extendedContract.functions.extend(ownerKeyPair.publicKey, ownerKeyPair.signer, secondLockEndBlock)
+        .from(extendedUtxo)
+        .from(ownerUtxo)
+        .to(ownerKeyPair.address, 199000n)
+        .withTime(500)
+        .send();
+
+      expect(tx).toBeDefined();
+    });
+  });
 });
