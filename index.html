@@ -77,12 +77,38 @@
     .utxo-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
     .utxo-amount { font-weight: 600; color: #f39c12; }
     .utxo-txid { font-size: 0.75rem; color: #666; font-family: monospace; word-break: break-all; }
+    .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; }
+    .toolbar button { font-size: 0.85rem; padding: 0.5rem 1rem; }
+    .toolbar button.secondary { background: #34495e; color: #fff; }
+    .toolbar button.secondary:hover { background: #2c3e50; }
+    .import-section { display: none; margin-top: 1rem; padding: 1rem; background: #1a1a2e; border-radius: 8px; }
+    .import-section.active { display: block; }
+    .import-section input[type="file"] { margin-top: 0.5rem; }
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 1rem 1.5rem; background: #27ae60; color: #fff; border-radius: 8px; font-weight: 600; opacity: 0; transition: opacity 0.3s; }
+    .toast.show { opacity: 1; }
+    .toast.error { background: #e74c3c; }
+    .dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .dialog-overlay.active { display: flex; }
+    .dialog { background: #0f0f23; padding: 2rem; border-radius: 12px; max-width: 400px; text-align: center; }
+    .dialog h3 { margin-bottom: 1rem; }
+    .dialog p { margin-bottom: 1.5rem; color: #aaa; }
+    .dialog-buttons { display: flex; gap: 1rem; justify-content: center; }
+    .dialog-buttons button { min-width: 100px; }
+    .dialog-buttons button.cancel { background: #34495e; color: #fff; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>SafeDelay <span>Status</span></h1>
     <div class="search-box">
+      <div class="toolbar">
+        <button class="secondary" onclick="exportLocks()">📤 Export Locks</button>
+        <button class="secondary" onclick="showImportSection()">📥 Import Locks</button>
+      </div>
+      <div class="import-section" id="importSection">
+        <label>Select a JSON file to import locks:</label>
+        <input type="file" id="importFile" accept=".json" onchange="importLocks()" />
+      </div>
       <div class="network-select">
         <select id="network">
           <option value="mainnet">Mainnet</option>
@@ -107,6 +133,7 @@
     };
 
     let currentServer = null;
+    let currentBlockHeight = null;
 
     // Decode lockEndBlock from SafeDelay contract bytecode
     // SafeDelay bytecode: constructor args at end - lockEndBlock (varint) + ownerPKH (20 bytes)
@@ -211,7 +238,12 @@
           return;
         }
 
-        // Calculate totals
+        // Get current block height
+        const currentBlock = await electrumCall('blockchain.headers.subscribe');
+        const height = currentBlock.height;
+        currentBlockHeight = height;
+
+        // Display results
         let totalBCH = 0;
         let lockedBCH = 0;
         let unlockedBCH = 0;
@@ -293,6 +325,165 @@
         document.getElementById('searchBtn').disabled = false;
       }
     }
+
+    // Store locks in memory for export
+    let trackedLocks = [];
+
+    function showImportSection() {
+      document.getElementById('importSection').classList.toggle('active');
+    }
+
+    function showToast(message, isError = false) {
+      const toast = document.createElement('div');
+      toast.className = 'toast' + (isError ? ' error' : '');
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.classList.add('show'), 10);
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function showConfirmDialog(title, message, onConfirm) {
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay active';
+      overlay.innerHTML = `
+        <div class="dialog">
+          <h3>${title}</h3>
+          <p>${message}</p>
+          <div class="dialog-buttons">
+            <button class="cancel" onclick="this.closest('.dialog-overlay').remove()">Cancel</button>
+            <button onclick="confirmImport(this)">Import</button>
+          </div>
+        </div>
+      `;
+      overlay.onconfirm = onConfirm;
+      document.body.appendChild(overlay);
+    }
+
+    function confirmImport(btn) {
+      const overlay = btn.closest('.dialog-overlay');
+      if (overlay.onconfirm) overlay.onconfirm();
+      overlay.remove();
+    }
+
+    function exportLocks() {
+      if (trackedLocks.length === 0) {
+        showToast('No locks to export. Search for an address first.', true);
+        return;
+      }
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        network: document.getElementById('network').value,
+        locks: trackedLocks.map(lock => ({
+          address: lock.address,
+          balance: lock.balance,
+          utxoCount: lock.utxoCount,
+          currentBlock: lock.currentBlock
+        }))
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'safedelay-locks-' + new Date().toISOString().split('T')[0] + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Exported ' + trackedLocks.length + ' lock(s)');
+    }
+
+    function importLocks() {
+      const fileInput = document.getElementById('importFile');
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          
+          // Validate format
+          if (!data.locks || !Array.isArray(data.locks)) {
+            throw new Error('Invalid format: missing locks array');
+          }
+          
+          for (const lock of data.locks) {
+            if (!lock.address || typeof lock.balance !== 'number') {
+              throw new Error('Invalid lock format: missing address or balance');
+            }
+          }
+
+          showConfirmDialog(
+            'Import Locks',
+            `This will import ${data.locks.length} lock(s) from the file. Continue?`,
+            () => {
+              trackedLocks = data.locks;
+              showToast('Imported ' + data.locks.length + ' lock(s)');
+              // Optionally display the imported locks
+              displayImportedLocks(data.locks);
+            }
+          );
+        } catch (err) {
+          showToast('Import failed: ' + err.message, true);
+        }
+        fileInput.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    function displayImportedLocks(locks) {
+      const resultsDiv = document.getElementById('results');
+      let html = '';
+      for (const lock of locks) {
+        html += `
+          <div class="lock-card active">
+            <div class="lock-header">
+              <span class="lock-status active">📥 Imported</span>
+              <span style="font-family: monospace; color: #f39c12;">${lock.address.slice(0, 20)}...</span>
+            </div>
+            <div class="lock-details">
+              <div class="detail-item">
+                <div class="detail-label">Balance</div>
+                <div class="detail-value bch">${lock.balance.toFixed(8)} BCH</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">UTXOs</div>
+                <div class="detail-value">${lock.utxoCount}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      resultsDiv.innerHTML = html;
+    }
+
+    // Track locks when they're displayed
+    const originalCheckLocks = checkLocks;
+    checkLocks = async function() {
+      await originalCheckLocks();
+      // After checkLocks completes, update trackedLocks if we have results
+      const resultsDiv = document.getElementById('results');
+      const lockCards = resultsDiv.querySelectorAll('.lock-card');
+      if (lockCards.length > 0) {
+        const address = document.getElementById('address').value.trim();
+        const balanceEl = resultsDiv.querySelector('.detail-value.bch');
+        const utxoCountEl = resultsDiv.querySelector('.detail-item:nth-child(1) .detail-value');
+        
+        if (address && balanceEl) {
+          const balance = parseFloat(balanceEl.textContent);
+          const utxoCount = parseInt(utxoCountEl.textContent) || 0;
+          
+          // Check if already tracked
+          const existing = trackedLocks.findIndex(l => l.address === address);
+          if (existing >= 0) {
+            trackedLocks[existing] = { address, balance, utxoCount, currentBlock: currentBlockHeight };
+          } else {
+            trackedLocks.push({ address, balance, utxoCount, currentBlock: currentBlockHeight });
+          }
+        }
+      }
+    };
   </script>
 </body>
 </html>
