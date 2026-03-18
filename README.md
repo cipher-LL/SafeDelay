@@ -19,6 +19,161 @@ SafeDelay is a time-locked wallet where funds can only be withdrawn after a spec
 - 📈 **Extend lock** - Owner can extend the lock period (one-way extension)
 - 🔒 **Single owner** - Simple security model with one owner key
 
+## Quick Start
+
+```typescript
+import { Contract } from 'cashscript';
+import { SafeDelayArtifact } from 'safedelay';
+
+// Create contract with 30-day lock
+const safeDelay = await Contract.fromArtifact(
+  SafeDelayArtifact,
+  { ownerPKH: 'your_public_key_hash', lockEndBlock: currentBlock + 4320 },
+  { provider }
+);
+
+// Deposit
+await safeDelay.deposit().send(senderAddress, sendAmount);
+
+// Withdraw after lock expires
+await safeDelay.withdraw().send(recipientAddress, withdrawAmount);
+```
+
+## Frontend Integration
+
+### With WalletConnect (via CashScript)
+
+```typescript
+import { Contract } from 'cashscript';
+import { SafeDelayArtifact } from 'safedelay';
+import { EIP1193Provider } from '@walletconnect/ethereum-provider';
+
+// Initialize WalletConnect provider
+const provider = new EIP1193Provider({
+  projectId: 'your_project_id',
+  chains: [1] // BCH chain
+});
+
+await provider.connect();
+
+// Create SafeDelay contract
+const safeDelay = await Contract.fromArtifact(
+  SafeDelayArtifact,
+  { ownerPKH: ownerPublicKeyHash, lockEndBlock, depositReceipts: [] },
+  { provider }
+);
+
+// All contract operations work through the connected wallet
+await safeDelay.deposit().send(senderAddress, amount);
+```
+
+### With CashID
+
+```typescript
+import { Contract } from 'cashscript';
+import { SafeDelayArtifact } from 'safedelay';
+
+// CashID auth provides the public key hash directly
+const { pkh } = await cashid.resolve('https://example.com/cashid');
+
+// Use pkh directly in contract parameters
+const safeDelay = await Contract.fromArtifact(
+  SafeDelayArtifact,
+  { ownerPKH: pkh, lockEndBlock, depositReceipts: [] },
+  { provider }
+);
+```
+
+### React Integration Example
+
+```tsx
+import { useEffect, useState } from 'react';
+import { Contract } from 'cashscript';
+import { SafeDelayArtifact } from 'safedelay';
+
+function SafeDelayWidget({ provider, ownerPKH, lockBlocks = 4320 }) {
+  const [contract, setContract] = useState(null);
+  const [balance, setBalance] = useState(0n);
+
+  useEffect(() => {
+    async function init() {
+      const currentBlock = await provider.getBlockCount();
+      const contract = await Contract.fromArtifact(
+        SafeDelayArtifact,
+        { ownerPKH, lockEndBlock: currentBlock + lockBlocks, depositReceipts: [] },
+        { provider }
+      );
+      setContract(contract);
+      // Fetch balance...
+    }
+    init();
+  }, [provider, ownerPKH]);
+
+  const deposit = async (amount) => {
+    await contract.deposit().send(senderAddress, amount);
+  };
+
+  const withdraw = async () => {
+    await contract.withdraw().send(recipientAddress, balance);
+  };
+
+  return (
+    <div>
+      <button onClick={deposit}>Deposit</button>
+      <button onClick={withdraw}>Withdraw</button>
+    </div>
+  );
+}
+```
+
+## Deployment
+
+### Contract Compilation
+
+```bash
+npx cashc SafeDelay.cash --output contracts/artifacts/SafeDelay.json
+```
+
+### Deploying to Mainnet
+
+1. **Compile the contract** using `cashc`
+2. **Initialize** on-chain with the initial deposit and parameters:
+
+```typescript
+const safeDelay = await Contract.fromArtifact(
+  SafeDelayArtifact,
+  {
+    ownerPKH: ownerPublicKeyHash,
+    lockEndBlock: targetBlockHeight,
+    depositReceipts: []
+  },
+  { provider: mainnetProvider }
+);
+
+// Send BCH to initialize the contract
+await safeDelay.deposit().send(fundingAddress, initialAmount);
+```
+
+### Testnet
+
+For testing, use the Bitcoin Cash testnet:
+
+```typescript
+import { TestnetProvider } from '@electrum-cash/electrum-cash';
+
+const provider = new TestnetProvider();
+const currentBlock = await provider.getBlockCount();
+
+// Create test contract
+const testContract = await Contract.fromArtifact(
+  SafeDelayArtifact,
+  { ownerPKH: testPKH, lockEndBlock: currentBlock + 100, depositReceipts: [] },
+  { provider }
+);
+```
+
+**Note:** Contract addresses are derived from the initialization parameters and the contract bytecode. Each unique `ownerPKH` + `lockEndBlock` combination produces a different address.
+
 ## Usage
 
 ### Installation
