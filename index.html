@@ -67,8 +67,27 @@
     .empty-state { text-align: center; padding: 3rem; color: #666; }
     .loading { text-align: center; padding: 2rem; color: #f39c12; }
     .error { background: #2c0b0e; border: 1px solid #e74c3c; color: #e74c3c; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
-    .network-select { margin-bottom: 1rem; }
-    .network-select select { padding: 0.5rem; background: #1a1a2e; color: #fff; border: 1px solid #444; border-radius: 6px; }
+    .contract-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .contract-tabs button {
+      flex: 1;
+      padding: 0.75rem;
+      background: #1a1a2e;
+      color: #888;
+      border: 1px solid #333;
+    }
+    .contract-tabs button.active {
+      background: #f39c12;
+      color: #000;
+      border-color: #f39c12;
+    }
+    .contract-tabs button:hover:not(.active) { border-color: #f39c12; }
+    .nft-detail { background: #1a1a2e; padding: 0.5rem; border-radius: 6px; margin-top: 0.5rem; font-size: 0.85rem; }
+    .nft-flag { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-right: 0.5rem; }
+    .nft-flag.locked { background: #e74c3c; color: #fff; }
+    .nft-flag.withdrawing { background: #f39c12; color: #000; }
+    .nft-flag.extended { background: #3498db; color: #fff; }
+    .action-buttons { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+    .action-buttons button { font-size: 0.85rem; padding: 0.5rem 1rem; }
     .detail-value.locked { color: #e74c3c; }
     .detail-value.unlocked { color: #27ae60; }
     .countdown { font-family: monospace; font-size: 1.2rem; color: #f39c12; }
@@ -101,6 +120,10 @@
   <div class="container">
     <h1>SafeDelay <span>Status</span></h1>
     <div class="search-box">
+      <div class="contract-tabs">
+        <button id="tab-std" class="active" onclick="selectContract('std')">SafeDelay (Standard)</button>
+        <button id="tab-nft" onclick="selectContract('nft')">SafeDelay NFT</button>
+      </div>
       <div class="toolbar">
         <button class="secondary" onclick="exportLocks()">📤 Export Locks</button>
         <button class="secondary" onclick="showImportSection()">📥 Import Locks</button>
@@ -115,7 +138,7 @@
           <option value="testnet">Testnet</option>
         </select>
       </div>
-      <label for="address">Enter address to check SafeDelay locks:</label>
+      <label for="address" id="addressLabel">Enter address to check SafeDelay locks:</label>
       <div class="input-group">
         <input type="text" id="address" placeholder="bitcoincash:..." />
         <button id="searchBtn" onclick="checkLocks()">Check</button>
@@ -134,6 +157,43 @@
 
     let currentServer = null;
     let currentBlockHeight = null;
+    let currentContract = 'std';
+    let height = 0;
+
+    function selectContract(type) {
+      currentContract = type;
+      document.getElementById('tab-std').classList.toggle('active', type === 'std');
+      document.getElementById('tab-nft').classList.toggle('active', type === 'nft');
+      document.getElementById('addressLabel').textContent = type === 'nft' 
+        ? 'Enter address to check SafeDelay NFT locks:'
+        : 'Enter address to check SafeDelay locks:';
+      document.getElementById('results').innerHTML = '';
+    }
+
+    // Decode NFT commitment for SafeDelay_NFT
+    // Format: [optional data...] [extendedBlocks?] [flag]
+    // flag: 0x00 = locked, 0x01 = withdrawing, 0x02 = extended
+    function decodeNFTCommitment(commitmentHex) {
+      if (!commitmentHex || commitmentHex.length < 2) return null;
+      
+      try {
+        const bytes = commitmentHex.match(/.{1,2}/g).map(b => parseInt(b, 16));
+        const flag = bytes[bytes.length - 1];
+        
+        if (flag === 0x00) {
+          return { flag: 'locked', flagHex: '0x00', extendedBlocks: 0 };
+        } else if (flag === 0x01) {
+          return { flag: 'withdrawing', flagHex: '0x01', extendedBlocks: 0 };
+        } else if (flag === 0x02) {
+          const extendedBlocks = bytes.length >= 2 ? bytes[bytes.length - 2] : 0;
+          return { flag: 'extended', flagHex: '0x02', extendedBlocks };
+        }
+        return { flag: 'unknown', flagHex: '0x' + flag.toString(16), extendedBlocks: 0 };
+      } catch (e) {
+        console.error('NFT decode error:', e);
+        return null;
+      }
+    }
 
     // Decode lockEndBlock from SafeDelay contract bytecode
     // SafeDelay bytecode: constructor args at end - lockEndBlock (varint) + ownerPKH (20 bytes)
@@ -197,6 +257,15 @@
 
       try {
         currentServer = ELECTRUM_SERVERS[network];
+        
+        // Get current block height
+        try {
+          height = await electrumCall('blockchain.headers.subscribe');
+          height = height.height;
+        } catch (e) {
+          height = await electrumCall('blockchain.get.block.count');
+        }
+        
         const utxos = await electrumCall('blockchain.address.getUTXOs', [address]);
         
         if (!utxos || utxos.length === 0) {
@@ -205,36 +274,60 @@
           return;
         }
 
-        // Find SafeDelay contracts
+        // Find SafeDelay contracts (standard or NFT)
         const safeDelayUtxos = [];
         
         for (const utxo of utxos) {
           const script = utxo.script;
           if (!script) continue;
           
-          const decoded = decodeLockEndBlock(script);
+          // Check for NFT (has nftCommitment)
+          const nftCommitment = utxo.nftCommitment;
           
-          if (decoded && decoded.lockEndBlock) {
-            safeDelayUtxos.push({
-              ...utxo,
-              lockEndBlock: decoded.lockEndBlock,
-              ownerPKH: decoded.ownerPKH,
-              isContract: true
-            });
-          } else if (script.startsWith('76a914') && script.endsWith('88ac')) {
-            safeDelayUtxos.push({
-              ...utxo,
-              lockEndBlock: null,
-              ownerPKH: null,
-              isContract: true
-            });
+          if (currentContract === 'nft' && nftCommitment) {
+            // NFT contract - decode the commitment
+            const decodedNFT = decodeNFTCommitment(nftCommitment);
+            if (decodedNFT) {
+              safeDelayUtxos.push({
+                ...utxo,
+                isContract: true,
+                contractType: 'nft',
+                nftData: decodedNFT,
+                lockEndBlock: null, // NFTs use different mechanism
+                ownerPKH: null
+              });
+            }
+          } else if (currentContract === 'std') {
+            // Standard SafeDelay - decode lockEndBlock from bytecode
+            const decoded = decodeLockEndBlock(script);
+            
+            if (decoded && decoded.lockEndBlock) {
+              safeDelayUtxos.push({
+                ...utxo,
+                lockEndBlock: decoded.lockEndBlock,
+                ownerPKH: decoded.ownerPKH,
+                isContract: true,
+                contractType: 'std'
+              });
+            } else if (script.startsWith('76a914') && script.endsWith('88ac')) {
+              safeDelayUtxos.push({
+                ...utxo,
+                lockEndBlock: null,
+                ownerPKH: null,
+                isContract: true,
+                contractType: 'std'
+              });
+            }
           }
         }
 
         loadingDiv.style.display = 'none';
 
         if (safeDelayUtxos.length === 0) {
-          resultsDiv.innerHTML = '<div class="empty-state"><p>No SafeDelay locks found for this address.</p></div>';
+          const msg = currentContract === 'nft' 
+            ? 'No SafeDelay NFT locks found for this address.'
+            : 'No SafeDelay locks found for this address.';
+          resultsDiv.innerHTML = `<div class="empty-state"><p>${msg}</p></div>`;
           return;
         }
 
@@ -249,38 +342,80 @@
         let unlockedBCH = 0;
         
         // Build individual UTXO display
+        const contractTitle = currentContract === 'nft' ? 'SafeDelay NFT Locks' : 'SafeDelay Locks';
         let utxoHtml = '<div class="utxo-list"><h3 style="margin-bottom: 1rem; color: #aaa; font-size: 0.9rem; text-transform: uppercase;">Individual Locks</h3>';
         
         for (const utxo of safeDelayUtxos) {
           const bch = utxo.value / 100000000;
           totalBCH += bch;
           
-          const isLocked = !utxo.lockEndBlock || utxo.lockEndBlock > height;
-          const remaining = utxo.lockEndBlock ? utxo.lockEndBlock - height : 0;
-          
-          if (isLocked) lockedBCH += bch;
-          else unlockedBCH += bch;
-          
-          const shortTxId = utxo.txid ? utxo.txid.substring(0, 16) + '...' : 'unknown';
-          
-          utxoHtml += `
-            <div class="utxo-item" style="border-left-color: ${isLocked ? '#e74c3c' : '#27ae60'};">
-              <div class="utxo-header">
-                <span class="utxo-amount">${bch.toFixed(8)} BCH</span>
-                <span class="lock-status ${isLocked ? '' : 'active'}" style="background: ${isLocked ? '#e74c3c' : '#27ae60'};">
-                  ${isLocked ? '🔒 Locked' : '✅ Unlocked'}
-                </span>
-              </div>
-              <div class="utxo-txid">TX: ${shortTxId}:${utxo.vout}</div>
-              ${utxo.lockEndBlock ? `
-                <div style="margin-top: 0.5rem; font-size: 0.9rem;">
-                  <span style="color: #888;">Lock End:</span> 
-                  <span style="color: #fff;">Block ${utxo.lockEndBlock.toLocaleString()}</span>
-                  ${isLocked ? `<span class="countdown" style="margin-left: 0.5rem;">(${remaining.toLocaleString()} blocks left)</span>` : ''}
+          // For standard SafeDelay
+          if (utxo.contractType === 'std') {
+            const isLocked = !utxo.lockEndBlock || utxo.lockEndBlock > height;
+            const remaining = utxo.lockEndBlock ? utxo.lockEndBlock - height : 0;
+            
+            if (isLocked) lockedBCH += bch;
+            else unlockedBCH += bch;
+            
+            const shortTxId = utxo.txid ? utxo.txid.substring(0, 16) + '...' : 'unknown';
+            
+            utxoHtml += `
+              <div class="utxo-item" style="border-left-color: ${isLocked ? '#e74c3c' : '#27ae60'};">
+                <div class="utxo-header">
+                  <span class="utxo-amount">${bch.toFixed(8)} BCH</span>
+                  <span class="lock-status ${isLocked ? '' : 'active'}" style="background: ${isLocked ? '#e74c3c' : '#27ae60'};">
+                    ${isLocked ? '🔒 Locked' : '✅ Unlocked'}
+                  </span>
                 </div>
-              ` : '<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #888;">Lock end block unknown</div>'}
-            </div>
-          `;
+                <div class="utxo-txid">TX: ${shortTxId}:${utxo.vout}</div>
+                ${utxo.lockEndBlock ? `
+                  <div style="margin-top: 0.5rem; font-size: 0.9rem;">
+                    <span style="color: #888;">Lock End:</span> 
+                    <span style="color: #fff;">Block ${utxo.lockEndBlock.toLocaleString()}</span>
+                    ${isLocked ? `<span class="countdown" style="margin-left: 0.5rem;">(${remaining.toLocaleString()} blocks left)</span>` : ''}
+                  </div>
+                ` : '<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #888;">Lock end block unknown</div>'}
+              </div>
+            `;
+          }
+          // For NFT SafeDelay
+          else if (utxo.contractType === 'nft' && utxo.nftData) {
+            const nft = utxo.nftData;
+            const isLocked = nft.flag === 'locked';
+            const isWithdrawing = nft.flag === 'withdrawing';
+            const isExtended = nft.flag === 'extended';
+            
+            if (isLocked) lockedBCH += bch;
+            else unlockedBCH += bch;
+            
+            const shortTxId = utxo.txid ? utxo.txid.substring(0, 16) + '...' : 'unknown';
+            
+            let flagClass = 'locked';
+            let flagLabel = '🔒 Locked';
+            if (isWithdrawing) { flagClass = 'withdrawing'; flagLabel = '⏳ Withdrawing'; }
+            else if (isExtended) { flagClass = 'extended'; flagLabel = '🔓 Extended'; }
+            else if (!isLocked) { flagLabel = '✅ Unlocked'; }
+            
+            utxoHtml += `
+              <div class="utxo-item" style="border-left-color: ${isLocked ? '#e74c3c' : '#27ae60'};">
+                <div class="utxo-header">
+                  <span class="utxo-amount">${bch.toFixed(8)} BCH</span>
+                  <span class="nft-flag ${flagClass}">${flagLabel}</span>
+                </div>
+                <div class="utxo-txid">TX: ${shortTxId}:${utxo.vout}</div>
+                <div class="nft-detail">
+                  <span style="color: #888;">Flag:</span> ${nft.flagHex}
+                  ${nft.extendedBlocks > 0 ? `<span style="color: #888; margin-left: 1rem;">Extended:</span> +${nft.extendedBlocks} blocks` : ''}
+                  ${utxo.nftCommitment ? `<br><span style="color: #666; font-size: 0.75rem;">Commitment: ${utxo.nftCommitment.substring(0, 32)}...</span>` : ''}
+                </div>
+                <div class="action-buttons">
+                  <button onclick="alert('Deposit feature coming soon - requires transaction signing')">💰 Deposit</button>
+                  <button onclick="alert('Extend feature coming soon - requires transaction signing')">⏰ Extend</button>
+                  <button onclick="alert('Withdraw feature coming soon - requires transaction signing')">🏧 Withdraw</button>
+                </div>
+              </div>
+            `;
+          }
         }
         
         utxoHtml += '</div>';
@@ -289,7 +424,7 @@
         const summaryHtml = `
           <div class="lock-card active">
             <div class="lock-header">
-              <span class="lock-status active">🔒 SafeDelay Locks</span>
+              <span class="lock-status active">🔒 ${contractTitle}</span>
             </div>
             <div class="lock-details">
               <div class="detail-item">
@@ -312,6 +447,12 @@
                 <div class="detail-label">Unlocked</div>
                 <div class="detail-value unlocked">${unlockedBCH.toFixed(8)} BCH</div>
               </div>
+              ${currentContract === 'nft' ? `
+              <div class="detail-item">
+                <div class="detail-label">Contract</div>
+                <div class="detail-value">SafeDelay_NFT</div>
+              </div>
+              ` : ''}
             </div>
           </div>
         `;
