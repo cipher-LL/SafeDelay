@@ -114,6 +114,28 @@
     .dialog-buttons { display: flex; gap: 1rem; justify-content: center; }
     .dialog-buttons button { min-width: 100px; }
     .dialog-buttons button.cancel { background: #34495e; color: #fff; }
+    .analytics-section { margin-top: 1.5rem; }
+    .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .analytics-card { background: #1a1a2e; padding: 1.25rem; border-radius: 10px; text-align: center; }
+    .analytics-card .label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 0.5rem; }
+    .analytics-card .value { font-size: 1.5rem; font-weight: 700; }
+    .analytics-card .value.bch { color: #f39c12; }
+    .analytics-card .value.green { color: #27ae60; }
+    .analytics-card .value.red { color: #e74c3c; }
+    .timeline-section { background: #0f0f23; padding: 1.5rem; border-radius: 12px; border: 1px solid #333; margin-top: 1.5rem; }
+    .timeline-section h3 { color: #aaa; font-size: 0.9rem; text-transform: uppercase; margin-bottom: 1rem; }
+    .timeline-bar { position: relative; height: 40px; background: #1a1a2e; border-radius: 8px; overflow: hidden; margin-bottom: 0.75rem; }
+    .timeline-segment { position: absolute; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; color: #fff; overflow: hidden; white-space: nowrap; transition: all 0.3s; }
+    .timeline-segment:hover { filter: brightness(1.2); z-index: 10; }
+    .timeline-segment.locked { background: linear-gradient(90deg, #e74c3c, #c0392b); }
+    .timeline-segment.unlocked { background: linear-gradient(90deg, #27ae60, #1e8449); }
+    .timeline-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: #666; }
+    .timeline-legend { display: flex; gap: 1.5rem; justify-content: center; margin-top: 1rem; font-size: 0.8rem; }
+    .timeline-legend-item { display: flex; align-items: center; gap: 0.5rem; }
+    .timeline-legend-color { width: 12px; height: 12px; border-radius: 3px; }
+    .fee-estimate { background: #1a1a2e; padding: 1rem; border-radius: 8px; margin-top: 1rem; border-left: 3px solid #f39c12; }
+    .fee-estimate .title { font-size: 0.85rem; color: #aaa; margin-bottom: 0.5rem; }
+    .fee-estimate .amount { font-size: 1.1rem; color: #f39c12; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -420,6 +442,92 @@
         
         utxoHtml += '</div>';
 
+        // Calculate analytics
+        const avgLockRemaining = safeDelayUtxos.filter(u => u.lockEndBlock && u.lockEndBlock > height)
+          .reduce((sum, u) => sum + (u.lockEndBlock - height), 0) / Math.max(safeDelayUtxos.filter(u => u.lockEndBlock && u.lockEndBlock > height).length, 1);
+        const blocksPerDay = 144; // ~144 blocks per day on BCH
+        const avgDaysRemaining = Math.round(avgLockRemaining / blocksPerDay);
+        const earliestUnlock = safeDelayUtxos.filter(u => u.lockEndBlock && u.lockEndBlock > height)
+          .sort((a, b) => a.lockEndBlock - b.lockEndBlock)[0];
+        const latestLock = safeDelayUtxos.filter(u => u.lockEndBlock)
+          .sort((a, b) => b.lockEndBlock - a.lockEndBlock)[0];
+        
+        // Build timeline visualization
+        const minBlock = latestLock ? latestLock.lockEndBlock - (30 * blocksPerDay * 3) : height - (30 * blocksPerDay); // 3 months range
+        const maxBlock = Math.max(height + (30 * blocksPerDay * 6), ...safeDelayUtxos.filter(u => u.lockEndBlock).map(u => u.lockEndBlock));
+        const range = maxBlock - minBlock;
+        
+        let timelineHtml = '';
+        if (safeDelayUtxos.length > 0 && safeDelayUtxos.some(u => u.lockEndBlock)) {
+          const sortedUtxos = [...safeDelayUtxos].sort((a, b) => (a.lockEndBlock || 0) - (b.lockEndBlock || 0));
+          
+          timelineHtml = `
+            <div class="timeline-section">
+              <h3>📊 Deposit Timeline</h3>
+              <div class="timeline-bar">
+                ${sortedUtxos.map((utxo, idx) => {
+                  const bch = utxo.value / 100000000;
+                  const endBlock = utxo.lockEndBlock || maxBlock;
+                  const startPct = Math.max(0, ((utxo.lockEndBlock ? utxo.lockEndBlock - (blocksPerDay * 30) : minBlock) - minBlock) / range * 100);
+                  const endPct = Math.max(0, Math.min(100, (endBlock - minBlock) / range * 100));
+                  const width = Math.max(5, endPct - startPct);
+                  const isLocked = !utxo.lockEndBlock || utxo.lockEndBlock > height;
+                  const remaining = utxo.lockEndBlock ? utxo.lockEndBlock - height : 0;
+                  
+                  return `<div class="timeline-segment ${isLocked ? 'locked' : 'unlocked'}" 
+                    style="left: ${startPct}%; width: ${width}%; background: ${isLocked ? `linear-gradient(90deg, #e74c3c, #c0392b)` : `linear-gradient(90deg, #27ae60, #1e8449)`}"
+                    title="${bch.toFixed(4)} BCH - ${isLocked ? remaining + ' blocks remaining' : 'Unlocked'}">
+                    ${bch.toFixed(2)} BCH
+                  </div>`;
+                }).join('')}
+              </div>
+              <div class="timeline-labels">
+                <span>${minBlock.toLocaleString()}</span>
+                <span>Block Height →</span>
+                <span>${maxBlock.toLocaleString()}</span>
+              </div>
+              <div class="timeline-legend">
+                <div class="timeline-legend-item"><div class="timeline-legend-color" style="background: #e74c3c"></div> Locked</div>
+                <div class="timeline-legend-item"><div class="timeline-legend-color" style="background: #27ae60"></div> Unlocked</div>
+              </div>
+              
+              <div class="fee-estimate">
+                <div class="title">💰 If You Cancel All Now (Emergency Withdrawal)</div>
+                <div class="amount">${(safeDelayUtxos.length * 0.00001).toFixed(5)} BCH = ${safeDelayUtxos.length} × 1,000 sats</div>
+                <div style="font-size: 0.8rem; color: #888; margin-top: 0.25rem;">Each cancel/withdraw costs 1,000 sats in network fees</div>
+              </div>
+            </div>
+          `;
+        }
+
+        // Analytics section
+        const analyticsHtml = `
+          <div class="analytics-section">
+            <div class="analytics-grid">
+              <div class="analytics-card">
+                <div class="label">Avg. Time Remaining</div>
+                <div class="value">${avgDaysRemaining > 0 ? '~' + avgDaysRemaining + ' days' : 'None'}</div>
+              </div>
+              <div class="analytics-card">
+                <div class="label">Earliest Unlock</div>
+                <div class="value ${earliestUnlock && earliestUnlock.lockEndBlock > height ? 'green' : ''}">
+                  ${earliestUnlock ? (earliestUnlock.lockEndBlock > height 
+                    ? Math.round((earliestUnlock.lockEndBlock - height) / blocksPerDay) + ' days' 
+                    : 'Now!') : 'N/A'}
+                </div>
+              </div>
+              <div class="analytics-card">
+                <div class="label">Active Deposits</div>
+                <div class="value bch">${safeDelayUtxos.filter(u => !u.lockEndBlock || u.lockEndBlock > height).length}</div>
+              </div>
+              <div class="analytics-card">
+                <div class="label">Available Now</div>
+                <div class="value green">${unlockedBCH.toFixed(4)} BCH</div>
+              </div>
+            </div>
+          </div>
+        `;
+
         // Summary card
         const summaryHtml = `
           <div class="lock-card active">
@@ -457,7 +565,7 @@
           </div>
         `;
 
-        resultsDiv.innerHTML = summaryHtml + utxoHtml;
+        resultsDiv.innerHTML = summaryHtml + analyticsHtml + timelineHtml + utxoHtml;
         
       } catch (err) {
         loadingDiv.style.display = 'none';
