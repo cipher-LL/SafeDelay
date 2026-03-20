@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
+import { useWalletLabels } from '../hooks/useWalletLabels';
 
 const DashboardContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -235,6 +236,95 @@ const TransactionItem = styled.div`
   gap: 12px;
 `;
 
+const SortBar = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+`;
+
+const SortLabel = styled.span`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-right: 8px;
+`;
+
+const SortSelect = styled.select`
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+  }
+`;
+
+const LabelInput = styled.input`
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 13px;
+  width: 140px;
+  
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+  }
+  
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+`;
+
+const LabelButton = styled.button`
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+`;
+
+const SaveLabelBtn = styled(LabelButton)`
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  
+  &:hover {
+    background: rgba(16, 185, 129, 0.3);
+  }
+`;
+
+const RemoveLabelBtn = styled(LabelButton)`
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  
+  &:hover {
+    background: rgba(239, 68, 68, 0.3);
+  }
+`;
+
+const LabelDisplay = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const WalletLabel = styled.span`
+  background: rgba(79, 70, 229, 0.2);
+  color: #a5b4fc;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+`;
+
 const TransactionInfo = styled.div`
   display: flex;
   align-items: center;
@@ -293,12 +383,18 @@ interface Transaction {
   contractAddress: string;
 }
 
+type SortOption = 'date' | 'amount' | 'unlock';
+
 export default function Dashboard() {
   const { network } = useNetwork();
   const { wallet } = useWallet();
+  const { getLabel, setLabel, removeLabel } = useWalletLabels();
   const [contracts, setContracts] = useState<TimeLock[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'create'>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('date');
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  const [labelInput, setLabelInput] = useState('');
 
   // Placeholder data for demonstration
   useEffect(() => {
@@ -362,6 +458,38 @@ export default function Dashboard() {
       setTransactions([]);
     }
   }, [wallet.connected, network]);
+
+  // Sort contracts based on selected option
+  const sortedContracts = [...contracts].sort((a, b) => {
+    switch (sortBy) {
+      case 'amount':
+        return b.balance - a.balance;
+      case 'unlock':
+        const aRemaining = a.lockEndBlock - a.currentBlock;
+        const bRemaining = b.lockEndBlock - b.currentBlock;
+        return aRemaining - bRemaining;
+      case 'date':
+      default:
+        // Sort by lock end block (earliest first)
+        return a.lockEndBlock - b.lockEndBlock;
+    }
+  });
+
+  const handleSaveLabel = (address: string) => {
+    if (labelInput.trim()) {
+      setLabel(address, labelInput.trim());
+    } else {
+      removeLabel(address);
+    }
+    setEditingLabel(null);
+    setLabelInput('');
+  };
+
+  const handleEditLabel = (address: string) => {
+    const existing = getLabel(address);
+    setEditingLabel(address);
+    setLabelInput(existing || '');
+  };
 
   const getTimeRemaining = (lockEnd: number, current: number) => {
     const blocksRemaining = lockEnd - current;
@@ -509,16 +637,53 @@ export default function Dashboard() {
       <TransactionSection>
         <SectionTitle>Active Contracts</SectionTitle>
         
+        {wallet.connected && contracts.length > 0 && (
+          <SortBar>
+            <SortLabel>Sort by:</SortLabel>
+            <SortSelect value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}>
+              <option value="date">Unlock Date</option>
+              <option value="amount">Amount</option>
+              <option value="unlock">Time Remaining</option>
+            </SortSelect>
+          </SortBar>
+        )}
+        
         {wallet.connected ? (
-          contracts.length > 0 ? (
+          sortedContracts.length > 0 ? (
             <ContractList>
-              {contracts.map((contract) => {
+              {sortedContracts.map((contract) => {
                 const isLocked = contract.lockEndBlock > contract.currentBlock;
+                const existingLabel = getLabel(contract.address);
+                const isEditing = editingLabel === contract.address;
+                
                 return (
                   <ContractCard key={contract.address}>
                     <ContractInfo>
-                      <ContractAddress>{contract.address}</ContractAddress>
-                      <div style={{ marginTop: '8px', fontSize: '14px', color: 'rgba(255,255,255,0.6)' }}>
+                      {isEditing ? (
+                        <LabelDisplay>
+                          <LabelInput 
+                            value={labelInput}
+                            onChange={(e) => setLabelInput(e.target.value)}
+                            placeholder="Enter label..."
+                            onKeyDown={(e) => e.key === 'Enter' && handleSaveLabel(contract.address)}
+                            autoFocus
+                          />
+                          <SaveLabelBtn onClick={() => handleSaveLabel(contract.address)}>Save</SaveLabelBtn>
+                          <RemoveLabelBtn onClick={() => { setEditingLabel(null); setLabelInput(''); }}>Cancel</RemoveLabelBtn>
+                        </LabelDisplay>
+                      ) : (
+                        <LabelDisplay>
+                          {existingLabel && <WalletLabel>{existingLabel}</WalletLabel>}
+                          <LabelButton 
+                            onClick={() => handleEditLabel(contract.address)}
+                            style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', padding: '2px 8px', fontSize: '12px' }}
+                          >
+                            {existingLabel ? 'Edit' : '+ Add Label'}
+                          </LabelButton>
+                        </LabelDisplay>
+                      )}
+                      <ContractAddress style={{ marginTop: '8px' }}>{contract.address}</ContractAddress>
+                      <div style={{ marginTop: '4px', fontSize: '14px', color: 'rgba(255,255,255,0.6)' }}>
                         {contract.type === 'multisig' ? 'MultiSig (2-of-3)' : 'Single Owner'} •{' '}
                         {getTimeRemaining(contract.lockEndBlock, contract.currentBlock)} remaining
                       </div>
