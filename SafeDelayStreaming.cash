@@ -1,0 +1,135 @@
+pragma cashscript ^0.12.0;
+
+/**
+ * SafeDelayStreaming - Streaming Time-Lock Contract
+ * 
+ * A streaming time-lock that releases funds gradually over time rather than all at once.
+ * Useful for salary streaming, recurring payments, vesting, and progressive fund releases.
+ * 
+ * How it works:
+ * - Creator funds the contract with totalAmount
+ * - Funds release incrementally based on releaseInterval (blocks)
+ * - Recipient can claim released funds at any time
+ * - Creator can cancel to refund unclaimed funds
+ * 
+ * Security model:
+ * - Single creator (creatorPKH) who funds and can cancel
+ * - Single recipient (recipientPKH) who receives funds
+ * - No other withdrawals possible
+ */
+contract SafeDelayStreaming(
+    bytes20 creatorPKH,        // Creator public key hash (funds source, can cancel)
+    bytes20 recipientPKH,      // Recipient public key hash (receives released funds)
+    int lockEndBlock,         // When streaming starts (first release time)
+    int releaseInterval,      // Blocks between each release
+    int numReleases,          // Total number of releases
+    int totalAmount           // Total amount being streamed (satoshis)
+) {
+    /**
+     * Claim released funds
+     * 
+     * Recipient can claim any amount up to the released but unclaimed amount.
+     * The contract maintains remaining streaming funds.
+     * 
+     * inputs:
+     *   0   SafeDelayStreaming UTXO  [BCH]    (this contract)
+     *   1   Recipient input          [any]   (recipient provides signature)
+     * outputs:
+     *   0   Recipient payment        [P2PKH] (recipientPKH)
+     *   1   SafeDelayStreaming UTXO  [BCH]   (remaining streaming funds)
+     *   2   Recipient change         [any]   (optional)
+     */
+    function claim(pubkey recipientPk, sig recipientSig, int claimAmount) {
+        require(hash160(recipientPk) == recipientPKH);
+        require(checkSig(recipientSig, recipientPk));
+        
+        // Verify lock has started
+        require(tx.locktime >= lockEndBlock);
+        
+        int contractBalance = tx.inputs[0].value;
+        int releasePerInterval = totalAmount / numReleases;
+        
+        // Calculate releases elapsed
+        int blocksSinceStart = tx.locktime - lockEndBlock;
+        int fullIntervals = blocksSinceStart / releaseInterval;
+        int numReleased = fullIntervals + 1;
+        
+        // Cap at numReleases
+        if (numReleased > numReleases) {
+            numReleased = numReleases;
+        }
+        
+        int releasedAmount = releasePerInterval * numReleased;
+        
+        // Cannot claim more than has been released
+        require(claimAmount <= releasedAmount);
+        
+        // Cannot claim more than available in contract
+        require(claimAmount <= contractBalance);
+        
+        int remainingBalance = contractBalance - claimAmount;
+        
+        // Output 0: Pay recipient the claimed amount
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipientPKH));
+        require(tx.outputs[0].value >= claimAmount);
+        
+        // Output 1: Recreate contract with remaining streaming funds (if any left)
+        if (remainingBalance > 546) {
+            require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);
+            require(tx.outputs[1].value == remainingBalance);
+        }
+    }
+    
+    /**
+     * Cancel and refund - creator can cancel anytime
+     * 
+     * Creator gets all unclaimed funds back. This closes the contract.
+     * Recipient keeps any already-claimed funds.
+     * 
+     * inputs:
+     *   0   SafeDelayStreaming UTXO  [BCH]    (this contract)
+     *   1   Creator input           [any]    (creator provides signature)
+     * outputs:
+     *   0   Creator refund         [P2PKH]  (creatorPKH)
+     *   1   Creator change         [any]    (optional)
+     */
+    function cancel(pubkey creatorPk, sig creatorSig) {
+        require(hash160(creatorPk) == creatorPKH);
+        require(checkSig(creatorSig, creatorPk));
+        
+        int contractBalance = tx.inputs[0].value;
+        
+        // Output 0: Pay creator everything remaining in contract
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(creatorPKH));
+        require(tx.outputs[0].value >= contractBalance - 546);
+    }
+    
+    /**
+     * Extend the streaming period start time
+     * 
+     * Creator can extend the lockEndBlock to delay the start of streaming.
+     * This is useful for vesting with a cliff period.
+     * 
+     * Note: This withdraws all funds - creator must redeposit into new contract.
+     * 
+     * inputs:
+     *   0   SafeDelayStreaming UTXO  [BCH]    (this contract)
+     *   1   Creator input           [any]    (creator provides signature)
+     * outputs:
+     *   0   Creator withdrawal     [P2PKH]  (creatorPKH)
+     *   1   Creator change          [any]    (optional)
+     */
+    function extend(pubkey creatorPk, sig creatorSig, int newLockEndBlock) {
+        require(hash160(creatorPk) == creatorPKH);
+        require(checkSig(creatorSig, creatorPk));
+        
+        // One-way extension: new lock must be later than current
+        require(newLockEndBlock > lockEndBlock);
+        
+        int contractBalance = tx.inputs[0].value;
+        
+        // Output 0: Pay creator everything (must redeposit into new contract)
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(creatorPKH));
+        require(tx.outputs[0].value >= contractBalance - 546);
+    }
+}
