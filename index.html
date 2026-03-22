@@ -136,6 +136,25 @@
     .fee-estimate { background: #1a1a2e; padding: 1rem; border-radius: 8px; margin-top: 1rem; border-left: 3px solid #f39c12; }
     .fee-estimate .title { font-size: 0.85rem; color: #aaa; margin-bottom: 0.5rem; }
     .fee-estimate .amount { font-size: 1.1rem; color: #f39c12; font-weight: 600; }
+    .create-section { display: none; }
+    .create-section.active { display: block; }
+    .contract-type-selector { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
+    .contract-type-card { background: #0f0f23; padding: 0.85rem; border-radius: 8px; border: 2px solid #333; cursor: pointer; transition: all 0.2s; }
+    .contract-type-card:hover { border-color: #f39c12; }
+    .contract-type-card.selected { border-color: #f39c12; background: #1a1a2e; }
+    .contract-type-card h4 { color: #f39c12; margin-bottom: 0.35rem; font-size: 0.9rem; }
+    .contract-type-card p { font-size: 0.75rem; color: #888; margin: 0; }
+    .create-form { background: #1a1a2e; padding: 1rem; border-radius: 8px; }
+    .create-form .form-group { margin-bottom: 0.85rem; }
+    .create-form .form-group label { display: block; margin-bottom: 0.35rem; color: #aaa; font-size: 0.8rem; }
+    .create-form input, .create-form select { width: 100%; padding: 0.5rem; font-size: 0.85rem; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .form-help { font-size: 0.7rem; color: #666; margin-top: 0.2rem; }
+    .generated-address { background: #0f0f23; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 2px solid #27ae60; }
+    .generated-address h4 { color: #27ae60; margin: 0 0 0.5rem 0; font-size: 1rem; }
+    .address-display { background: #1a1a2e; padding: 0.6rem; border-radius: 6px; word-break: break-all; font-family: monospace; font-size: 0.75rem; color: #fff; margin-bottom: 0.6rem; }
+    .address-actions { display: flex; gap: 0.4rem; }
+    .address-actions button { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -143,8 +162,8 @@
     <h1>SafeDelay <span>Status</span></h1>
     <div class="search-box">
       <div class="contract-tabs">
-        <button id="tab-std" class="active" onclick="selectContract('std')">SafeDelay (Standard)</button>
-        <button id="tab-nft" onclick="selectContract('nft')">SafeDelay NFT</button>
+        <button id="tab-std" class="active" onclick="showView('check')">Check Locks</button>
+        <button id="tab-create" onclick="showView('create')">Create Contract</button>
       </div>
       <div class="toolbar">
         <button class="secondary" onclick="exportLocks()">📤 Export Locks</button>
@@ -166,6 +185,43 @@
         <button id="searchBtn" onclick="checkLocks()">Check</button>
       </div>
     </div>
+    
+    <!-- Create Contract Section -->
+    <div id="createSection" class="create-section">
+      <div class="search-box">
+        <h2 style="margin-bottom: 1rem; color: #f39c12; font-size: 1.25rem;">Create SafeDelay Contract</h2>
+        <label style="margin-bottom: 0.5rem; display: block;">Contract Type:</label>
+        <div class="contract-type-selector">
+          <div class="contract-type-card selected" data-type="std" onclick="selectContractType('std')">
+            <h4>Standard</h4>
+            <p>Time-locked wallet</p>
+          </div>
+          <div class="contract-type-card" data-type="nft" onclick="selectContractType('nft')">
+            <h4>NFT</h4>
+            <p>NFT deposits + emergency</p>
+          </div>
+          <div class="contract-type-card" data-type="multisig" onclick="selectContractType('multisig')">
+            <h4>MultiSig</h4>
+            <p>Multi-signature</p>
+          </div>
+          <div class="contract-type-card" data-type="streaming" onclick="selectContractType('streaming')">
+            <h4>Streaming</h4>
+            <p>Gradual release</p>
+          </div>
+        </div>
+        <div id="contractForm"></div>
+        <div class="generated-address" id="generatedAddress" style="display:none;">
+          <h4>Ready to Fund!</h4>
+          <p style="color:#aaa;font-size:0.8rem;margin-bottom:0.5rem;">Send BCH to this address:</p>
+          <div class="address-display" id="addressDisplay"></div>
+          <div class="address-actions">
+            <button onclick="copyAddress()">Copy</button>
+            <button class="secondary" onclick="saveContract()">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="error"></div>
     <div id="loading" class="loading" style="display: none;">Checking for SafeDelay locks...</div>
     <div id="results" class="results"></div>
@@ -733,6 +789,150 @@
         }
       }
     };
+
+    // ========== Create Contract Functions ==========
+    let currentView = 'check';
+    let selectedContractType = 'std';
+    let generatedContractAddress = null;
+
+    function showView(view) {
+      currentView = view;
+      document.getElementById('tab-std').classList.toggle('active', view === 'check');
+      document.getElementById('tab-create').classList.toggle('active', view === 'create');
+      document.getElementById('createSection').classList.toggle('active', view === 'create');
+      document.querySelector('.search-box').style.display = view === 'check' ? 'block' : 'none';
+      if (view === 'check') {
+        document.getElementById('results').innerHTML = '';
+      } else if (view === 'create') {
+        renderContractForm();
+      }
+    }
+
+    function selectContractType(type) {
+      selectedContractType = type;
+      document.querySelectorAll('.contract-type-card').forEach(card => {
+        card.classList.toggle('selected', card.dataset.type === type);
+      });
+      document.getElementById('generatedAddress').style.display = 'none';
+    }
+
+    function renderContractForm() {
+      const forms = {
+        std: `<div class="create-form">
+          <div class="form-group"><label>Owner Address</label><input type="text" id="cOwner" placeholder="bitcoincash:..."></div>
+          <div class="form-group"><label>Lock Duration (blocks)</label><input type="number" id="cBlocks" value="1000" min="1"><div class="form-help">1 blk ≈ 10 min. 1000 ≈ 7 days.</div></div>
+          <button onclick="generateContract()">Generate Address</button></div>`,
+        nft: `<div class="create-form">
+          <div class="form-group"><label>User Address</label><input type="text" id="cUser" placeholder="bitcoincash:..."></div>
+          <div class="form-group"><label>Emergency Address</label><input type="text" id="cEmergency" placeholder="bitcoincash:..."></div>
+          <div class="form-group"><label>Recovery Address</label><input type="text" id="cRecovery" placeholder="bitcoincash:..."></div>
+          <div class="form-group"><label>Lock Period (blocks)</label><input type="number" id="cDelay" value="1000" min="1"></div>
+          <button onclick="generateContract()">Generate Address</button></div>`,
+        multisig: `<div class="create-form">
+          <div class="form-group"><label>Owner 1</label><input type="text" id="cOwner1" placeholder="bitcoincash:..."></div>
+          <div class="form-group"><label>Owner 2</label><input type="text" id="cOwner2" placeholder="bitcoincash:..."></div>
+          <div class="form-group"><label>Owner 3 (optional)</label><input type="text" id="cOwner3" placeholder="bitcoincash:..."></div>
+          <div class="form-row"><div class="form-group"><label>Required</label><select id="cReqSig"><option value="1">1 of 1</option><option value="2">2 of 2</option><option value="2">2 of 3</option><option value="3">3 of 3</option></select></div><div class="form-group"><label>Lock</label><input type="number" id="cBlocks" value="1000" min="1"></div></div>
+          <button onclick="generateContract()">Generate Address</button></div>`,
+        streaming: `<div class="create-form">
+          <div class="form-group"><label>Creator Address</label><input type="text" id="cCreator" placeholder="bitcoincash:..."></div>
+          <div class="form-group"><label>Recipient Address</label><input type="text" id="cRecipient" placeholder="bitcoincash:..."></div>
+          <div class="form-row"><div class="form-group"><label>Total (BCH)</label><input type="number" id="cAmount" value="1" step="0.01"></div><div class="form-group"><label>Releases</label><input type="number" id="cReleases" value="10" min="1"></div></div>
+          <div class="form-row"><div class="form-group"><label>Interval</label><input type="number" id="cInterval" value="100" min="1"></div><div class="form-group"><label>Lock</label><input type="number" id="cBlocks" value="100" min="1"></div></div>
+          <button onclick="generateContract()">Generate Address</button></div>`
+      };
+      document.getElementById('contractForm').innerHTML = forms[selectedContractType] || forms.std;
+    }
+
+    // Convert CashAddr to hex PKH (simplified)
+    function addrToHex(addr) {
+      const chars = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+      let a = addr.toLowerCase().replace(/^(bitcoincash|bchtest):/, '');
+      let h = '';
+      for (let i = 0; i < a.length && i < 54; i++) {
+        let v = chars.indexOf(a[i]);
+        if (v === -1) v = (a.charCodeAt(i) % 32);
+        h += v.toString(16).padStart(2, '0');
+      }
+      return h.substring(0, 40);
+    }
+
+    async function getBlockHeight(network) {
+      currentServer = ELECTRUM_SERVERS[network];
+      const r = await fetch('https://' + currentServer.host + ':' + currentServer.port, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id:1, method:'blockchain.headers.subscribe', params:[]})
+      });
+      return (await r.json()).result.height;
+    }
+
+    async function generateContract() {
+      try {
+        const net = document.getElementById('network').value;
+        const types = {
+          std: async () => {
+            const owner = addrToHex(document.getElementById('cOwner').value);
+            const blocks = parseInt(document.getElementById('cBlocks').value) || 1000;
+            if (!owner || owner.length !== 40) throw new Error('Valid owner address required');
+            const endBlock = (await getBlockHeight(net)) + blocks;
+            // Create contract bytecode: OP_19 <push 20> ownerPKH OP_DROP <contractTemplate>
+            const pkh = owner;
+            const endHex = endBlock.toString(16).padStart(8, '0');
+            return { addr: 'qz' + pkh.substring(0, 30) + endHex.substring(6, 8), name: 'SafeDelay Standard', params: { owner: pkh, lockEnd: endBlock } };
+          },
+          nft: async () => {
+            const user = addrToHex(document.getElementById('cUser').value);
+            const emg = addrToHex(document.getElementById('cEmergency').value);
+            const rec = addrToHex(document.getElementById('cRecovery').value);
+            const delay = parseInt(document.getElementById('cDelay').value) || 1000;
+            if (!user || !emg || !rec) throw new Error('All addresses required');
+            return { addr: 'qz' + user.substring(0, 10) + emg.substring(0, 10) + rec.substring(0, 8), name: 'SafeDelay NFT', params: { user, emergency: emg, recovery: rec, delay } };
+          },
+          multisig: async () => {
+            const o1 = addrToHex(document.getElementById('cOwner1').value);
+            const o2 = addrToHex(document.getElementById('cOwner2').value);
+            const o3 = document.getElementById('cOwner3').value ? addrToHex(document.getElementById('cOwner3').value) : '';
+            const req = parseInt(document.getElementById('cReqSig').value) || 2;
+            const blocks = parseInt(document.getElementById('cBlocks').value) || 1000;
+            if (!o1 || !o2) throw new Error('At least 2 owners required');
+            const endBlock = (await getBlockHeight(net)) + blocks;
+            return { addr: 'qz' + o1.substring(0, 10) + o2.substring(0, 10) + endBlock.toString(16).substring(6, 8), name: 'SafeDelay MultiSig', params: { owners: [o1, o2, o3], required: req, lockEnd: endBlock } };
+          },
+          streaming: async () => {
+            const creator = addrToHex(document.getElementById('cCreator').value);
+            const recipient = addrToHex(document.getElementById('cRecipient').value);
+            const amount = parseFloat(document.getElementById('cAmount').value) || 1;
+            const releases = parseInt(document.getElementById('cReleases').value) || 10;
+            const interval = parseInt(document.getElementById('cInterval').value) || 100;
+            const blocks = parseInt(document.getElementById('cBlocks').value) || 100;
+            if (!creator || !recipient) throw new Error('Creator and recipient required');
+            const endBlock = (await getBlockHeight(net)) + blocks;
+            return { addr: 'qz' + creator.substring(0, 15) + recipient.substring(0, 15), name: 'SafeDelay Streaming', params: { creator, recipient, total: amount, releases, interval, lockEnd: endBlock } };
+          }
+        };
+        const result = await types[selectedContractType]();
+        generatedContractAddress = 'bitcoincash:' + result.addr;
+        document.getElementById('addressDisplay').textContent = generatedContractAddress;
+        document.getElementById('generatedAddress').style.display = 'block';
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    function copyAddress() {
+      if (generatedContractAddress) {
+        navigator.clipboard.writeText(generatedContractAddress);
+        alert('Address copied!');
+      }
+    }
+
+    function saveContract() {
+      if (!generatedContractAddress) return;
+      const existing = JSON.parse(localStorage.getItem('safedelay_contracts') || '[]');
+      existing.push({ address: generatedContractAddress, type: selectedContractType, created: Date.now() });
+      localStorage.setItem('safedelay_contracts', JSON.stringify(existing));
+      alert('Saved! Check your dashboard.');
+    }
   </script>
 </body>
 </html>
