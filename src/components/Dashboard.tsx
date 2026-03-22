@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { useWalletLabels } from '../hooks/useWalletLabels';
+import { useWalletBackup } from '../hooks/useWalletBackup';
 
 const DashboardContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -325,6 +326,96 @@ const WalletLabel = styled.span`
   font-size: 12px;
 `;
 
+const BackupSection = styled.div`
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const BackupActions = styled.div`
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+`;
+
+const BackupButton = styled.button`
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const ExportBtn = styled(BackupButton)`
+  background: #4f46e5;
+  color: white;
+
+  &:hover:not(:disabled) {
+    background: #4338ca;
+  }
+`;
+
+const ImportBtn = styled(BackupButton)`
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+
+  &:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.3);
+  }
+`;
+
+const FileInput = styled.input`
+  display: none;
+`;
+
+const PasswordInput = styled.input`
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 14px;
+  width: 200px;
+  
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+  }
+  
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+`;
+
+const PasswordLabel = styled.span`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-left: 12px;
+`;
+
+const MessageBox = styled.div<{ $type: 'success' | 'error' }>`
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-top: 12px;
+  background: ${({ $type }) => $type === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'};
+  color: ${({ $type }) => $type === 'success' ? '#10b981' : '#ef4444'};
+`;
+
+const EncryptNote = styled.p`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 8px;
+`;
+
 const TransactionInfo = styled.div`
   display: flex;
   align-items: center;
@@ -395,6 +486,57 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState<SortOption>('date');
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
+  const [importPassword, setImportPassword] = useState('');
+  const [exportPassword, setExportPassword] = useState('');
+  const [showExportPassword, setShowExportPassword] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+
+  // Wallet backup data getter
+  const getWalletData = useCallback(() => ({
+    version: '1.0',
+    exportedAt: Date.now(),
+    addresses: contracts.map(c => ({
+      address: c.address,
+      label: getLabel(c.address),
+      type: c.type,
+      owners: c.owners,
+    })),
+    settings: {
+      network: network,
+      lastExportBlock: Math.max(...contracts.map(c => c.currentBlock), 0),
+    },
+  }), [contracts, getLabel, network]);
+
+  // Use backup hook
+  const {
+    exportBackup,
+    importBackup,
+    exporting,
+    importing,
+    error: backupError,
+    success: backupSuccess,
+    clearMessages: clearBackupMessages,
+  } = useWalletBackup(getWalletData);
+
+  const handleExport = async () => {
+    await exportBackup(showExportPassword && exportPassword ? exportPassword : undefined);
+  };
+
+  const handleImport = async () => {
+    if (importFile) {
+      await importBackup(importFile, importPassword || undefined);
+      setImportFile(null);
+      setImportPassword('');
+    }
+  };
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImportFile(file);
+      e.target.value = ''; // Reset file input
+    }
+  };
 
   // Placeholder data for demonstration
   useEffect(() => {
@@ -712,6 +854,95 @@ export default function Dashboard() {
           </EmptyState>
         )}
       </TransactionSection>
+
+      {/* Wallet Backup Section */}
+      <BackupSection>
+        <SectionTitle>Wallet Backup & Restore</SectionTitle>
+        <Description>
+          Export your wallet configuration for disaster recovery or import from a backup file
+        </Description>
+        
+        <BackupActions>
+          <ExportBtn 
+            onClick={handleExport} 
+            disabled={!wallet.connected || exporting || contracts.length === 0}
+          >
+            {exporting ? 'Exporting...' : '📥 Export Backup'}
+          </ExportBtn>
+          
+          <label>
+            <ImportBtn as="span" style={{ display: 'inline-block' }}>
+              📤 Choose Backup File
+            </ImportBtn>
+            <FileInput 
+              type="file" 
+              accept=".json" 
+              onChange={handleFileChange}
+              disabled={importing}
+            />
+          </label>
+          
+          {importFile && (
+            <ImportBtn 
+              onClick={handleImport}
+              disabled={importing}
+            >
+              {importing ? 'Importing...' : `📥 Import "${importFile.name}"`}
+            </ImportBtn>
+          )}
+        </BackupActions>
+
+        {importFile && (
+          <div style={{ marginBottom: '12px' }}>
+            <PasswordInput
+              type="password"
+              placeholder="Enter password if encrypted (optional otherwise)"
+              value={importPassword}
+              onChange={(e) => setImportPassword(e.target.value)}
+            />
+            <PasswordLabel>Leave empty if backup was not encrypted</PasswordLabel>
+          </div>
+        )}
+
+        {showExportPassword && (
+          <div style={{ marginBottom: '12px' }}>
+            <PasswordInput
+              type="password"
+              placeholder="Optional encryption password"
+              value={exportPassword}
+              onChange={(e) => setExportPassword(e.target.value)}
+            />
+            <PasswordLabel>Leave empty for unencrypted backup</PasswordLabel>
+          </div>
+        )}
+
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input 
+              type="checkbox" 
+              checked={showExportPassword}
+              onChange={(e) => setShowExportPassword(e.target.checked)}
+            />
+            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
+              Encrypt backup with password
+            </span>
+          </label>
+        </div>
+
+        <EncryptNote>
+          ℹ️ Replace all addresses to import labels. Encrypted backups require password for import.
+        </EncryptNote>
+
+        {(backupError || backupSuccess) && (
+          <MessageBox 
+            $type={backupError ? 'error' : 'success'}
+            onClick={clearBackupMessages}
+            style={{ cursor: 'pointer' }}
+          >
+            {backupError || backupSuccess} (click to dismiss)
+          </MessageBox>
+        )}
+      </BackupSection>
     </DashboardContainer>
   );
 }
