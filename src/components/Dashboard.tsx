@@ -4,6 +4,7 @@ import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { useWalletLabels } from '../hooks/useWalletLabels';
 import { useWalletBackup } from '../hooks/useWalletBackup';
+import { QRCodeSVG } from 'qrcode.react';
 
 const DashboardContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -122,6 +123,38 @@ const ContractAddress = styled.div`
   font-family: monospace;
   font-size: 14px;
   word-break: break-all;
+`;
+
+const QRCodeSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+`;
+
+const QRCodeWrapper = styled.div`
+  background: white;
+  padding: 8px;
+  border-radius: 6px;
+`;
+
+const CopyButton = styled.button`
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(79, 70, 229, 0.2);
+  color: #a5b4fc;
+
+  &:hover {
+    background: rgba(79, 70, 229, 0.4);
+  }
 `;
 
 const ContractBalance = styled.div`
@@ -490,6 +523,8 @@ export default function Dashboard() {
   const [exportPassword, setExportPassword] = useState('');
   const [showExportPassword, setShowExportPassword] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [showQRCode, setShowQRCode] = useState<string | null>(null);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   // Wallet backup data getter
   const getWalletData = useCallback(() => ({
@@ -631,6 +666,18 @@ export default function Dashboard() {
     const existing = getLabel(address);
     setEditingLabel(address);
     setLabelInput(existing || '');
+  };
+
+  const handleCopyAddress = async (address: string) => {
+    // Strip the bitcoincash: prefix for clipboard if present
+    const cleanAddress = address.replace(/^bitcoincash:/, '');
+    await navigator.clipboard.writeText(cleanAddress);
+    setCopiedAddress(address);
+    setTimeout(() => setCopiedAddress(null), 2000);
+  };
+
+  const handleToggleQR = (address: string) => {
+    setShowQRCode(showQRCode === address ? null : address);
   };
 
   const getTimeRemaining = (lockEnd: number, current: number) => {
@@ -825,6 +872,23 @@ export default function Dashboard() {
                         </LabelDisplay>
                       )}
                       <ContractAddress style={{ marginTop: '8px' }}>{contract.address}</ContractAddress>
+                      <QRCodeSection>
+                        <CopyButton onClick={() => handleCopyAddress(contract.address)}>
+                          {copiedAddress === contract.address ? '✓ Copied!' : '📋 Copy Address'}
+                        </CopyButton>
+                        <CopyButton onClick={() => handleToggleQR(contract.address)}>
+                          {showQRCode === contract.address ? 'Hide QR' : 'Show QR'}
+                        </CopyButton>
+                        {showQRCode === contract.address && (
+                          <QRCodeWrapper>
+                            <QRCodeSVG 
+                              value={contract.address.replace(/^bitcoincash:/, '')} 
+                              size={100}
+                              level="M"
+                            />
+                          </QRCodeWrapper>
+                        )}
+                      </QRCodeSection>
                       <div style={{ marginTop: '4px', fontSize: '14px', color: 'rgba(255,255,255,0.6)' }}>
                         {contract.type === 'multisig' ? 'MultiSig (2-of-3)' : 'Single Owner'} •{' '}
                         {getTimeRemaining(contract.lockEndBlock, contract.currentBlock)} remaining
