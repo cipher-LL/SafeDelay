@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeDelay - Create Time Lock</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #eee;
+            padding: 2rem;
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 1rem; }
+        h1 span { color: #f39c12; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 2rem; }
+        .card {
+            background: #0f0f23;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #333;
+            margin-bottom: 1.5rem;
+        }
+        label { display: block; margin-bottom: 0.5rem; color: #aaa; }
+        input, select {
+            width: 100%;
+            padding: 0.75rem;
+            font-size: 1rem;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: #fff;
+            margin-bottom: 1rem;
+        }
+        input:focus { outline: none; border-color: #f39c12; }
+        button {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1rem;
+            background: #f39c12;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        button:hover { background: #e67e22; }
+        button.secondary { background: #34495e; color: #fff; }
+        button.secondary:hover { background: #2c3e50; }
+        .info-box {
+            background: #1a1a2e;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid #f39c12;
+            margin-bottom: 1rem;
+        }
+        .info-box code { color: #f39c12; font-family: monospace; }
+        .result {
+            background: #0f0f23;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #27ae60;
+            margin-top: 1rem;
+            display: none;
+        }
+        .result.show { display: block; }
+        .result h3 { color: #27ae60; margin-bottom: 1rem; }
+        .result pre { background: #1a1a2e; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
+        .back { text-align: center; margin-top: 2rem; }
+        .back a { color: #f39c12; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Safe<span>Delay</span></h1>
+        <p class="subtitle">Create a Time-Locked Wallet</p>
+        
+        <div class="card">
+            <div class="info-box">
+                <strong>How it works:</strong> Create a time-locked wallet that locks your BCH until a specified block height. You can withdraw anytime after the lock expires, or cancel anytime to get your funds back immediately.
+            </div>
+            
+            <label for="network">Network</label>
+            <select id="network">
+                <option value="mainnet">Bitcoin Cash Mainnet</option>
+                <option value="chipnet">Chipnet (Testnet)</option>
+            </select>
+            
+            <label for="ownerAddress">Your Wallet Address</label>
+            <input type="text" id="ownerAddress" placeholder="bitcoincash:..." />
+            
+            <label for="lockPeriod">Lock Period</label>
+            <select id="lockPeriod">
+                <option value="1008">~1 week (1008 blocks)</option>
+                <option value="4320">~1 month (4320 blocks)</option>
+                <option value="12960">~3 months (12960 blocks)</option>
+                <option value="25920">~6 months (25920 blocks)</option>
+                <option value="51840">~1 year (51840 blocks)</option>
+                <option value="259200">~5 years (259200 blocks)</option>
+            </select>
+            
+            <label for="depositAmount">Deposit Amount (BCH)</label>
+            <input type="text" id="depositAmount" placeholder="0.01" />
+            
+            <button onclick="createLock()">Create Time Lock</button>
+            <button class="secondary" onclick="window.location.href='./index.html'">← Back to Dashboard</button>
+        </div>
+        
+        <div class="result" id="result">
+            <h3>✓ Time Lock Created!</h3>
+            <pre id="resultDetails"></pre>
+        </div>
+    </div>
+    
+    <script>
+        // SafeDelay contract artifact (placeholder - in production, load compiled artifact)
+        const CONTRACT_ARTIFACT = {
+            contractName: 'SafeDelay',
+            constructorInputs: [
+                { name: 'ownerPKH', type: 'bytes20' },
+                { name: 'lockEndBlock', type: 'int' }
+            ]
+        };
+        
+        // Mock current block height (in production, fetch from electrum)
+        const CURRENT_BLOCK = 895000;
+        
+        function createLock() {
+            const address = document.getElementById('ownerAddress').value.trim();
+            const lockBlocks = parseInt(document.getElementById('lockPeriod').value);
+            const amount = parseFloat(document.getElementById('depositAmount').value);
+            
+            if (!address) {
+                alert('Please enter your wallet address');
+                return;
+            }
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid deposit amount');
+                return;
+            }
+            
+            const lockEndBlock = CURRENT_BLOCK + lockBlocks;
+            
+            // In production, this would:
+            // 1. Convert address to public key hash
+            // 2. Compile contract with parameters
+            // 3. Create P2SH address from compiled artifact
+            // 4. Generate and fund the transaction
+            
+            const resultHtml = `
+Contract Parameters:
+  Owner: ${address.substring(0, 20)}...
+  Lock Period: ${lockBlocks} blocks
+  Current Block: ${CURRENT_BLOCK}
+  Lock Expires At: Block ${lockEndBlock}
+  
+Estimated Unlock Date: ~${Math.round(lockBlocks * 10 / 60 / 24)} days from now
+
+To proceed, send ${amount} BCH to the contract address below:
+  (Contract would be generated here in production)
+
+Actions Available After Lock Expires:
+  • withdraw(amount) - Withdraw any amount
+  • extend(newEndBlock) - Extend the lock (one-way)
+  • cancel() - Cancel and get full refund immediately
+            `;
+            
+            document.getElementById('resultDetails').textContent = resultHtml;
+            document.getElementById('result').classList.add('show');
+        }
+    </script>
+</body>
+</html>
