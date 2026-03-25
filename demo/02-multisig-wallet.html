@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeDelay Demo - MultiSig Wallet</title>
+  <script src="https://unpkg.com/cashscript@0.8.0/dist/cashscript.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #eee;
+      padding: 2rem;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 0.5rem; font-size: 1.8rem; }
+    h1 span { color: #f39c12; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 2rem; }
+    .card {
+      background: #0f0f23;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      border: 1px solid #333;
+    }
+    .card h2 { font-size: 1.2rem; margin-bottom: 1rem; color: #f39c12; }
+    label { display: block; margin-bottom: 0.5rem; color: #aaa; font-size: 0.9rem; }
+    input, select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #fff;
+      font-family: monospace;
+      margin-bottom: 1rem;
+    }
+    input:focus, select:focus { outline: none; border-color: #f39c12; }
+    button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      background: #f39c12;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      width: 100%;
+    }
+    button:hover { background: #e67e22; }
+    .result { 
+      background: #1a1a2e; 
+      padding: 1rem; 
+      border-radius: 8px; 
+      margin-top: 1rem;
+      font-family: monospace;
+      word-break: break-all;
+    }
+    .error { background: #2c0b0e; border: 1px solid #e74c3c; color: #e74c3c; }
+    .success { background: #0b1f2c; border: 1px solid #27ae60; color: #27ae60; }
+    .info { color: #888; font-size: 0.85rem; margin-top: 0.5rem; }
+    .owner-field { 
+      background: #1a1a2e; 
+      padding: 1rem; 
+      border-radius: 8px; 
+      margin-bottom: 1rem;
+      border-left: 3px solid #f39c12;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SafeDelay <span>MultiSig</span></h1>
+    <p class="subtitle">M-of-N Time-Locked Wallet</p>
+
+    <div class="card">
+      <h2>1. Network</h2>
+      <select id="network">
+        <option value="testnet">Testnet</option>
+        <option value="mainnet">Mainnet</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <h2>2. Owners (Enter Mnemonics to Derive Addresses)</h2>
+      <div class="owner-field">
+        <label>Owner 1 Mnemonic (Required)</label>
+        <input type="text" id="mnemonic1" placeholder="twelve word mnemonic..." />
+      </div>
+      <div class="owner-field">
+        <label>Owner 2 Mnemonic</label>
+        <input type="text" id="mnemonic2" placeholder="twelve word mnemonic..." />
+      </div>
+      <div class="owner-field">
+        <label>Owner 3 Mnemonic</label>
+        <input type="text" id="mnemonic3" placeholder="twelve word mnemonic..." />
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3. MultiSig Settings</h2>
+      <label>Required Signatures (Threshold)</label>
+      <select id="threshold">
+        <option value="2">2-of-3</option>
+        <option value="3">3-of-3</option>
+      </select>
+      <label>Lock Period (blocks, ~10 min each)</label>
+      <input type="number" id="lockBlocks" value="144" min="1" />
+    </div>
+
+    <button id="deployBtn" onclick="deployContract()">Calculate Contract Address</button>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const { Contract, mnemonicToWallet } = cashscript;
+
+    async function deployContract() {
+      const resultDiv = document.getElementById('result');
+      const m1 = document.getElementById('mnemonic1').value.trim();
+      const m2 = document.getElementById('mnemonic2').value.trim();
+      const m3 = document.getElementById('mnemonic3').value.trim();
+      const network = document.getElementById('network').value;
+      const threshold = parseInt(document.getElementById('threshold').value);
+      const lockBlocks = parseInt(document.getElementById('lockBlocks').value);
+
+      if (!m1) {
+        resultDiv.innerHTML = '<div class="result error">Owner 1 mnemonic is required</div>';
+        return;
+      }
+
+      resultDiv.innerHTML = '<div class="result">Loading...</div>';
+
+      try {
+        // Derive wallets
+        const ks1 = await mnemonicToWallet(m1);
+        const owner1 = ks1.getAddress().toHash();
+
+        let owner2 = null, owner2Addr = null;
+        let owner3 = null, owner3Addr = null;
+
+        if (m2) {
+          const ks2 = await mnemonicToWallet(m2);
+          owner2 = ks2.getAddress().toHash();
+          owner2Addr = ks2.getAddress();
+        }
+        if (m3) {
+          const ks3 = await mnemonicToWallet(m3);
+          owner3 = ks3.getAddress().toHash();
+          owner3Addr = ks3.getAddress();
+        }
+
+        // Get network provider
+        const providers = {
+          testnet: { url: 'https://api.blacktown.io/rpc', network: 'testnet' },
+          mainnet: { url: 'https://api.blacktown.io/rpc', network: 'mainnet' }
+        };
+        const provider = providers[network];
+
+        const currentBlock = await provider.getBlockCount();
+        const lockEndBlock = currentBlock + lockBlocks;
+
+        // Build constructor params
+        // For MultiSig, we need all 3 owners - use zeros if not provided
+        const p2 = owner2 || '0000000000000000000000000000000000000000';
+        const p3 = owner3 || '0000000000000000000000000000000000000000';
+
+        resultDiv.innerHTML = `
+          <div class="result">
+            <strong style="color:#f39c12">Contract Parameters:</strong><br><br>
+            <strong>Owner 1:</strong> ${ks1.getAddress()}<br>
+            ${owner2Addr ? `<strong>Owner 2:</strong> ${owner2Addr}<br>` : ''}
+            ${owner3Addr ? `<strong>Owner 3:</strong> ${owner3Addr}<br>` : ''}<br>
+            <strong>Threshold:</strong> ${threshold}-of-${m2 && m3 ? 3 : m2 ? 2 : 1}<br>
+            <strong>Lock Ends:</strong> Block ${lockEndBlock}<br>
+            <br><em style="color:#888">Note: Full deployment requires Node.js. 
+            Use examples/03-family-wallet.ts for complete deployment.</em>
+          </div>
+        `;
+
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
