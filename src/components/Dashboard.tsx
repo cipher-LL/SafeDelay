@@ -4,6 +4,7 @@ import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { useWalletLabels } from '../hooks/useWalletLabels';
 import { useWalletBackup } from '../hooks/useWalletBackup';
+import { useDepositMilestones } from '../hooks/useDepositMilestones';
 import { QRCodeSVG } from 'qrcode.react';
 
 const DashboardContainer = styled.div`
@@ -553,6 +554,19 @@ export default function Dashboard() {
     clearMessages: clearBackupMessages,
   } = useWalletBackup(getWalletData);
 
+  // Deposit milestone notifications
+  const {
+    notifications,
+    milestones,
+    permission,
+    requestPermission,
+    addDeposit,
+    // updateBlockHeight, // TODO: wire up to real block height polling
+    setMilestoneTargets,
+    dismissNotification,
+    clearNotifications,
+  } = useDepositMilestones();
+
   const handleExport = async () => {
     await exportBackup(showExportPassword && exportPassword ? exportPassword : undefined);
   };
@@ -630,11 +644,17 @@ export default function Dashboard() {
           contractAddress: 'bitcoincash:qztest123456789abcdef',
         },
       ]);
+      
+      // Track deposits for milestone notifications
+      const currentBlock = 850000;
+      contracts.forEach(c => {
+        addDeposit(c.address, c.lockEndBlock, currentBlock);
+      });
     } else {
       setContracts([]);
       setTransactions([]);
     }
-  }, [wallet.connected, network]);
+  }, [wallet.connected, network, addDeposit]);
 
   // Sort contracts based on selected option
   const sortedContracts = [...contracts].sort((a, b) => {
@@ -773,6 +793,122 @@ export default function Dashboard() {
           </ProgressBar>
         </AnalyticsCard>
       </AnalyticsGrid>
+
+      {/* Milestone Notifications Section */}
+      <TransactionSection>
+        <SectionTitle>📲 Deposit Milestone Notifications</SectionTitle>
+        <Description>
+          Get notified when your deposits reach certain lock percentages
+        </Description>
+        
+        {permission === 'default' && (
+          <div style={{ marginBottom: '16px' }}>
+            <button
+              onClick={requestPermission}
+              style={{
+                padding: '10px 20px',
+                background: '#4f46e5',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+              }}
+            >
+              🔔 Enable Browser Notifications
+            </button>
+          </div>
+        )}
+
+        {permission === 'denied' && (
+          <MessageBox $type="error">
+            Notifications blocked. Please enable in browser settings.
+          </MessageBox>
+        )}
+
+        {permission === 'granted' && (
+          <>
+            <div style={{ marginBottom: '16px' }}>
+              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginRight: '12px' }}>
+                Notify at milestones:
+              </span>
+              {[25, 50, 75, 100].map(m => (
+                <label key={m} style={{ display: 'inline-flex', alignItems: 'center', marginRight: '16px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={milestones.includes(m)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMilestoneTargets([...milestones, m].sort((a, b) => a - b));
+                      } else {
+                        setMilestoneTargets(milestones.filter(x => x !== m));
+                      }
+                    }}
+                    style={{ marginRight: '6px' }}
+                  />
+                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '14px' }}>{m}%</span>
+                </label>
+              ))}
+            </div>
+
+            {notifications.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                    Recent notifications: {notifications.length}
+                  </span>
+                  <button
+                    onClick={clearNotifications}
+                    style={{
+                      padding: '4px 12px',
+                      background: 'rgba(255,255,255,0.1)',
+                      color: 'rgba(255,255,255,0.7)',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                  >
+                    Clear All
+                  </button>
+                </div>
+                {notifications.slice(-3).reverse().map((n, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      borderRadius: '6px',
+                      marginBottom: '8px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px' }}>
+                      📬 {n.address.slice(0, 12)}... reached {n.percent}%
+                    </span>
+                    <button
+                      onClick={() => dismissNotification(notifications.length - 1 - i)}
+                      style={{
+                        padding: '2px 8px',
+                        background: 'transparent',
+                        color: 'rgba(255,255,255,0.5)',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </TransactionSection>
 
       {/* Transaction History Section */}
       <TransactionSection>
