@@ -24,6 +24,7 @@ npx ts-node examples/<example-name>.ts
 | 02 | [Vesting Schedule](02-vesting-schedule.ts) | 12-month linear unlock, 2-of-3 | Intermediate |
 | 03 | [Family Wallet](03-family-wallet.ts) | 2-of-3 multisig, 7-day lock | Intermediate |
 | 04 | [Emergency Fund](04-emergency-fund.ts) | 1-year lock, cancelable | Beginner |
+| 05 | [React Native](05-react-native.ts) | Mobile app with WalletConnect | Advanced |
 
 ## Common Parameters
 
