@@ -126,7 +126,82 @@ function SafeDelayWidget({ provider, ownerPKH, lockBlocks = 4320 }) {
 }
 ```
 
-## Deployment
+### React Native Integration Example
+
+```tsx
+import React, { useEffect, useState } from 'react';
+import { View, Button, Text } from 'react-native';
+import { Contract } from 'cashscript';
+import { SafeDelayArtifact } from 'safedelay';
+import { useWalletConnectModal } from '@walletconnect/react-native-modal';
+
+function SafeDelayMobile({ ownerPKH, lockBlocks = 4320 }) {
+  const { provider, isConnected, address } = useWalletConnectModal();
+  const [contract, setContract] = useState(null);
+  const [balance, setBalance] = useState('0');
+
+  useEffect(() => {
+    async function init() {
+      if (!provider || !ownerPKH) return;
+
+      const currentBlock = await provider.getBlockCount();
+      const contractInstance = await Contract.fromArtifact(
+        SafeDelayArtifact,
+        { 
+          ownerPKH, 
+          lockEndBlock: currentBlock + lockBlocks, 
+          depositReceipts: [] 
+        },
+        { provider }
+      );
+      setContract(contractInstance);
+      
+      // Get balance via contract's address
+      const bal = await provider.getBalance(contractInstance.address);
+      setBalance(bal.toString());
+    }
+    init();
+  }, [provider, ownerPKH]);
+
+  const deposit = async (amount) => {
+    if (!contract || !address) return;
+    // Amount in satoshis
+    const amountSats = BigInt(Math.floor(amount * 100000000));
+    await contract.deposit().send(address, amountSats);
+  };
+
+  const withdraw = async () => {
+    if (!contract || !address) return;
+    await contract.withdraw().send(address);
+  };
+
+  if (!isConnected) {
+    return <Text>Please connect your wallet</Text>;
+  }
+
+  return (
+    <View>
+      <Text>Balance: {balance} sats</Text>
+      <Button title="Deposit 0.1 BCH" onPress={() => deposit(0.1)} />
+      <Button title="Withdraw" onPress={withdraw} />
+    </View>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeDelayMobile ownerPKH="your_owner_pkh" />
+  );
+}
+```
+
+**Key differences for React Native:**
+- Use `@walletconnect/react-native-modal` or `@walletconnect/react-native` instead of web-based WalletConnect
+- RN uses native BigInt instead of ethers.js bigint
+- Use native RN components (`View`, `Button`, `Text`) instead of HTML elements
+- Provider initialization differs - use `WalletConnectModal` component
+
+### With CashID
 
 ### Contract Compilation
 
