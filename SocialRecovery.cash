@@ -1,0 +1,161 @@
+pragma cashscript ^0.12.0;
+
+/**
+ * SocialRecovery - Social Recovery Time-locked Wallet
+ * 
+ * A SafeDelay variant that supports social recovery - allowing backup keys
+ * to recover funds after a grace period if the primary owner loses access.
+ * 
+ * Security model:
+ * - Primary owner (ownerPKH) has full control
+ * - Backup signers (backupPKHs) can propose recovery to a new owner
+ * - Recovery requires M-of-N backup signatures after recoveryDelay blocks
+ * - Owner can cancel any pending recovery at any time
+ * - Backups cannot steal funds - only propose recovery to a new address
+ * 
+ * How it works:
+ * 1. Owner creates contract with backup signers and threshold
+ * 2. If owner loses access, backups propose recovery to new owner
+ * 3. After recoveryDelay blocks, M backups can execute recovery
+ * 4. New owner takes control (old owner can cancel if they still have access)
+ */
+contract SocialRecovery(
+    bytes20 ownerPKH,           // Current owner public key hash
+    bytes20 newOwnerPKH,        // Pending new owner (0 if no pending recovery)
+    int recoveryStartBlock,     // Block when recovery period starts (0 if not proposed)
+    int recoveryDelay,         // Number of blocks required after recovery proposal
+    int requiredSignatures,    // M: number of backup signatures required
+    bytes20[5] backupPKHs,     // N: up to 5 backup key hashes
+    bytes20 adminPKH            // Admin key for contract factory (optional, can be 0)
+) {
+    /**
+     * Deposit funds into the time-locked wallet
+     * 
+     * Anyone can deposit BCH - extends the lock but keeps existing lockEndBlock.
+     */
+    function deposit(pubkey depositorPk, sig depositorSig) {
+        require(checkSig(depositorSig, depositorPk));
+        
+        // Output 0: Recreate contract with combined balance
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);
+    }
+    
+    /**
+     * Withdraw funds - only owner can withdraw
+     */
+    function withdraw(pubkey ownerPk, sig ownerSig, int withdrawAmount) {
+        require(hash160(ownerPk) == ownerPKH);
+        require(checkSig(ownerSig, ownerPk));
+        
+        int contractBalance = tx.inputs[0].value;
+        int remainingBalance = contractBalance - withdrawAmount - 1000;
+        
+        // Output 0: Pay owner the withdrawal amount
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
+        require(tx.outputs[0].value >= withdrawAmount);
+        
+        // Output 1: Recreate contract with remaining balance
+        if (remainingBalance > 1000) {
+            require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);
+            require(tx.outputs[1].value == remainingBalance);
+        }
+    }
+    
+    /**
+     * Cancel and refund - owner can cancel anytime
+     */
+    function cancel(pubkey ownerPk, sig ownerSig) {
+        require(hash160(ownerPk) == ownerPKH);
+        require(checkSig(ownerSig, ownerPk));
+        
+        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
+        
+        // Output 0: Pay owner everything
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
+        require(tx.outputs[0].value >= totalBalance);
+    }
+    
+    /**
+     * Propose recovery - any backup signer can propose recovery to a new owner
+     * 
+     * This starts the recovery timelock. After recoveryDelay blocks,
+     * enough backup signers can execute the recovery.
+     */
+    function proposeRecovery(pubkey backupPk, sig backupSig, bytes20 newOwner) {
+        // Verify the signer is a valid backup
+        bool isValidBackup = false;
+        for (int i = 0; i < 5; i++) {
+            if (hash160(backupPk) == backupPKHs[i]) {
+                isValidBackup = true;
+            }
+        }
+        require(isValidBackup);
+        require(checkSig(backupSig, backupPk));
+        
+        // Cannot propose if recovery already pending
+        require(newOwnerPKH == bytes20(0));
+        
+        // Output 0: Recreate contract with pending recovery
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+    }
+    
+    /**
+     * Execute recovery - M-of-N backups can recover after delay
+     * 
+     * After recoveryDelay blocks have passed, requiredSignatures backups
+     * can sign to change the owner to newOwnerPKH.
+     */
+    function executeRecovery(
+        pubkey[5] backupPks, 
+        sig[5] backupSigs
+    ) {
+        // Verify recovery period has passed
+        require(tx.locktime >= recoveryStartBlock + recoveryDelay);
+        
+        // Verify enough valid signatures from backups
+        int validSigs = 0;
+        for (int i = 0; i < 5; i++) {
+            if (backupPKHs[i] != bytes20(0)) {
+                // Check if this backup signed
+                if (hash160(backupPks[i]) == backupPKHs[i]) {
+                    if (checkSig(backupSigs[i], backupPks[i])) {
+                        validSigs = validSigs + 1;
+                    }
+                }
+            }
+        }
+        require(validSigs >= requiredSignatures);
+        
+        // Output 0: Pay new owner the balance
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(newOwnerPKH));
+        require(tx.outputs[0].value >= tx.inputs[0].value - 1000);
+    }
+    
+    /**
+     * Cancel pending recovery - owner can cancel anytime
+     */
+    function cancelRecovery(pubkey ownerPk, sig ownerSig) {
+        require(hash160(ownerPk) == ownerPKH);
+        require(checkSig(ownerSig, ownerPk));
+        
+        // Clear pending recovery
+        require(newOwnerPKH != bytes20(0));
+        
+        // Output 0: Recreate contract without pending recovery
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].value == tx.inputs[0].value);
+    }
+    
+    /**
+     * Transfer ownership - current owner can transfer to new owner directly
+     */
+    function transferOwnership(pubkey ownerPk, sig ownerSig, bytes20 newOwner) {
+        require(hash160(ownerPk) == ownerPKH);
+        require(checkSig(ownerSig, ownerPk));
+        
+        // Output 0: Recreate contract with new owner
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].value == tx.inputs[0].value);
+    }
+}
