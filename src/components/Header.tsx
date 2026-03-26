@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import styled from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
@@ -69,12 +70,34 @@ const Address = styled.span`
   font-size: 14px;
 `;
 
+const ConnectInput = styled.input`
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 14px;
+  width: 200px;
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+`;
+
 export default function Header() {
   const { network, setNetwork } = useNetwork();
   const { wallet, connect, disconnect } = useWallet();
+  const [inputAddress, setInputAddress] = useState('');
 
   const toggleNetwork = () => {
     setNetwork(network === 'mainnet' ? 'testnet' : 'mainnet');
+  };
+
+  const handleConnect = () => {
+    if (inputAddress) {
+      connect(inputAddress);
+      setInputAddress('');
+    }
   };
 
   return (
@@ -90,7 +113,15 @@ export default function Header() {
             <ConnectButton onClick={disconnect}>Disconnect</ConnectButton>
           </WalletInfo>
         ) : (
-          <ConnectButton onClick={connect}>Connect Wallet</ConnectButton>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <ConnectInput
+              placeholder="Enter BCH address"
+              value={inputAddress}
+              onChange={(e) => setInputAddress(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+            />
+            <ConnectButton onClick={handleConnect}>Connect</ConnectButton>
+          </div>
         )}
       </Controls>
     </HeaderContainer>

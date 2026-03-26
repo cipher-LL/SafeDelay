@@ -1,5 +1,9 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
+// Simple wallet implementation for now
+// Full WalletConnect/AppKit integration requires more setup
+// See issue #14 for progress on full WalletConnect
+
 interface WalletState {
   address: string | null;
   pubkeyHash: string | null;
@@ -8,7 +12,7 @@ interface WalletState {
 
 interface WalletContextType {
   wallet: WalletState;
-  connect: () => Promise<void>;
+  connect: (address: string) => void;
   disconnect: () => void;
 }
 
@@ -21,10 +25,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     connected: false,
   });
 
-  const connect = async () => {
-    // TODO: Implement wallet connection using WalletConnect
-    // For now, placeholder
-    console.log('Wallet connection not yet implemented');
+  const connect = (address: string) => {
+    // Convert BCH address to pubkey hash format for CashScript
+    // This is a simplified version - proper implementation would parse the address properly
+    const pubkeyHash = address.replace('bitcoincash:', '');
+    setWallet({
+      address,
+      pubkeyHash,
+      connected: true,
+    });
   };
 
   const disconnect = () => {
