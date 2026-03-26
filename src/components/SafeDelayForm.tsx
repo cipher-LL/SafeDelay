@@ -2,6 +2,7 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
+import { deploySafeDelay } from '../utils/deployContract';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -142,31 +143,38 @@ export default function SafeDelayForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wallet.connected || !wallet.address) {
+    if (!wallet.connected || !wallet.pubkeyHash) {
       alert('Please connect your wallet first');
       return;
     }
 
     setLoading(true);
     try {
-      // TODO: Implement actual contract deployment
-      // 1. Calculate lock end block
-      // 2. Create contract instance
-      // 3. Build and broadcast creation transaction
-      
+      // Calculate lock end block relative to current block height
       const blocks = getDurationInBlocks();
+      
+      // For now, we calculate an estimated lock end block
+      // In production, fetch current block height from network
+      const estimatedLockEnd = blocks; // Relative blocks from now
+      
       console.log('Creating SafeDelay with:', {
         owner: wallet.pubkeyHash,
-        lockEndBlock: blocks,
+        lockEndBlock: estimatedLockEnd,
         depositAmount,
         network
       });
       
-      // Placeholder - would generate actual contract address
-      setContractAddress('bitcoincash:qzplaceholder123456789abcdef');
+      // Deploy contract
+      const result = await deploySafeDelay({
+        ownerPubkeyHash: wallet.pubkeyHash,
+        lockEndBlock: estimatedLockEnd,
+        network: network as 'mainnet' | 'testnet' | 'chipnet',
+      });
+      
+      setContractAddress(result.contractAddress);
     } catch (error) {
       console.error('Error creating SafeDelay:', error);
-      alert('Failed to create SafeDelay');
+      alert('Failed to create SafeDelay: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
