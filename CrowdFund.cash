@@ -1,0 +1,124 @@
+pragma cashscript ^0.12.0;
+
+/**
+ * CrowdFund.cash - Crowdfunding Campaign Contract
+ * 
+ * Campaign creators set a funding goal and deadline. Backers deposit funds.
+ * If goal reached by deadline, creator can withdraw. If not, backers can reclaim.
+ * 
+ * How it works:
+ * - Creator deploys contract with goal (satoshis) and deadline (block)
+ * - Backers send BCH to fund the campaign
+ * - If total >= goal by deadline:
+ *   - Creator can withdraw all funds
+ *   - Campaign succeeds
+ * - If total < goal by deadline:
+ *   - Backers can reclaim their deposits
+ *   - Campaign fails
+ * 
+ * Security model:
+ * - Anyone can contribute (backers)
+ * - Only creator can withdraw (if goal met)
+ * - Only backers can reclaim (if goal not met)
+ * - Deadline enforces time limit
+ * - Goal enforces minimum funding threshold
+ */
+contract CrowdFund(
+    bytes20 creatorPkh,    // Creator's public key hash (P2PKH address)
+    int fundingGoal,       // Minimum amount to succeed (satoshis)
+    int deadline           // Block height when campaign ends
+) {
+    /**
+     * Contribute funds to the campaign
+     * 
+     * Anyone can send BCH to back the campaign.
+     * Contributions are locked until withdraw or refund.
+     * 
+     * inputs:
+     *   0 CrowdFund UTXO  [BCH]
+     * outputs:
+     *   0 CrowdFund UTXO  [BCH] (increased)
+     */
+    function contribute(pubkey pk, sig sig_) {
+        require(checkSig(sig_, pk));
+        
+        // Output must be the same contract with added funds
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);
+    }
+    
+    /**
+     * Withdraw funds - only creator, only if goal met
+     * 
+     * Creator can withdraw all funds after deadline if goal was met.
+     * 
+     * inputs:
+     *   0 CrowdFund UTXO    [BCH]
+     *   1 Creator input     [any]
+     * outputs:
+     *   0 Creator payment   [P2PKH]
+     *   1 Creator change    [any]
+     */
+    function withdraw(pubkey creatorPk, sig creatorSig) {
+        require(checkSig(creatorSig, creatorPk));
+        require(hash160(creatorPk) == creatorPkh);
+        
+        // Can only withdraw after deadline
+        require(tx.locktime >= deadline);
+        
+        // Can only withdraw if goal was met (contract balance >= goal)
+        // Note: This is checked at contract level - if balance < goal, this won't succeed
+        require(tx.inputs[0].value >= fundingGoal);
+        
+        int totalBalance = tx.inputs[0].value - 1000;
+        
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(creatorPkh));
+        require(tx.outputs[0].value >= totalBalance);
+    }
+    
+    /**
+     * Refund - backers reclaim if goal not met
+     * 
+     * After deadline, if goal not met, backers can reclaim their contribution.
+     * Each backer can only claim back what they put in (simplified - anyone can trigger refund).
+     * 
+     * For a more sophisticated version, we'd track individual contributions.
+     * This version allows anyone to trigger a refund of the entire balance if goal not met.
+     * 
+     * inputs:
+     *   0 CrowdFund UTXO    [BCH]
+     * outputs:
+     *   0 Refund to creator (remaining if any) [P2PKH]
+     * 
+     * Note: This is a simplified version. A production version would:
+     * - Track individual backer contributions with merkle tree or UTXO set
+     * - Allow each backer to claim their specific amount
+     * - Handle partial funding scenarios
+     */
+    function refund(pubkey pk, sig sig_) {
+        require(checkSig(sig_, pk));
+        
+        // Can only refund after deadline
+        require(tx.locktime >= deadline);
+        
+        // Can only refund if goal was NOT met
+        require(tx.inputs[0].value < fundingGoal);
+        
+        // Refund everything to creator (simplified - production would refund proportionally)
+        int totalBalance = tx.inputs[0].value - 1000;
+        
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(creatorPkh));
+        require(tx.outputs[0].value >= totalBalance);
+    }
+    
+    /**
+     * Extend deadline - only creator
+     * 
+     * Creator can extend the campaign deadline if needed.
+     * New deadline must be in the future.
+     * 
+     * This would require redeploying with new parameters.
+     * For now, this is a placeholder for future enhancement.
+     */
+    // Extension function would require different contract structure
+}

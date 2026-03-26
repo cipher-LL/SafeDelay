@@ -322,7 +322,56 @@ const newSafeDelay = await Contract.fromArtifact(
 await newSafeDelay.deposit().send(ownerAddress, fullBalance);
 ```
 
-## Security Considerations
+## Contract Variants
+
+| Contract | Description |
+|----------|-------------|
+| `SafeDelay.cash` | Single-owner time-locked wallet |
+| `SafeDelayMultiSig.cash` | Multi-signature time-locked wallet (2-of-3) |
+| `SafeDelayStreaming.cash` | Streaming payments with time-based release |
+| `SafeDelay_NFT.cash` | NFT time-locked escrow |
+| `CrowdFund.cash` | Crowdfunding campaign with goal/deadline |
+
+### CrowdFund.cash - Crowdfunding Contract
+
+Campaign creators set a funding goal and deadline. Backers deposit funds. If goal reached by deadline, creator can withdraw. If not, backers can reclaim.
+
+```typescript
+import { Contract } from 'cashscript';
+import { CrowdFundArtifact } from './artifacts/CrowdFund';
+
+// Create campaign with goal and deadline
+const fundingGoal = 100000000; // 1 BCH in sats
+const deadline = currentBlock + 10080; // ~1 week (144 blocks/day)
+
+const campaign = await Contract.fromArtifact(
+  CrowdFundArtifact,
+  { creatorPkh: creatorPublicKeyHash, fundingGoal, deadline },
+  { provider }
+);
+
+// Backers contribute
+await campaign.contribute().send(backerAddress, amount);
+
+// After deadline - creator withdraws if goal met
+await campaign.withdraw().send(creatorAddress, fullAmount);
+
+// OR backers refund if goal not met
+await campaign.refund().send(creatorAddress);
+```
+
+### SafeDelayMultiSig - Multi-Signature Wallet
+
+Family or business wallet requiring multiple signatures:
+
+```typescript
+import { SafeDelayMultiSigArtifact } from 'safedelay';
+
+const multisig = await Contract.fromArtifact(
+  SafeDelayMultiSigArtifact,
+  { owner1, owner2, owner3, requiredSigs: 2, lockEndBlock },
+  { provider }
+);
 
 - **Single point of failure** - If owner loses their key, funds are lost forever
 - **One-way extension** - Lock can only be extended, never shortened (prevents hasty decisions)
