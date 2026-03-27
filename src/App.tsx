@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import styled from 'styled-components';
+import { ThemeProvider } from './context/ThemeContext';
 import { NetworkProvider } from './context/NetworkContext';
 import { WalletProvider } from './context/WalletContext';
 import SafeDelayForm from './components/SafeDelayForm';
@@ -26,18 +27,18 @@ const Tab = styled.button<{ $active: boolean }>`
   border-radius: 8px;
   font-size: 16px;
   font-weight: 600;
-  background: ${({ $active }) => ($active ? '#4f46e5' : 'rgba(255, 255, 255, 0.1)')};
-  color: white;
+  background: ${({ $active }) => ($active ? 'var(--accent)' : 'var(--bg-tertiary)')};
+  color: var(--text-primary);
   transition: all 0.2s;
 
   &:hover {
-    background: ${({ $active }) => ($active ? '#4338ca' : 'rgba(255, 255, 255, 0.2)')};
+    background: ${({ $active }) => ($active ? 'var(--accent-hover)' : 'var(--bg-hover)')};
   }
 `;
 
 type TabType = 'create' | 'multisig' | 'dashboard';
 
-function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState<TabType>('create');
 
   return (
@@ -72,6 +73,14 @@ function App() {
         </Container>
       </WalletProvider>
     </NetworkProvider>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 
