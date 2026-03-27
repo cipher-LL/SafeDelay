@@ -1,4 +1,4 @@
-import { Utxo } from 'cashscript';
+import type { Utxo } from 'cashscript';
 
 /**
  * SafeDelay Contract Types
@@ -100,3 +100,18 @@ export function calculateLockBlocks(days: number, blocksPerDay: number = 144): n
 export function isLockExpired(currentBlock: number, lockEndBlock: number): boolean {
   return currentBlock >= lockEndBlock;
 }
+
+// Re-export all contract artifacts
+import type { SafeDelayArtifact } from './SafeDelayArtifact.js';
+import type { SafeDelayMultiSigArtifact } from './SafeDelayMultiSigArtifact.js';
+import type { SafeDelayStreamingArtifact } from './SafeDelayStreamingArtifact.js';
+import type { SafeDelay_NFTArtifact } from './SafeDelay_NFTArtifact.js';
+import type { CrowdFundArtifact } from './CrowdFundArtifact.js';
+
+export type {
+  SafeDelayArtifact,
+  SafeDelayMultiSigArtifact,
+  SafeDelayStreamingArtifact,
+  SafeDelay_NFTArtifact,
+  CrowdFundArtifact
+};

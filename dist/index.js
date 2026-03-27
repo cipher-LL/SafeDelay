@@ -1,0 +1,8 @@
+/**
+ * SafeDelay Library - Time-locked Wallet for Bitcoin Cash
+ *
+ * A TypeScript library for interacting with the SafeDelay CashScript contract.
+ */
+export * from './types/index.js';
+export { SafeDelayLibrary } from './SafeDelayLibrary.js';
+//# sourceMappingURL=index.js.map
