@@ -5,25 +5,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SafeDelay Status Dashboard</title>
   <style>
+    /* Theme Variables - Dark Mode (default) */
+    :root {
+      --bg-primary: #1a1a2e;
+      --bg-secondary: #16213e;
+      --bg-card: #0f0f23;
+      --text-primary: #eee;
+      --text-secondary: #aaa;
+      --text-muted: #666;
+      --border: #333;
+      --accent: #f39c12;
+      --accent-hover: #e67e22;
+      --success: #27ae60;
+      --error: #e74c3c;
+      --error-bg: #2c0b0e;
+      --locked: #e74c3c;
+      --unlocked: #27ae60;
+    }
+    
+    /* Light Theme */
+    [data-theme="light"] {
+      --bg-primary: #f5f6fa;
+      --bg-secondary: #e8e8e8;
+      --bg-card: #ffffff;
+      --text-primary: #2c3e50;
+      --text-secondary: #7f8c8d;
+      --text-muted: #95a5a6;
+      --border: #ddd;
+      --accent: #f39c12;
+      --accent-hover: #e67e22;
+      --success: #27ae60;
+      --error: #e74c3c;
+      --error-bg: #fadbd8;
+      --locked: #e74c3c;
+      --unlocked: #27ae60;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
       min-height: 100vh;
-      color: #eee;
+      color: var(--text-primary);
       padding: 2rem;
     }
     .container { max-width: 800px; margin: 0 auto; }
+    /* Header with Theme Toggle */
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .header h1 { margin-bottom: 0; }
+    .theme-toggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: background 0.2s;
+      color: var(--text-primary);
+    }
+    .theme-toggle:hover { background: var(--border); }
     h1 { text-align: center; margin-bottom: 2rem; font-size: 2rem; }
-    h1 span { color: #f39c12; }
+    h1 span { color: var(--accent); }
     .search-box {
-      background: #0f0f23;
+      background: var(--bg-card);
       padding: 1.5rem;
       border-radius: 12px;
       margin-bottom: 2rem;
-      border: 1px solid #333;
+      border: 1px solid var(--border);
     }
-    .search-box label { display: block; margin-bottom: 0.5rem; color: #aaa; font-size: 0.9rem; }
+    .search-box label { display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem; }
     .input-group { display: flex; gap: 0.5rem; }
     input {
       flex: 1;
@@ -32,7 +82,7 @@
       border: 1px solid #444;
       border-radius: 8px;
       background: #1a1a2e;
-      color: #fff;
+      color: var(--text-primary);
       font-family: monospace;
     }
     input:focus { outline: none; border-color: #f39c12; }
@@ -50,21 +100,21 @@
     button:disabled { background: #666; cursor: not-allowed; }
     .results { display: flex; flex-direction: column; gap: 1rem; }
     .lock-card {
-      background: #0f0f23;
+      background: var(--bg-card);
       border-radius: 12px;
       padding: 1.5rem;
-      border: 1px solid #333;
+      border: 1px solid var(--border);
     }
     .lock-card.active { border-color: #27ae60; }
     .lock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .lock-status { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
-    .lock-status.active { background: #27ae60; color: #fff; }
+    .lock-status.active { background: #27ae60; color: var(--text-primary); }
     .lock-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
     .detail-item { background: #1a1a2e; padding: 0.75rem; border-radius: 8px; }
-    .detail-label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 0.25rem; }
-    .detail-value { font-size: 1.1rem; font-weight: 600; color: #fff; }
+    .detail-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.25rem; }
+    .detail-value { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); }
     .detail-value.bch { color: #f39c12; }
-    .empty-state { text-align: center; padding: 3rem; color: #666; }
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
     .loading { text-align: center; padding: 2rem; color: #f39c12; }
     .error { background: #2c0b0e; border: 1px solid #e74c3c; color: #e74c3c; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
     .contract-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
@@ -72,8 +122,8 @@
       flex: 1;
       padding: 0.75rem;
       background: #1a1a2e;
-      color: #888;
-      border: 1px solid #333;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
     }
     .contract-tabs button.active {
       background: #f39c12;
@@ -83,9 +133,9 @@
     .contract-tabs button:hover:not(.active) { border-color: #f39c12; }
     .nft-detail { background: #1a1a2e; padding: 0.5rem; border-radius: 6px; margin-top: 0.5rem; font-size: 0.85rem; }
     .nft-flag { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-right: 0.5rem; }
-    .nft-flag.locked { background: #e74c3c; color: #fff; }
+    .nft-flag.locked { background: #e74c3c; color: var(--text-primary); }
     .nft-flag.withdrawing { background: #f39c12; color: #000; }
-    .nft-flag.extended { background: #3498db; color: #fff; }
+    .nft-flag.extended { background: #3498db; color: var(--text-primary); }
     .action-buttons { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
     .action-buttons button { font-size: 0.85rem; padding: 0.5rem 1rem; }
     .detail-value.locked { color: #e74c3c; }
@@ -95,71 +145,74 @@
     .utxo-item { background: #1a1a2e; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid #f39c12; }
     .utxo-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
     .utxo-amount { font-weight: 600; color: #f39c12; }
-    .utxo-txid { font-size: 0.75rem; color: #666; font-family: monospace; word-break: break-all; }
+    .utxo-txid { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; word-break: break-all; }
     .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; }
     .toolbar button { font-size: 0.85rem; padding: 0.5rem 1rem; }
-    .toolbar button.secondary { background: #34495e; color: #fff; }
+    .toolbar button.secondary { background: #34495e; color: var(--text-primary); }
     .toolbar button.secondary:hover { background: #2c3e50; }
     .import-section { display: none; margin-top: 1rem; padding: 1rem; background: #1a1a2e; border-radius: 8px; }
     .import-section.active { display: block; }
     .import-section input[type="file"] { margin-top: 0.5rem; }
-    .toast { position: fixed; bottom: 20px; right: 20px; padding: 1rem 1.5rem; background: #27ae60; color: #fff; border-radius: 8px; font-weight: 600; opacity: 0; transition: opacity 0.3s; }
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 1rem 1.5rem; background: #27ae60; color: var(--text-primary); border-radius: 8px; font-weight: 600; opacity: 0; transition: opacity 0.3s; }
     .toast.show { opacity: 1; }
     .toast.error { background: #e74c3c; }
     .dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
     .dialog-overlay.active { display: flex; }
-    .dialog { background: #0f0f23; padding: 2rem; border-radius: 12px; max-width: 400px; text-align: center; }
+    .dialog { background: var(--bg-card); padding: 2rem; border-radius: 12px; max-width: 400px; text-align: center; }
     .dialog h3 { margin-bottom: 1rem; }
-    .dialog p { margin-bottom: 1.5rem; color: #aaa; }
+    .dialog p { margin-bottom: 1.5rem; color: var(--text-secondary); }
     .dialog-buttons { display: flex; gap: 1rem; justify-content: center; }
     .dialog-buttons button { min-width: 100px; }
-    .dialog-buttons button.cancel { background: #34495e; color: #fff; }
+    .dialog-buttons button.cancel { background: #34495e; color: var(--text-primary); }
     .analytics-section { margin-top: 1.5rem; }
     .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
     .analytics-card { background: #1a1a2e; padding: 1.25rem; border-radius: 10px; text-align: center; }
-    .analytics-card .label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 0.5rem; }
+    .analytics-card .label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.5rem; }
     .analytics-card .value { font-size: 1.5rem; font-weight: 700; }
     .analytics-card .value.bch { color: #f39c12; }
     .analytics-card .value.green { color: #27ae60; }
     .analytics-card .value.red { color: #e74c3c; }
-    .timeline-section { background: #0f0f23; padding: 1.5rem; border-radius: 12px; border: 1px solid #333; margin-top: 1.5rem; }
-    .timeline-section h3 { color: #aaa; font-size: 0.9rem; text-transform: uppercase; margin-bottom: 1rem; }
+    .timeline-section { background: var(--bg-card); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin-top: 1.5rem; }
+    .timeline-section h3 { color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; margin-bottom: 1rem; }
     .timeline-bar { position: relative; height: 40px; background: #1a1a2e; border-radius: 8px; overflow: hidden; margin-bottom: 0.75rem; }
-    .timeline-segment { position: absolute; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; color: #fff; overflow: hidden; white-space: nowrap; transition: all 0.3s; }
+    .timeline-segment { position: absolute; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; color: var(--text-primary); overflow: hidden; white-space: nowrap; transition: all 0.3s; }
     .timeline-segment:hover { filter: brightness(1.2); z-index: 10; }
     .timeline-segment.locked { background: linear-gradient(90deg, #e74c3c, #c0392b); }
     .timeline-segment.unlocked { background: linear-gradient(90deg, #27ae60, #1e8449); }
-    .timeline-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: #666; }
+    .timeline-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
     .timeline-legend { display: flex; gap: 1.5rem; justify-content: center; margin-top: 1rem; font-size: 0.8rem; }
     .timeline-legend-item { display: flex; align-items: center; gap: 0.5rem; }
     .timeline-legend-color { width: 12px; height: 12px; border-radius: 3px; }
     .fee-estimate { background: #1a1a2e; padding: 1rem; border-radius: 8px; margin-top: 1rem; border-left: 3px solid #f39c12; }
-    .fee-estimate .title { font-size: 0.85rem; color: #aaa; margin-bottom: 0.5rem; }
+    .fee-estimate .title { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
     .fee-estimate .amount { font-size: 1.1rem; color: #f39c12; font-weight: 600; }
     .create-section { display: none; }
     .create-section.active { display: block; }
     .contract-type-selector { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
-    .contract-type-card { background: #0f0f23; padding: 0.85rem; border-radius: 8px; border: 2px solid #333; cursor: pointer; transition: all 0.2s; }
+    .contract-type-card { background: var(--bg-card); padding: 0.85rem; border-radius: 8px; border: 2px solid #333; cursor: pointer; transition: all 0.2s; }
     .contract-type-card:hover { border-color: #f39c12; }
     .contract-type-card.selected { border-color: #f39c12; background: #1a1a2e; }
     .contract-type-card h4 { color: #f39c12; margin-bottom: 0.35rem; font-size: 0.9rem; }
-    .contract-type-card p { font-size: 0.75rem; color: #888; margin: 0; }
+    .contract-type-card p { font-size: 0.75rem; color: var(--text-secondary); margin: 0; }
     .create-form { background: #1a1a2e; padding: 1rem; border-radius: 8px; }
     .create-form .form-group { margin-bottom: 0.85rem; }
-    .create-form .form-group label { display: block; margin-bottom: 0.35rem; color: #aaa; font-size: 0.8rem; }
+    .create-form .form-group label { display: block; margin-bottom: 0.35rem; color: var(--text-secondary); font-size: 0.8rem; }
     .create-form input, .create-form select { width: 100%; padding: 0.5rem; font-size: 0.85rem; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-    .form-help { font-size: 0.7rem; color: #666; margin-top: 0.2rem; }
-    .generated-address { background: #0f0f23; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 2px solid #27ae60; }
+    .form-help { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem; }
+    .generated-address { background: var(--bg-card); padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 2px solid #27ae60; }
     .generated-address h4 { color: #27ae60; margin: 0 0 0.5rem 0; font-size: 1rem; }
-    .address-display { background: #1a1a2e; padding: 0.6rem; border-radius: 6px; word-break: break-all; font-family: monospace; font-size: 0.75rem; color: #fff; margin-bottom: 0.6rem; }
+    .address-display { background: #1a1a2e; padding: 0.6rem; border-radius: 6px; word-break: break-all; font-family: monospace; font-size: 0.75rem; color: var(--text-primary); margin-bottom: 0.6rem; }
     .address-actions { display: flex; gap: 0.4rem; }
     .address-actions button { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
   </style>
 </head>
-<body>
+<body onload="initTheme()">
   <div class="container">
-    <h1>SafeDelay <span>Status</span></h1>
+    <div class="header">
+    <h1>SafeDelay <span>Dashboard</span></h1>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark theme">🌙</button>
+  </div>
     <div class="search-box">
       <div class="contract-tabs">
         <button id="tab-std" class="active" onclick="showView('check')">Check Locks</button>
@@ -421,7 +474,7 @@
         
         // Build individual UTXO display
         const contractTitle = currentContract === 'nft' ? 'SafeDelay NFT Locks' : 'SafeDelay Locks';
-        let utxoHtml = '<div class="utxo-list"><h3 style="margin-bottom: 1rem; color: #aaa; font-size: 0.9rem; text-transform: uppercase;">Individual Locks</h3>';
+        let utxoHtml = '<div class="utxo-list"><h3 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase;">Individual Locks</h3>';
         
         for (const utxo of safeDelayUtxos) {
           const bch = utxo.value / 100000000;
@@ -448,11 +501,11 @@
                 <div class="utxo-txid">TX: ${shortTxId}:${utxo.vout}</div>
                 ${utxo.lockEndBlock ? `
                   <div style="margin-top: 0.5rem; font-size: 0.9rem;">
-                    <span style="color: #888;">Lock End:</span> 
-                    <span style="color: #fff;">Block ${utxo.lockEndBlock.toLocaleString()}</span>
+                    <span style="color: var(--text-secondary);">Lock End:</span> 
+                    <span style="color: var(--text-primary);">Block ${utxo.lockEndBlock.toLocaleString()}</span>
                     ${isLocked ? `<span class="countdown" style="margin-left: 0.5rem;">(${remaining.toLocaleString()} blocks left)</span>` : ''}
                   </div>
-                ` : '<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #888;">Lock end block unknown</div>'}
+                ` : '<div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">Lock end block unknown</div>'}
               </div>
             `;
           }
@@ -482,9 +535,9 @@
                 </div>
                 <div class="utxo-txid">TX: ${shortTxId}:${utxo.vout}</div>
                 <div class="nft-detail">
-                  <span style="color: #888;">Flag:</span> ${nft.flagHex}
-                  ${nft.extendedBlocks > 0 ? `<span style="color: #888; margin-left: 1rem;">Extended:</span> +${nft.extendedBlocks} blocks` : ''}
-                  ${utxo.nftCommitment ? `<br><span style="color: #666; font-size: 0.75rem;">Commitment: ${utxo.nftCommitment.substring(0, 32)}...</span>` : ''}
+                  <span style="color: var(--text-secondary);">Flag:</span> ${nft.flagHex}
+                  ${nft.extendedBlocks > 0 ? `<span style="color: var(--text-secondary); margin-left: 1rem;">Extended:</span> +${nft.extendedBlocks} blocks` : ''}
+                  ${utxo.nftCommitment ? `<br><span style="color: var(--text-muted); font-size: 0.75rem;">Commitment: ${utxo.nftCommitment.substring(0, 32)}...</span>` : ''}
                 </div>
                 <div class="action-buttons">
                   <button onclick="alert('Deposit feature coming soon - requires transaction signing')">💰 Deposit</button>
@@ -550,7 +603,7 @@
               <div class="fee-estimate">
                 <div class="title">💰 If You Cancel All Now (Emergency Withdrawal)</div>
                 <div class="amount">${(safeDelayUtxos.length * 0.00001).toFixed(5)} BCH = ${safeDelayUtxos.length} × 1,000 sats</div>
-                <div style="font-size: 0.8rem; color: #888; margin-top: 0.25rem;">Each cancel/withdraw costs 1,000 sats in network fees</div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Each cancel/withdraw costs 1,000 sats in network fees</div>
               </div>
             </div>
           `;
@@ -933,6 +986,30 @@
       localStorage.setItem('safedelay_contracts', JSON.stringify(existing));
       alert('Saved! Check your dashboard.');
     }
+  </script>
+
+  <script>
+  // Theme toggle functionality
+  function initTheme() {
+    const savedTheme = localStorage.getItem('safedelay-theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+    updateThemeButton(theme);
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('safedelay-theme', next);
+    updateThemeButton(next);
+  }
+
+  function updateThemeButton(theme) {
+    const btn = document.querySelector('.theme-toggle');
+    if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+  }
   </script>
 </body>
 </html>
