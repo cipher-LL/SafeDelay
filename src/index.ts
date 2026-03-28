@@ -6,3 +6,10 @@
 
 export * from './types/index.js';
 export { SafeDelayLibrary } from './SafeDelayLibrary.js';
+export {
+  loadArtifact,
+  normalizeBytecode,
+  verifyBytecode,
+  fetchContractScript,
+  verifyContract
+} from './contractVerification.js';

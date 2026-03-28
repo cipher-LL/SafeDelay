@@ -95,4 +95,10 @@ export declare function calculateLockBlocks(days: number, blocksPerDay?: number)
  * @returns True if funds can be withdrawn
  */
 export declare function isLockExpired(currentBlock: number, lockEndBlock: number): boolean;
+import type { SafeDelayArtifact } from './SafeDelayArtifact.js';
+import type { SafeDelayMultiSigArtifact } from './SafeDelayMultiSigArtifact.js';
+import type { SafeDelayStreamingArtifact } from './SafeDelayStreamingArtifact.js';
+import type { SafeDelay_NFTArtifact } from './SafeDelay_NFTArtifact.js';
+import type { CrowdFundArtifact } from './CrowdFundArtifact.js';
+export type { SafeDelayArtifact, SafeDelayMultiSigArtifact, SafeDelayStreamingArtifact, SafeDelay_NFTArtifact, CrowdFundArtifact };
 //# sourceMappingURL=index.d.ts.map
