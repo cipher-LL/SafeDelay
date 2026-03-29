@@ -1,11 +1,15 @@
 import { readFileSync } from 'fs';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe('SafeDelayMultiSig', () => {
   let artifact;
 
   beforeAll(async () => {
-    // Load the compiled artifact
-    const artifactPath = './artifacts/SafeDelayMultiSig.json';
+    // Load the compiled artifact - relative to test file
+    const artifactPath = __dirname + '/../artifacts/SafeDelayMultiSig.artifact.json';
     artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
   });
 

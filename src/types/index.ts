@@ -1,10 +1,21 @@
 import type { Utxo } from 'cashscript';
+import type { ContractArtifact } from './artifacts.js';
 
 /**
  * SafeDelay Contract Types
  * 
  * TypeScript definitions for the SafeDelay time-locked wallet contract.
  */
+
+// Re-export all contract artifacts
+export type {
+  ContractArtifact as SafeDelayArtifact,
+  ContractArtifact as SafeDelayMultiSigArtifact,
+  ContractArtifact as SafeDelayStreamingArtifact,
+  ContractArtifact as SafeDelay_NFTArtifact,
+  ContractArtifact as CrowdFundArtifact,
+  ContractArtifact as SocialRecoveryArtifact
+};
 
 /**
  * Configuration for deploying SafeDelay contract
@@ -50,28 +61,6 @@ export interface SafeDelayUtxo extends Utxo {
 }
 
 /**
- * Contract artifact interface (from compiled .json artifact)
- */
-export interface SafeDelayArtifact {
-  name: string;
-  constructorInputs: Array<{
-    name: string;
-    type: string;
-  }>;
-  functions: {
-    deposit: {
-      inputs: Array<{ name: string; type: string }>;
-    };
-    withdraw: {
-      inputs: Array<{ name: string; type: string }>;
-    };
-    cancel: {
-      inputs: Array<{ name: string; type: string }>;
-    };
-  };
-}
-
-/**
  * Events emitted by SafeDelay (for off-chain tracking)
  */
 export interface SafeDelayEvent {
@@ -100,18 +89,3 @@ export function calculateLockBlocks(days: number, blocksPerDay: number = 144): n
 export function isLockExpired(currentBlock: number, lockEndBlock: number): boolean {
   return currentBlock >= lockEndBlock;
 }
-
-// Re-export all contract artifacts
-import type { SafeDelayArtifact } from './SafeDelayArtifact.js';
-import type { SafeDelayMultiSigArtifact } from './SafeDelayMultiSigArtifact.js';
-import type { SafeDelayStreamingArtifact } from './SafeDelayStreamingArtifact.js';
-import type { SafeDelay_NFTArtifact } from './SafeDelay_NFTArtifact.js';
-import type { CrowdFundArtifact } from './CrowdFundArtifact.js';
-
-export type {
-  SafeDelayArtifact,
-  SafeDelayMultiSigArtifact,
-  SafeDelayStreamingArtifact,
-  SafeDelay_NFTArtifact,
-  CrowdFundArtifact
-};
