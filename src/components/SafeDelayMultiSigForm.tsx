@@ -168,6 +168,19 @@ export default function SafeDelayMultiSigForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Count how many unique owners are provided (owner1 is always required)
+  const uniqueOwnerCount = (() => {
+    const owners = [owner1Address.trim()];
+    if (owner2Address.trim()) owners.push(owner2Address.trim());
+    if (owner3Address.trim()) owners.push(owner3Address.trim());
+    const unique = [...new Set(owners)];
+    return unique.length;
+  })();
+
+  // Threshold options should be disabled if they exceed available unique owners
+  const canUseThreshold2 = uniqueOwnerCount >= 2;
+  const canUseThreshold3 = uniqueOwnerCount >= 3;
+
   const getDurationInBlocks = () => {
     const days = durationUnit === 'days'
       ? parseInt(lockDuration)
@@ -225,6 +238,21 @@ export default function SafeDelayMultiSigForm() {
       const finalOwner2Pkh = owner2Pkh || owner1Pkh;
       const finalOwner3Pkh = owner3Pkh || owner1Pkh;
 
+      // Count unique owners to validate threshold
+      const uniqueOwners = [owner1Pkh];
+      if (owner2Pkh && owner2Pkh !== owner1Pkh) uniqueOwners.push(owner2Pkh);
+      if (owner3Pkh && owner3Pkh !== owner1Pkh && owner3Pkh !== owner2Pkh) uniqueOwners.push(owner3Pkh);
+      const uniqueOwnerCount = uniqueOwners.length;
+      const requestedThreshold = parseInt(threshold);
+
+      if (requestedThreshold > uniqueOwnerCount) {
+        throw new Error(
+          `Threshold (${requestedThreshold}) exceeds number of unique owners (${uniqueOwnerCount}). ` +
+          `Either add more owners or lower the threshold. ` +
+          `Note: If Owner 2/3 are left empty, they default to Owner 1 — this creates duplicate owners.`
+        );
+      }
+
       console.log('Creating SafeDelayMultiSig with:', {
         owner1Pkh,
         owner2Pkh: finalOwner2Pkh,
@@ -263,8 +291,8 @@ export default function SafeDelayMultiSigForm() {
         <FormGroup>
           <Label>Threshold (required signatures)</Label>
           <Select value={threshold} onChange={(e) => setThreshold(e.target.value)}>
-            <option value="2">2 of 3</option>
-            <option value="3">3 of 3</option>
+            <option value="2" disabled={!canUseThreshold2}>2 of 3 {!canUseThreshold2 && '— add Owner 2'}</option>
+            <option value="3" disabled={!canUseThreshold3}>3 of 3 {!canUseThreshold3 && '— add Owner 2 & 3'}</option>
           </Select>
           <HelpText>How many owners must sign to withdraw funds</HelpText>
         </FormGroup>
@@ -300,7 +328,12 @@ export default function SafeDelayMultiSigForm() {
               />
             </OwnerField>
           </OwnerList>
-          <HelpText>Defaults to Owner 1 if not provided. Owner 1 is required.</HelpText>
+          <HelpText>
+            Owner 1 is required. Owner 2 & 3 are optional but{' '}
+            <strong>required for 3-of-3</strong>. If left empty, they default to Owner 1
+            (creating duplicate owners, which reduces security).
+            {' '}{!canUseThreshold3 && '⚠️ Need 2 unique owners for 2-of-3 threshold.'}
+          </HelpText>
         </FormGroup>
 
         <FormGroup>
