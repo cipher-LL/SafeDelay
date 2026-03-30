@@ -22,7 +22,8 @@
     "artifacts"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "node --input-type=module -e \"import {cpSync, mkdirSync} from 'fs'; mkdirSync('dist/demos', {recursive: true}); cpSync('index.html', 'dist/index.html'); for(const f of ['cancel-refund.html','create-lock.html','extend-lock.html']) cpSync('demo/'+f, 'dist/demos/'+f);\"",
     "compile": "cashc src/SafeDelay.cash --hex --output artifacts/",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.json",
     "prepublishOnly": "npm run build"
