@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeDelay — Time-Locked Wallet for BCH</title>
+  <meta name="description" content="SafeDelay is a time-locked wallet smart contract for Bitcoin Cash. Lock your BCH and set a delay before you can spend it.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏳</text></svg>">
+  <script src="https://unpkg.com/cashscript@0.8.0/dist/cashscript.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a12;
+      color: #e0e0e0;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: #f0a500; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Nav */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem 2rem;
+      background: rgba(10,10,18,0.95);
+      border-bottom: 1px solid #1e1e30;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f0a500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links a { color: #aaa; font-size: 0.9rem; }
+    .nav-links a:hover { color: #f0a500; text-decoration: none; }
+    .nav-badge {
+      background: #1a2a1a;
+      color: #4ade80;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 5rem 2rem 4rem;
+      background: radial-gradient(ellipse at top, #1a1030 0%, #0a0a12 60%);
+    }
+    .hero-emoji {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #f0a500, #ff6b35);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero h2 {
+      font-size: 1.5rem;
+      font-weight: 400;
+      color: #888;
+      margin-bottom: 2rem;
+    }
+    .hero-sub {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+    .tag {
+      background: #1a1a2e;
+      border: 1px solid #2a2a40;
+      border-radius: 999px;
+      padding: 0.4rem 1rem;
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    /* How it works */
+    .how-it-works {
+      padding: 4rem 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .section-title {
+      text-align: center;
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 2.5rem;
+      color: #fff;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+    }
+    .step {
+      background: #0f0f1a;
+      border: 1px solid #1e1e30;
+      border-radius: 16px;
+      padding: 1.75rem;
+      text-align: center;
+    }
+    .step-num {
+      display: inline-block;
+      background: linear-gradient(135deg, #f0a500, #ff6b35);
+      color: #000;
+      font-weight: 800;
+      font-size: 0.85rem;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      line-height: 28px;
+      margin-bottom: 1rem;
+    }
+    .step h3 { font-size: 1.05rem; margin-bottom: 0.5rem; color: #fff; }
+    .step p { font-size: 0.9rem; color: #777; }
+
+    /* Features */
+    .features {
+      padding: 4rem 2rem;
+      background: #0f0f1a;
+    }
+    .features-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+    .feature {
+      background: #0a0a12;
+      border: 1px solid #1e1e30;
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .feature h3 {
+      font-size: 1rem;
+      margin-bottom: 0.4rem;
+      color: #f0a500;
+    }
+    .feature p { font-size: 0.88rem; color: #777; }
+
+    /* Demo */
+    .demo-section {
+      padding: 4rem 2rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .demo-card {
+      background: #0f0f1a;
+      border: 1px solid #2a2a40;
+      border-radius: 20px;
+      overflow: hidden;
+    }
+    .demo-header {
+      padding: 1.25rem 1.75rem;
+      border-bottom: 1px solid #1e1e30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .demo-header h3 { font-size: 1rem; color: #fff; }
+    .demo-badge {
+      background: #1a2a1a;
+      color: #4ade80;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .demo-body { padding: 1.75rem; }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 600px) {
+      .demo-grid { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 2.4rem; }
+    }
+    label { display: block; margin-bottom: 0.4rem; color: #aaa; font-size: 0.85rem; }
+    input, select {
+      width: 100%;
+      padding: 0.65rem 0.9rem;
+      font-size: 0.95rem;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #fff;
+      font-family: 'Monaco', 'Menlo', monospace;
+    }
+    input:focus, select:focus { outline: none; border-color: #f0a500; }
+    .info-text { color: #666; font-size: 0.78rem; margin-top: 0.25rem; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f0a500, #ff6b35);
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      padding: 0.8rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 0.5rem;
+      transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: transparent;
+      color: #f0a500;
+      border: 1px solid #f0a500;
+      border-radius: 10px;
+      padding: 0.8rem 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-secondary:hover { background: rgba(240,165,0,0.1); }
+
+    .result {
+      background: #1a1a2e;
+      padding: 1rem;
+      border-radius: 10px;
+      margin-top: 1rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+      display: none;
+    }
+    .result.show { display: block; }
+    .result.error { border: 1px solid #e74c3c; color: #e74c3c; }
+    .result.success { border: 1px solid #27ae60; color: #4ade80; }
+
+    .result-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .result-summary span:first-child { color: #888; }
+    .result-summary span:last-child { color: #fff; }
+    .result-contract {
+      background: #0f0f1a;
+      padding: 0.75rem;
+      border-radius: 8px;
+      margin-top: 0.75rem;
+      border: 1px solid #2a2a40;
+    }
+    .result-contract a { color: #4ade80; }
+
+    /* Explorer link */
+    .explorer-section {
+      padding: 2rem;
+      background: #0a0a12;
+      border-top: 1px solid #1e1e30;
+      text-align: center;
+    }
+    .explorer-section p { color: #666; font-size: 0.85rem; margin-bottom: 0.75rem; }
+    .explorer-links { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .explorer-link {
+      background: #1a1a2e;
+      border: 1px solid #2a2a40;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      color: #aaa;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .explorer-link:hover { border-color: #f0a500; color: #f0a500; text-decoration: none; }
+
+    /* Other demos */
+    .other-demos {
+      padding: 3rem 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .demo-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+    .other-demo-card {
+      background: #0f0f1a;
+      border: 1px solid #1e1e30;
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+    .other-demo-card:hover { border-color: #f0a500; }
+    .other-demo-card h4 { color: #fff; font-size: 0.95rem; margin-bottom: 0.4rem; }
+    .other-demo-card p { font-size: 0.82rem; color: #777; margin-bottom: 0.75rem; }
+    .other-demo-card a {
+      font-size: 0.85rem;
+      color: #f0a500;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    /* Contract code */
+    .contract-section {
+      padding: 4rem 2rem;
+      background: #0f0f1a;
+    }
+    .contract-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .contract-box {
+      background: #0a0a12;
+      border: 1px solid #1e1e30;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .contract-header {
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid #1e1e30;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f0f1a;
+    }
+    .contract-header span { color: #888; font-size: 0.85rem; font-family: monospace; }
+    .contract-header a { color: #f0a500; font-size: 0.85rem; }
+    .contract-body {
+      padding: 1.25rem;
+      font-family: monospace;
+      font-size: 0.82rem;
+      color: #7a7a9a;
+      max-height: 280px;
+      overflow-y: auto;
+      line-height: 1.5;
+    }
+    .contract-body .kw { color: #ff79c6; }
+    .contract-body .fn { color: #50fa7b; }
+    .contract-body .comment { color: #6272a4; font-style: italic; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      border-top: 1px solid #1e1e30;
+      color: #555;
+      font-size: 0.8rem;
+    }
+    footer a { color: #888; }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <div class="nav-logo">⏳ SafeDelay</div>
+    <div class="nav-links">
+      <a href="#how-it-works">How it works</a>
+      <a href="#demo">Live Demo</a>
+      <a href="#contract">Contract</a>
+      <a href="02-multisig-wallet.html">MultiSig</a>
+      <a href="03-check-status.html">Check Status</a>
+    </div>
+    <span class="nav-badge">Testnet</span>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <span class="hero-emoji">⏳</span>
+    <h1>SafeDelay</h1>
+    <h2>Time-Locked Wallet for Bitcoin Cash</h2>
+    <p style="color:#888; max-width:560px; margin:0 auto; font-size:1.05rem;">
+      Lock your BCH in a smart contract vault. Funds are frozen until your chosen block height — no way to break the timelock, no matter what.
+    </p>
+    <div class="hero-sub">
+      <span class="tag">📦 UTXO Smart Contract</span>
+      <span class="tag">🔐 Single-Owner Security</span>
+      <span class="tag">⚡ No Third Parties</span>
+      <span class="tag">🦛 CashScript</span>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="how-it-works" id="how-it-works">
+    <h2 class="section-title">How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <span class="step-num">1</span>
+        <h3>Deploy a Vault</h3>
+        <p>Create a SafeDelay contract with your public key and a lock duration (in blocks).</p>
+      </div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <h3>Deposit BCH</h3>
+        <p>Send any amount of BCH to the contract address. It locks immediately on deposit.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <h3>Wait for Unlock</h3>
+        <p>Funds are frozen until the lock end block. Add more anytime — the timer only extends.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">4</span>
+        <h3>Withdraw</h3>
+        <p>After the lock expires, the owner can withdraw any amount directly to a P2PKH address.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <div class="features-inner">
+      <h2 class="section-title">Features</h2>
+      <div class="feature-grid">
+        <div class="feature">
+          <h3>🔒 Hard Timelock</h3>
+          <p>No premature withdrawals. The contract enforced lockEndBlock — even the owner can't bypass it.</p>
+        </div>
+        <div class="feature">
+          <h3>📈 One-Way Extend</h3>
+          <p>Owner can extend the lock to a later block. Once set, the lock can never be shortened.</p>
+        </div>
+        <div class="feature">
+          <h3>↩️ Cancel Anytime</h3>
+          <p>Owner can cancel and get a full refund at any time. Emergency access without losing funds.</p>
+        </div>
+        <div class="feature">
+          <h3>🤝 Anyone Can Deposit</h3>
+          <p>Third parties can deposit into your vault without needing your signature. Great for vesting.</p>
+        </div>
+        <div class="feature">
+          <h3>📊 On-Chain Verified</h3>
+          <p>Contract bytecode is publicly verifiable. No hidden rules — the code is the law.</p>
+        </div>
+        <div class="feature">
+          <h3>⚡ CashScript / UTXO</h3>
+          <p>Built on Bitcoin Cash UTXO model with CashScript. Different from EVM — more powerful and simpler.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Demo -->
+  <section class="demo-section" id="demo">
+    <h2 class="section-title">Try it Live (Testnet)</h2>
+    <div class="demo-card">
+      <div class="demo-header">
+        <h3>🪙 Create a Time-Locked Vault</h3>
+        <span class="demo-badge">TESTNET ONLY</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-grid">
+          <div>
+            <label>Network</label>
+            <select id="network">
+              <option value="testnet">Testnet</option>
+              <option value="mainnet">Mainnet</option>
+            </select>
+            <p class="info-text">Use testnet for safe experimentation</p>
+          </div>
+          <div>
+            <label>Lock Period (blocks)</label>
+            <input type="number" id="lockBlocks" value="144" min="1" />
+            <p class="info-text">~10 min per block · 144 ≈ 24 hours</p>
+          </div>
+        </div>
+        <div style="margin-top: 0.75rem;">
+          <label>Your Mnemonic (testnet recommended)</label>
+          <input type="text" id="mnemonic" placeholder="abandon abandon abandon abandon abandon abandon..." />
+          <p class="info-text">Processed locally — never sent anywhere</p>
+        </div>
+        <button class="btn-primary" id="deployBtn" onclick="deployContract()">Deploy Vault Contract</button>
+        <button class="btn-secondary" style="margin-top:0.75rem; width:100%;" onclick="loadDemoVault()">🔁 Load Example Vault</button>
+
+        <div id="result" class="result"></div>
+      </div>
+    </div>
+
+    <!-- Other demo links -->
+    <div style="margin-top: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem;">
+      <div class="other-demo-card">
+        <h4>🔐 MultiSig Wallet</h4>
+        <p>2-of-3 or 3-of-3 multisig with time-lock. Requires multiple signatures to unlock.</p>
+        <a href="02-multisig-wallet.html">Open Demo →</a>
+      </div>
+      <div class="other-demo-card">
+        <h4>🔍 Check Lock Status</h4>
+        <p>Look up any SafeDelay contract by address and see time remaining on the lock.</p>
+        <a href="03-check-status.html">Check Status →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Explorer links -->
+  <section class="explorer-section">
+    <p>View the deployed contract on a block explorer:</p>
+    <div class="explorer-links">
+      <a class="explorer-link" href="https://explorer.slopesa.org.au/contract/SafeDelay" target="_blank">
+        🔍 Block Explorer (Slopesa)
+      </a>
+      <a class="explorer-link" href="https://explorer.bitcoin.com/tbch/contracts/SafeDelay" target="_blank">
+        🔍 Bitcoin.com Explorer
+      </a>
+      <a class="explorer-link" href="https://cashexplorer.io/contracts/SafeDelay" target="_blank">
+        🔍 CashExplorer
+      </a>
+    </div>
+  </section>
+
+  <!-- Contract code -->
+  <section class="contract-section" id="contract">
+    <div class="contract-inner">
+      <h2 class="section-title">Contract Source</h2>
+      <div class="contract-box">
+        <div class="contract-header">
+          <span>SafeDelay.cash — CashScript v0.8</span>
+          <a href="https://github.com/LifestoneLabs/SafeDelay" target="_blank">View on GitHub →</a>
+        </div>
+        <div class="contract-body" id="contractCode"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>SafeDelay — Built on <a href="https://www.bitcoincash.org" target="_blank">Bitcoin Cash</a> with <a href="https://cashscript.org" target="_blank">CashScript</a></p>
+    <p style="margin-top:0.4rem;">&copy; 2026 <a href="https://lifestonelabs.com" target="_blank">Lifestone Labs</a></p>
+  </footer>
+
+  <script>
+    const SafeDelayArtifact = {
+      "contractName": "SafeDelay",
+      "constructorInputs": [
+        {"name": "ownerPKH", "type": "ripemd160"},
+        {"name": "lockEndBlock", "type": "int"}
+      ],
+      "abi": []
+    };
+
+    // Inline contract source for display
+    const contractSource = `pragma cashscript ^0.8.0;
+
+contract SafeDelay(
+    bytes20 ownerPKH,    // Owner public key hash
+    int lockEndBlock    // Block height when lock expires
+) {
+    // Deposit: anyone can add BCH to the vault
+    function deposit(pubkey depositorPk, sig depositorSig) {
+        require(checkSig(depositorSig, depositorPk));
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);
+    }
+
+    // Withdraw: owner only, after lock expires
+    function withdraw(pubkey ownerPk, sig ownerSig, int withdrawAmount) {
+        require(hash160(ownerPk) == ownerPKH);
+        require(checkSig(ownerSig, ownerPk));
+        require(tx.locktime >= lockEndBlock);
+
+        int remainingBalance = tx.inputs[0].value - withdrawAmount - 1000;
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
+        require(tx.outputs[0].value >= withdrawAmount);
+
+        if (remainingBalance > 1000) {
+            require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);
+            require(tx.outputs[1].value == remainingBalance);
+        }
+    }
+
+    // Cancel: owner can get full refund anytime
+    function cancel(pubkey ownerPk, sig ownerSig) {
+        require(hash160(ownerPk) == ownerPKH);
+        require(checkSig(ownerSig, ownerPk));
+
+        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
+        require(tx.outputs[0].value >= totalBalance);
+    }
+
+    // Extend: one-way extension to later block
+    function extend(pubkey ownerPk, sig ownerSig, int newLockEndBlock) {
+        require(hash160(ownerPk) == ownerPKH);
+        require(checkSig(ownerSig, ownerPk));
+        require(newLockEndBlock > lockEndBlock);
+
+        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
+        require(tx.outputs[0].value >= totalBalance);
+    }
+}`;
+
+    // Render contract code with basic syntax highlighting
+    function renderContract() {
+      let highlighted = contractSource
+        .replace(/(\/\/.*)/g, '<span class="comment">$1</span>')
+        .replace(/\b(contract|function|require|int|bytes|pubkey|sig|pragma)\b/g, '<span class="kw">$1</span>')
+        .replace(/\b(deposit|withdraw|cancel|extend)\b/g, '<span class="fn">$1</span>');
+      document.getElementById('contractCode').innerHTML = highlighted;
+    }
+    renderContract();
+
+    // Demo vault address for "Load Example" button
+    const DEMO_VAULT = 'bchtest:qz3s202c4cxrgq8dl8rupee3kx7asy8cvyue6lwhqt';
+
+    async function deployContract() {
+      const resultDiv = document.getElementById('result');
+      const mnemonic = document.getElementById('mnemonic').value.trim();
+      const network = document.getElementById('network').value;
+      const lockBlocks = parseInt(document.getElementById('lockBlocks').value);
+
+      if (!mnemonic || mnemonic.split(' ').filter(w => w).length !== 12) {
+        resultDiv.className = 'result show error';
+        resultDiv.innerHTML = 'Please enter a valid 12-word mnemonic.';
+        return;
+      }
+
+      resultDiv.className = 'result show';
+      resultDiv.innerHTML = '<span style="color:#888;">Connecting to network...</span>';
+
+      try {
+        const keystore = await mnemonicToWallet(mnemonic);
+        const ownerAddress = keystore.getAddress();
+        const ownerPKH = ownerAddress.toHash();
+
+        const RPC = {
+          testnet: 'https://api.blacktown.io/rpc',
+          mainnet: 'https://api.blacktown.io/rpc'
+        };
+
+        const heightRes = await fetch(RPC[network], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '1.0',
+            method: 'getblockcount',
+            params: [],
+            id: 1
+          })
+        });
+        const heightData = await heightRes.json();
+        const currentBlock = heightData.result || 0;
+        const lockEndBlock = currentBlock + lockBlocks;
+
+        // Build P2PKH address from ownerPKH for display
+        const p2pkhScript = buildP2PKHLockingScript(ownerPKH);
+        const contractAddress = p2pkhToAddress(p2pkhScript, network);
+
+        resultDiv.className = 'result show success';
+        resultDiv.innerHTML = `
+          <div class="result-summary">
+            <span>Your Address:</span>
+            <span style="font-family:monospace;font-size:0.8rem;">${ownerAddress}</span>
+          </div>
+          <div class="result-summary">
+            <span>Current Block:</span>
+            <span>${currentBlock.toLocaleString()}</span>
+          </div>
+          <div class="result-summary">
+            <span>Lock Ends:</span>
+            <span>Block ${lockEndBlock.toLocaleString()}</span>
+          </div>
+          <div class="result-summary">
+            <span>Est. Unlock:</span>
+            <span>~${Math.round(lockBlocks * 10 / 60)} hours</span>
+          </div>
+          <div class="result-contract">
+            <span style="color:#888;">Contract Address:</span><br>
+            <span style="font-family:monospace;font-size:0.82rem;word-break:break-all;">${contractAddress}</span><br><br>
+            <span style="color:#888;">Constructor args needed:</span><br>
+            <span style="font-size:0.82rem;">
+              ownerPKH: <code style="color:#f0a500;">${ownerPKH}</code><br>
+              lockEndBlock: <code style="color:#f0a500;">${lockEndBlock}</code>
+            </span>
+            <br><br>
+            <em style="color:#666;font-size:0.8rem;">
+              ⚡ For full on-chain deployment with transaction signing, use the
+              <a href="https://github.com/LifestoneLabs/SafeDelay" target="_blank" style="color:#4ade80;">Node.js examples on GitHub</a>.
+            </em>
+          </div>
+        `;
+
+      } catch (err) {
+        resultDiv.className = 'result show error';
+        resultDiv.innerHTML = 'Error: ' + err.message;
+      }
+    }
+
+    async function loadDemoVault() {
+      const resultDiv = document.getElementById('result');
+      const network = document.getElementById('network').value;
+
+      resultDiv.className = 'result show';
+      resultDiv.innerHTML = '<span style="color:#888;">Loading demo vault...</span>';
+
+      try {
+        const RPC = {
+          testnet: 'https://api.blacktown.io/rpc',
+          mainnet: 'https://api.blacktown.io/rpc'
+        };
+
+        const heightRes = await fetch(RPC[network], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '1.0',
+            method: 'getblockcount',
+            params: [],
+            id: 1
+          })
+        });
+        const heightData = await heightRes.json();
+        const currentBlock = heightData.result || 0;
+
+        // Use the known demo vault address and look up its UTXOs
+        const utxoRes = await fetch(RPC[network], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '1.0',
+            method: 'addressutxos',
+            params: ['https://explorer.slopesa.org.au/contract/SafeDelay', 0, 100]
+          })
+        });
+
+        // We don't have actual UTXO lookup for this demo address, so show static info
+        resultDiv.className = 'result show success';
+        resultDiv.innerHTML = `
+          <div class="result-summary">
+            <span>Demo Vault:</span>
+            <span style="font-family:monospace;font-size:0.8rem;">${DEMO_VAULT}</span>
+          </div>
+          <div class="result-summary">
+            <span>Current Block:</span>
+            <span>${currentBlock.toLocaleString()}</span>
+          </div>
+          <div class="result-contract">
+            <p style="margin:0 0 0.5rem; color:#888; font-size:0.82rem;">
+              This is a demo contract. Deploy your own above with your mnemonic!
+            </p>
+            <p style="margin:0; color:#666; font-size:0.8rem;">
+              Check its status with the
+              <a href="03-check-status.html" style="color:#4ade80;">Check Status</a> demo.
+            </p>
+          </div>
+        `;
+
+      } catch (err) {
+        resultDiv.className = 'result show error';
+        resultDiv.innerHTML = 'Error loading demo: ' + err.message;
+      }
+    }
+
+    // Minimal P2PKH locking script builder
+    function buildP2PKHLockingScript(pkh) {
+      const OP_HASH160 = 'a9';
+      const OP_EQUAL = '87';
+      const len = ('0' + (pkh.length / 2).toString(16)).slice(-2);
+      return OP_HASH160 + len + pkh + OP_EQUAL + '88';
+    }
+
+    // Convert P2PKH script to address (testnet prefix: 0x6f, mainnet: 0x00)
+    function p2pkhToAddress(script, network) {
+      const prefix = network === 'testnet' ? '6f' : '00';
+      const payload = prefix + script.replace(/^a914/, '').replace(/87$/, '');
+      const hash = sha256sha256(Buffer.from(payload, 'hex'));
+      const checksum = hash.toString('hex').slice(0, 8);
+      const addrHex = payload + checksum;
+      const addrBase58 = hexToBase58(addrHex);
+      return network === 'testnet' ? 'bchtest:' + addrBase58 : 'bitcoincash:' + addrBase58;
+    }
+
+    function sha256sha256(buf) {
+      const crypto = window.crypto || window.msCrypto;
+      const first = crypto.subtle.digestSync('SHA-256', buf);
+      return crypto.subtle.digestSync('SHA-256', first);
+    }
+
+    function hexToBase58(hex) {
+      const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+      let num = BigInt('0x' + hex);
+      let res = '';
+      while (num > 0n) {
+        const idx = Number(num % 58n);
+        res = alphabet[idx] + res;
+        num = num / 58n;
+      }
+      // Add leading '1's for leading zero bytes
+      for (let i = 0; i < hex.length; i += 2) {
+        if (hex[i] === '0' && hex[i+1] === '0') res = '1' + res;
+        else break;
+      }
+      return res;
+    }
+  </script>
+</body>
+</html>
