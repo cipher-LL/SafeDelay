@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
 import { deploySafeDelayMultiSig, addressToPubkeyHash } from '../utils/deployContract';
+import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -158,6 +159,7 @@ const ErrorText = styled.span`
 export default function SafeDelayMultiSigForm() {
   const { wallet } = useWallet();
   const { network } = useNetwork();
+  const { addContract } = useStoredContracts();
   const [threshold, setThreshold] = useState('2');
   const [lockDuration, setLockDuration] = useState('30');
   const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
@@ -272,6 +274,16 @@ export default function SafeDelayMultiSigForm() {
       });
 
       setContractAddress(result.contractAddress);
+
+      // Save contract to localStorage for dashboard
+      addContract({
+        address: result.contractAddress,
+        ownerPkh: owner1Pkh,
+        lockEndBlock: result.actualLockEndBlock, // absolute lock end block
+        type: 'multisig',
+        owners: [owner1Pkh, finalOwner2Pkh, finalOwner3Pkh],
+        createdAt: Date.now(),
+      });
     } catch (err) {
       console.error('Error creating SafeDelayMultiSig:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');

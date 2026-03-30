@@ -24,6 +24,7 @@ export interface DeployOptions {
 export interface DeployResult {
   contractAddress: string;
   contract: Contract;
+  actualLockEndBlock: number; // Absolute block height when lock expires
 }
 
 // Deploy a SafeDelay contract
@@ -57,11 +58,13 @@ export async function deploySafeDelay(options: DeployOptions): Promise<DeployRes
   console.log('  Current block:', currentBlockHeight);
   console.log('  Lock ends at block:', actualLockEndBlock);
   console.log('  Contract address:', contract.address);
+  console.log('  Lock ends at block:', actualLockEndBlock);
   
-  // Return the contract address
+  // Return the contract address and actual lock end block
   return {
     contractAddress: contract.address,
     contract,
+    actualLockEndBlock,
   };
 }
 
@@ -126,6 +129,7 @@ export async function deploySafeDelayMultiSig(options: DeployMultiSigOptions): P
   return {
     contractAddress: contract.address,
     contract,
+    actualLockEndBlock,
   };
 }
 

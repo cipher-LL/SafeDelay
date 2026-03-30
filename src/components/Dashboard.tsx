@@ -5,6 +5,7 @@ import { useWallet } from '../context/WalletContext';
 import { useWalletLabels } from '../hooks/useWalletLabels';
 import { useWalletBackup } from '../hooks/useWalletBackup';
 import { useDepositMilestones } from '../hooks/useDepositMilestones';
+import { useStoredContracts, useElectrumContractData } from '../hooks/useSafeDelayContracts';
 import { QRCodeSVG } from 'qrcode.react';
 
 const DashboardContainer = styled.div`
@@ -514,6 +515,8 @@ export default function Dashboard() {
   const { network } = useNetwork();
   const { wallet } = useWallet();
   const { getLabel, setLabel, removeLabel } = useWalletLabels();
+  const { contracts: storedContracts } = useStoredContracts();
+  const { contracts: contractsWithData, currentBlock } = useElectrumContractData(storedContracts, network);
   const [contracts, setContracts] = useState<TimeLock[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'create'>('all');
@@ -561,7 +564,7 @@ export default function Dashboard() {
     permission,
     requestPermission,
     addDeposit,
-    // updateBlockHeight, // TODO: wire up to real block height polling
+    updateBlockHeight,
     setMilestoneTargets,
     dismissNotification,
     clearNotifications,
@@ -587,74 +590,36 @@ export default function Dashboard() {
     }
   };
 
-  // Placeholder data for demonstration
+  // Sync contracts from Electrum hook to local state
   useEffect(() => {
-    if (wallet.connected) {
-      // TODO: Fetch actual contracts from Electrum
-      setContracts([
-        {
-          address: 'bitcoincash:qztest123456789abcdef',
-          balance: 1.5,
-          lockEndBlock: 890000,
-          currentBlock: 850000,
-          type: 'single',
-        },
-        {
-          address: 'bitcoincash:pztest987654321fedcba',
-          balance: 3.2,
-          lockEndBlock: 870000,
-          currentBlock: 850000,
-          type: 'multisig',
-          owners: ['owner1', 'owner2', 'owner3'],
-        },
-      ]);
-      
-      // Mock transaction history
-      setTransactions([
-        {
-          id: '1',
-          type: 'create',
-          amount: 1.5,
-          timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000,
-          txHash: 'abc123def456',
-          contractAddress: 'bitcoincash:qztest123456789abcdef',
-        },
-        {
-          id: '2',
-          type: 'deposit',
-          amount: 0.5,
-          timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
-          txHash: 'def456ghi789',
-          contractAddress: 'bitcoincash:qztest123456789abcdef',
-        },
-        {
-          id: '3',
-          type: 'deposit',
-          amount: 3.2,
-          timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
-          txHash: 'ghi789jkl012',
-          contractAddress: 'bitcoincash:pztest987654321fedcba',
-        },
-        {
-          id: '4',
-          type: 'withdraw',
-          amount: 0.3,
-          timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000,
-          txHash: 'jkl012mno345',
-          contractAddress: 'bitcoincash:qztest123456789abcdef',
-        },
-      ]);
-      
+    if (wallet.connected && contractsWithData.length > 0) {
+      // Convert ContractWithBalance to TimeLock format
+      const timeLocks: TimeLock[] = contractsWithData.map(c => ({
+        address: c.address,
+        balance: c.balance,
+        lockEndBlock: c.lockEndBlock,
+        currentBlock: c.currentBlock,
+        type: c.type,
+        owners: c.owners,
+      }));
+      setContracts(timeLocks);
+
       // Track deposits for milestone notifications
-      const currentBlock = 850000;
-      contracts.forEach(c => {
-        addDeposit(c.address, c.lockEndBlock, currentBlock);
+      contractsWithData.forEach(c => {
+        addDeposit(c.address, c.lockEndBlock, c.currentBlock);
       });
-    } else {
+    } else if (!wallet.connected) {
       setContracts([]);
       setTransactions([]);
     }
-  }, [wallet.connected, network, addDeposit]);
+  }, [wallet.connected, contractsWithData, addDeposit]);
+
+  // Update block height for milestone tracking when it changes
+  useEffect(() => {
+    if (currentBlock > 0 && wallet.connected) {
+      updateBlockHeight(currentBlock);
+    }
+  }, [currentBlock, wallet.connected, updateBlockHeight]);
 
   // Sort contracts based on selected option
   const sortedContracts = [...contracts].sort((a, b) => {

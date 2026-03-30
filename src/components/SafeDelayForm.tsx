@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
 import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
+import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -125,6 +126,7 @@ const ResultValue = styled.div`
 export default function SafeDelayForm() {
   const { wallet } = useWallet();
   const { network } = useNetwork();
+  const { addContract } = useStoredContracts();
   const [lockDuration, setLockDuration] = useState('30'); // days
   const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
   const [depositAmount, setDepositAmount] = useState('');
@@ -175,6 +177,15 @@ export default function SafeDelayForm() {
       });
       
       setContractAddress(result.contractAddress);
+
+      // Save contract to localStorage for dashboard
+      addContract({
+        address: result.contractAddress,
+        ownerPkh: ownerPkh,
+        lockEndBlock: result.actualLockEndBlock, // absolute lock end block
+        type: 'single',
+        createdAt: Date.now(),
+      });
     } catch (error) {
       console.error('Error creating SafeDelay:', error);
       alert('Failed to create SafeDelay: ' + (error instanceof Error ? error.message : 'Unknown error'));
