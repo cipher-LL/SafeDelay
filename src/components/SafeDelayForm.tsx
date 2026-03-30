@@ -2,7 +2,7 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
-import { deploySafeDelay } from '../utils/deployContract';
+import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -158,15 +158,18 @@ export default function SafeDelayForm() {
       const estimatedLockEnd = blocks; // Relative blocks from now
       
       console.log('Creating SafeDelay with:', {
-        owner: wallet.pubkeyHash,
+        owner: wallet.address,
         lockEndBlock: estimatedLockEnd,
         depositAmount,
         network
       });
-      
+
+      // Convert wallet address to pubkey hash for the contract
+      const ownerPkh = await addressToPubkeyHash(wallet.address!);
+
       // Deploy contract
       const result = await deploySafeDelay({
-        ownerPubkeyHash: wallet.pubkeyHash,
+        ownerPubkeyHash: ownerPkh,
         lockEndBlock: estimatedLockEnd,
         network: network as 'mainnet' | 'testnet' | 'chipnet',
       });

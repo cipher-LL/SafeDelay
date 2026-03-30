@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
+import { useNetwork } from '../context/NetworkContext';
+import { deploySafeDelayMultiSig, addressToPubkeyHash } from '../utils/deployContract';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -127,19 +129,50 @@ const SubmitButton = styled.button`
   }
 `;
 
+const ContractAddressBox = styled.div`
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(79, 70, 229, 0.4);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+`;
+
+const ContractAddressLabel = styled.div`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+`;
+
+const ContractAddress = styled.div`
+  font-family: monospace;
+  font-size: 14px;
+  word-break: break-all;
+  color: #a855f7;
+`;
+
+const ErrorText = styled.span`
+  font-size: 12px;
+  color: #ef4444;
+`;
+
 export default function SafeDelayMultiSigForm() {
   const { wallet } = useWallet();
+  const { network } = useNetwork();
   const [threshold, setThreshold] = useState('2');
   const [lockDuration, setLockDuration] = useState('30');
   const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
-  const [depositAmount, setDepositAmount] = useState('');
+  const [owner1Address, setOwner1Address] = useState('');
+  const [owner2Address, setOwner2Address] = useState('');
+  const [owner3Address, setOwner3Address] = useState('');
+  const [contractAddress, setContractAddress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const getDurationInBlocks = () => {
-    const days = durationUnit === 'days' 
-      ? parseInt(lockDuration) 
-      : durationUnit === 'weeks' 
-        ? parseInt(lockDuration) * 7 
+    const days = durationUnit === 'days'
+      ? parseInt(lockDuration)
+      : durationUnit === 'weeks'
+        ? parseInt(lockDuration) * 7
         : parseInt(lockDuration) * 30;
     return days * 144;
   };
@@ -151,16 +184,69 @@ export default function SafeDelayMultiSigForm() {
       return;
     }
 
+    setError(null);
+    setContractAddress(null);
     setLoading(true);
+
     try {
+      // Validate at least owner 1 is set
+      if (!owner1Address.trim()) {
+        throw new Error('Owner 1 address is required');
+      }
+
+      // Convert addresses to pubkey hashes
+      let owner1Pkh: string;
+      let owner2Pkh: string | undefined;
+      let owner3Pkh: string | undefined;
+
+      try {
+        owner1Pkh = await addressToPubkeyHash(owner1Address.trim());
+      } catch {
+        throw new Error(`Invalid Owner 1 address: ${owner1Address}`);
+      }
+
+      if (owner2Address.trim()) {
+        try {
+          owner2Pkh = await addressToPubkeyHash(owner2Address.trim());
+        } catch {
+          throw new Error(`Invalid Owner 2 address: ${owner2Address}`);
+        }
+      }
+
+      if (owner3Address.trim()) {
+        try {
+          owner3Pkh = await addressToPubkeyHash(owner3Address.trim());
+        } catch {
+          throw new Error(`Invalid Owner 3 address: ${owner3Address}`);
+        }
+      }
+
+      // Default owner 2 and 3 to owner 1 if not provided
+      const finalOwner2Pkh = owner2Pkh || owner1Pkh;
+      const finalOwner3Pkh = owner3Pkh || owner1Pkh;
+
       console.log('Creating SafeDelayMultiSig with:', {
+        owner1Pkh,
+        owner2Pkh: finalOwner2Pkh,
+        owner3Pkh: finalOwner3Pkh,
         threshold: parseInt(threshold),
         lockEndBlock: getDurationInBlocks(),
-        depositAmount,
+        network,
       });
-      // TODO: Implement actual multi-sig contract deployment
-    } catch (error) {
-      console.error('Error creating SafeDelayMultiSig:', error);
+
+      const result = await deploySafeDelayMultiSig({
+        owner1Pkh,
+        owner2Pkh: finalOwner2Pkh,
+        owner3Pkh: finalOwner3Pkh,
+        threshold: parseInt(threshold),
+        lockEndBlock: getDurationInBlocks(),
+        network: network as 'mainnet' | 'testnet' | 'chipnet',
+      });
+
+      setContractAddress(result.contractAddress);
+    } catch (err) {
+      console.error('Error creating SafeDelayMultiSig:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -172,7 +258,7 @@ export default function SafeDelayMultiSigForm() {
       <Description>
         Require 2-of-3 signatures to withdraw. Enhanced security for larger amounts.
       </Description>
-      
+
       <Form onSubmit={handleSubmit}>
         <FormGroup>
           <Label>Threshold (required signatures)</Label>
@@ -188,17 +274,33 @@ export default function SafeDelayMultiSigForm() {
           <OwnerList>
             <OwnerField>
               <OwnerNumber>1</OwnerNumber>
-              <Input placeholder="Owner 1 cashaddress (required)" style={{ flex: 1 }} />
+              <Input
+                placeholder="Owner 1 cashaddress (required)"
+                style={{ flex: 1 }}
+                value={owner1Address}
+                onChange={(e) => setOwner1Address(e.target.value)}
+              />
             </OwnerField>
             <OwnerField>
               <OwnerNumber>2</OwnerNumber>
-              <Input placeholder="Owner 2 cashaddress" style={{ flex: 1 }} />
+              <Input
+                placeholder="Owner 2 cashaddress (optional)"
+                style={{ flex: 1 }}
+                value={owner2Address}
+                onChange={(e) => setOwner2Address(e.target.value)}
+              />
             </OwnerField>
             <OwnerField>
               <OwnerNumber>3</OwnerNumber>
-              <Input placeholder="Owner 3 cashaddress" style={{ flex: 1 }} />
+              <Input
+                placeholder="Owner 3 cashaddress (optional)"
+                style={{ flex: 1 }}
+                value={owner3Address}
+                onChange={(e) => setOwner3Address(e.target.value)}
+              />
             </OwnerField>
           </OwnerList>
+          <HelpText>Defaults to Owner 1 if not provided. Owner 1 is required.</HelpText>
         </FormGroup>
 
         <FormGroup>
@@ -224,22 +326,22 @@ export default function SafeDelayMultiSigForm() {
           <HelpText>~{getDurationInBlocks()} blocks</HelpText>
         </FormGroup>
 
-        <FormGroup>
-          <Label>Initial Deposit (BCH)</Label>
-          <Input
-            type="number"
-            step="0.00000001"
-            min="0.00001"
-            placeholder="0.0"
-            value={depositAmount}
-            onChange={(e) => setDepositAmount(e.target.value)}
-          />
-        </FormGroup>
+        {error && <ErrorText>{error}</ErrorText>}
 
         <SubmitButton type="submit" disabled={loading || !wallet.connected}>
           {loading ? 'Creating...' : 'Create MultiSig'}
         </SubmitButton>
       </Form>
+
+      {contractAddress && (
+        <ContractAddressBox>
+          <ContractAddressLabel>Contract Address:</ContractAddressLabel>
+          <ContractAddress>{contractAddress}</ContractAddress>
+          <HelpText style={{ marginTop: '8px' }}>
+            Fund this address to activate the time-lock. Funds can be withdrawn after the lock period with {threshold} of 3 signatures.
+          </HelpText>
+        </ContractAddressBox>
+      )}
     </FormContainer>
   );
 }
