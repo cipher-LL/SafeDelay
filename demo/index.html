@@ -778,18 +778,22 @@ contract SafeDelay(
       }
     }
 
-    // Minimal P2PKH locking script builder
+    // Standard P2PKH locking script builder
+    // Correct bytecode: OP_DUP + OP_HASH160 + push(20) + pkh + OP_EQUALVERIFY + OP_CHECKSIG
     function buildP2PKHLockingScript(pkh) {
+      const OP_DUP = '76';
       const OP_HASH160 = 'a9';
-      const OP_EQUAL = '87';
-      const len = ('0' + (pkh.length / 2).toString(16)).slice(-2);
-      return OP_HASH160 + len + pkh + OP_EQUAL + '88';
+      const OP_PUSHBYTES_20 = '14';
+      const OP_EQUALVERIFY = '88';
+      const OP_CHECKSIG = 'ac';
+      return OP_DUP + OP_HASH160 + OP_PUSHBYTES_20 + pkh + OP_EQUALVERIFY + OP_CHECKSIG;
     }
 
     // Convert P2PKH script to address (testnet prefix: 0x6f, mainnet: 0x00)
     function p2pkhToAddress(script, network) {
       const prefix = network === 'testnet' ? '6f' : '00';
-      const payload = prefix + script.replace(/^a914/, '').replace(/87$/, '');
+      // script is now full P2PKH: 76 a9 14 <pkh> 88 ac — use as-is with prefix
+      const payload = prefix + script;
       const hash = sha256sha256(Buffer.from(payload, 'hex'));
       const checksum = hash.toString('hex').slice(0, 8);
       const addrHex = payload + checksum;
