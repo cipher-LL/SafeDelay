@@ -399,9 +399,21 @@
         
         const utxos = await electrumCall('blockchain.address.getUTXOs', [address]);
         
+        // Calculate total balance from all UTXOs at this address
+        const totalAllBCH = utxos && utxos.length > 0
+          ? utxos.reduce((sum, u) => sum + (u.value || 0), 0) / 100000000
+          : 0;
+        
         if (!utxos || utxos.length === 0) {
           loadingDiv.style.display = 'none';
-          resultsDiv.innerHTML = '<div class="empty-state"><p>No UTXOs found for this address.</p></div>';
+          resultsDiv.innerHTML = `
+            <div class="empty-state">
+              <p>No UTXOs found for this address.</p>
+              <div style="margin-top:1rem;padding:1rem;background:var(--bg-card);border-radius:8px;border:1px solid var(--border);">
+                <div style="color:var(--text-muted);font-size:0.85rem;">Address Balance</div>
+                <div style="color:var(--text-primary);font-size:1.5rem;font-weight:600;margin-top:0.25rem;">0.00000000 BCH</div>
+              </div>
+            </div>`;
           return;
         }
 
@@ -457,8 +469,16 @@
         if (safeDelayUtxos.length === 0) {
           const msg = currentContract === 'nft' 
             ? 'No SafeDelay NFT locks found for this address.'
-            : 'No SafeDelay locks found for this address.';
-          resultsDiv.innerHTML = `<div class="empty-state"><p>${msg}</p></div>`;
+            : 'No SafeDelay locks found for this address. The address may hold non-SafeDelay UTXOs.';
+          resultsDiv.innerHTML = `
+            <div class="empty-state">
+              <p>${msg}</p>
+              <div style="margin-top:1rem;padding:1rem;background:var(--bg-card);border-radius:8px;border:1px solid var(--border);text-align:center;">
+                <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.25rem;">Address Balance</div>
+                <div style="color:var(--accent);font-size:1.5rem;font-weight:600;">${totalAllBCH.toFixed(8)} BCH</div>
+                <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.25rem;">${utxos.length} UTXO${utxos.length !== 1 ? 's' : ''} total</div>
+              </div>
+            </div>`;
           return;
         }
 
