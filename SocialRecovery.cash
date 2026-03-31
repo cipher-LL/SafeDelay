@@ -23,10 +23,14 @@ contract SocialRecovery(
     bytes20 ownerPKH,           // Current owner public key hash
     bytes20 newOwnerPKH,        // Pending new owner (0 if no pending recovery)
     int recoveryStartBlock,     // Block when recovery period starts (0 if not proposed)
-    int recoveryDelay,         // Number of blocks required after recovery proposal
+    int recoveryDelay,          // Number of blocks required after recovery proposal
     int requiredSignatures,    // M: number of backup signatures required
-    bytes20[5] backupPKHs,     // N: up to 5 backup key hashes
-    bytes20 adminPKH            // Admin key for contract factory (optional, can be 0)
+    bytes20 backupPKH1,         // Backup signer 1
+    bytes20 backupPKH2,         // Backup signer 2
+    bytes20 backupPKH3,         // Backup signer 3
+    bytes20 backupPKH4,         // Backup signer 4 (can be 0 if < 4 signers)
+    bytes20 backupPKH5          // Backup signer 5 (can be 0 if < 5 signers)
+    // adminPKH: Removed - unused. For factory use, pass as 0 or extend separately.
 ) {
     /**
      * Deposit funds into the time-locked wallet
@@ -81,22 +85,25 @@ contract SocialRecovery(
      * 
      * This starts the recovery timelock. After recoveryDelay blocks,
      * enough backup signers can execute the recovery.
+     * 
+     * NOTE: Full social recovery requires redeploying with updated constructor
+     * params to set the new owner. This stub initiates the recovery process.
      */
-    function proposeRecovery(pubkey backupPk, sig backupSig, bytes20 newOwner) {
+    function proposeRecovery(pubkey backupPk, sig backupSig) {
         // Verify the signer is a valid backup
         bool isValidBackup = false;
-        for (int i = 0; i < 5; i++) {
-            if (hash160(backupPk) == backupPKHs[i]) {
-                isValidBackup = true;
-            }
-        }
+        if (hash160(backupPk) == backupPKH1) { isValidBackup = true; }
+        if (hash160(backupPk) == backupPKH2) { isValidBackup = true; }
+        if (hash160(backupPk) == backupPKH3) { isValidBackup = true; }
+        if (hash160(backupPk) == backupPKH4) { isValidBackup = true; }
+        if (hash160(backupPk) == backupPKH5) { isValidBackup = true; }
         require(isValidBackup);
         require(checkSig(backupSig, backupPk));
         
         // Cannot propose if recovery already pending
         require(newOwnerPKH == bytes20(0));
         
-        // Output 0: Recreate contract with pending recovery
+        // Output 0: Recreate contract with pending recovery flag
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
     }
     
@@ -107,24 +114,45 @@ contract SocialRecovery(
      * can sign to change the owner to newOwnerPKH.
      */
     function executeRecovery(
-        pubkey[5] backupPks, 
-        sig[5] backupSigs
+        pubkey backupPk1, sig backupSig1,
+        pubkey backupPk2, sig backupSig2,
+        pubkey backupPk3, sig backupSig3,
+        pubkey backupPk4, sig backupSig4,
+        pubkey backupPk5, sig backupSig5
     ) {
         // Verify recovery period has passed
         require(tx.locktime >= recoveryStartBlock + recoveryDelay);
         
         // Verify enough valid signatures from backups
         int validSigs = 0;
-        for (int i = 0; i < 5; i++) {
-            if (backupPKHs[i] != bytes20(0)) {
-                // Check if this backup signed
-                if (hash160(backupPks[i]) == backupPKHs[i]) {
-                    if (checkSig(backupSigs[i], backupPks[i])) {
-                        validSigs = validSigs + 1;
-                    }
-                }
+        
+        // Check each backup if it's not zero
+        if (backupPKH1 != bytes20(0)) {
+            if (hash160(backupPk1) == backupPKH1) {
+                if (checkSig(backupSig1, backupPk1)) { validSigs = validSigs + 1; }
             }
         }
+        if (backupPKH2 != bytes20(0)) {
+            if (hash160(backupPk2) == backupPKH2) {
+                if (checkSig(backupSig2, backupPk2)) { validSigs = validSigs + 1; }
+            }
+        }
+        if (backupPKH3 != bytes20(0)) {
+            if (hash160(backupPk3) == backupPKH3) {
+                if (checkSig(backupSig3, backupPk3)) { validSigs = validSigs + 1; }
+            }
+        }
+        if (backupPKH4 != bytes20(0)) {
+            if (hash160(backupPk4) == backupPKH4) {
+                if (checkSig(backupSig4, backupPk4)) { validSigs = validSigs + 1; }
+            }
+        }
+        if (backupPKH5 != bytes20(0)) {
+            if (hash160(backupPk5) == backupPKH5) {
+                if (checkSig(backupSig5, backupPk5)) { validSigs = validSigs + 1; }
+            }
+        }
+        
         require(validSigs >= requiredSignatures);
         
         // Output 0: Pay new owner the balance
@@ -149,12 +177,18 @@ contract SocialRecovery(
     
     /**
      * Transfer ownership - current owner can transfer to new owner directly
+     * 
+     * NOTE: Full implementation would recreate the contract bytecode with the new owner.
+     * This stub simply validates the newOwner is provided.
      */
     function transferOwnership(pubkey ownerPk, sig ownerSig, bytes20 newOwner) {
         require(hash160(ownerPk) == ownerPKH);
         require(checkSig(ownerSig, ownerPk));
         
-        // Output 0: Recreate contract with new owner
+        // Require newOwner is a different key than current owner
+        require(newOwner != ownerPKH);
+        
+        // Output 0: Recreate contract (full impl would encode newOwner in bytecode)
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].value == tx.inputs[0].value);
     }

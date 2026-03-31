@@ -136,7 +136,8 @@ export class SafeDelayLibrary {
     }
 
     const depositor = new SignatureTemplate(depositorKey);
-    const tx = await this.contract.functions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tx = await (this.contract as any).functions
       .deposit(depositor, depositor)
       .send();
 
@@ -160,7 +161,8 @@ export class SafeDelayLibrary {
     // Get current block height for locktime
     const currentBlock = await this.provider.getBlockHeight();
     
-    const tx = await this.contract.functions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tx = await (this.contract as any).functions
       .withdraw(owner, owner, amount)
       .from(await this.contract.getUtxos())
       .to(recipient, amount)
@@ -180,7 +182,8 @@ export class SafeDelayLibrary {
     }
 
     const owner = new SignatureTemplate(ownerKey);
-    const tx = await this.contract.functions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tx = await (this.contract as any).functions
       .cancel(owner, owner)
       .send();
 

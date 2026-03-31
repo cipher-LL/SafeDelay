@@ -101,6 +101,7 @@ export class SafeDelayLibrary {
             throw new Error('Contract not initialized');
         }
         const depositor = new SignatureTemplate(depositorKey);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tx = await this.contract.functions
             .deposit(depositor, depositor)
             .send();
@@ -120,6 +121,7 @@ export class SafeDelayLibrary {
         const recipient = recipientAddress || this.getAddress();
         // Get current block height for locktime
         const currentBlock = await this.provider.getBlockHeight();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tx = await this.contract.functions
             .withdraw(owner, owner, amount)
             .from(await this.contract.getUtxos())
@@ -137,6 +139,7 @@ export class SafeDelayLibrary {
             throw new Error('Contract not initialized');
         }
         const owner = new SignatureTemplate(ownerKey);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tx = await this.contract.functions
             .cancel(owner, owner)
             .send();
