@@ -515,6 +515,11 @@
 
       try {
         currentServer = ELECTRUM_SERVERS[network];
+        
+        // Fetch current block height first
+        const heightResult = await electrumCall('blockchain.height');
+        const height = typeof heightResult === 'object' ? heightResult.height : heightResult;
+        
         const utxos = await electrumCall('blockchain.address.getUTXOs', [address]);
         
         if (!utxos || utxos.length === 0) {
