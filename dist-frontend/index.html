@@ -407,46 +407,105 @@
       document.getElementById('lockDuration').value = '12960';
     }
 
+    // SafeDelay contract artifact — used by deployContract() for real address generation
+    const SAFE_DELAY_ARTIFACT = {"contractName":"SafeDelay","constructorInputs":[{"name":"ownerPKH","type":"bytes20"},{"name":"lockEndBlock","type":"int"}],"abi":[{"name":"deposit","inputs":[{"name":"depositorPk","type":"pubkey"},{"name":"depositorSig","type":"sig"}]},{"name":"withdraw","inputs":[{"name":"ownerPk","type":"pubkey"},{"name":"ownerSig","type":"sig"},{"name":"withdrawAmount","type":"int"}]},{"name":"cancel","inputs":[{"name":"ownerPk","type":"pubkey"},{"name":"ownerSig","type":"sig"}]},{"name":"extend","inputs":[{"name":"ownerPk","type":"pubkey"},{"name":"ownerSig","type":"sig"},{"name":"newLockEndBlock","type":"int"}]}],"bytecode":"OP_2 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_0 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_NUMEQUAL OP_NIP OP_NIP OP_NIP OP_ELSE OP_2 OP_PICK OP_1 OP_NUMEQUAL OP_IF OP_3 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_TXLOCKTIME OP_ROT OP_GREATERTHANOREQUAL OP_VERIFY OP_0 OP_UTXOVALUE OP_3 OP_PICK OP_SUB e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_3 OP_ROLL OP_GREATERTHANOREQUAL OP_VERIFY OP_DUP e803 OP_GREATERTHAN OP_IF OP_1 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_1 OP_OUTPUTVALUE OP_OVER OP_NUMEQUALVERIFY OP_ENDIF OP_2DROP OP_1 OP_ELSE OP_2 OP_PICK OP_2 OP_NUMEQUAL OP_IF OP_3 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_LESSTHANOREQUAL OP_NIP OP_NIP OP_ELSE OP_ROT OP_3 OP_NUMEQUALVERIFY OP_2 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_2SWAP OP_CHECKSIGVERIFY OP_ROT OP_ROT OP_GREATERTHAN OP_VERIFY OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_LESSTHANOREQUAL OP_ENDIF OP_ENDIF OP_ENDIF","compiler":{"name":"cashc","version":"0.12.1"},"updatedAt":"2026-03-17T04:34:12.295Z"};
+
     async function deployContract() {
       const deployBtn = document.getElementById('deployBtn');
       deployBtn.disabled = true;
-      deployBtn.textContent = 'Deploying...';
-      
-      // In a real implementation, this would:
-      // 1. Derive the contract bytecode from the CashScript contract
-      // 2. Use a wallet provider (like CashScript's wallet interface) to deploy
-      // 3. Fund the contract with the deposit amount
-      
-      const isMultiSig = wizardState.contractType === 'multi';
-      const ownerAddress = document.getElementById('ownerAddress').value;
-      const lockDuration = document.getElementById('lockDuration').value;
-      const depositAmount = document.getElementById('depositAmount').value;
-      
-      // Show placeholder result (real implementation would use CashScript SDK)
-      document.getElementById('deployment-result').innerHTML = `
-        <div class="success">
-          <p><strong>Contract deployed successfully!</strong></p>
-          <div style="margin-top: 1rem; font-size: 0.9rem;">
-            <div style="margin-bottom: 0.5rem;"><strong>Contract Type:</strong> ${isMultiSig ? 'SafeDelay MultiSig' : 'SafeDelay'}</div>
-            <div style="margin-bottom: 0.5rem;"><strong>Lock Duration:</strong> ${lockDuration} blocks</div>
-            <div style="margin-bottom: 0.5rem;"><strong>Deposit:</strong> ${depositAmount} BCH</div>
-            <div style="margin-top: 1rem; padding: 1rem; background: #1a1a2e; border-radius: 8px;">
-              <div style="color: #888; font-size: 0.8rem; margin-bottom: 0.25rem;">Contract Address</div>
-              <div style="font-family: monospace; word-break: break-all;">qpvkj... (demo)</div>
+      deployBtn.textContent = 'Loading CashScript...';
+
+      try {
+        const isMultiSig = wizardState.contractType === 'multi';
+        const ownerAddress = document.getElementById('ownerAddress').value.trim();
+        const lockDuration = parseInt(document.getElementById('lockDuration').value) || 12960;
+        const depositAmount = document.getElementById('depositAmount').value || '0';
+
+        if (!ownerAddress) {
+          throw new Error('Please enter an owner address in Step 2');
+        }
+
+        deployBtn.textContent = 'Computing address...';
+
+        // Use the CashScript bridge set up by the module script below
+        let result;
+        if (isMultiSig) {
+          const owner1 = (document.getElementById('owner1') || {}).value || ownerAddress;
+          const owner2 = (document.getElementById('owner2') || {}).value || '';
+          result = { address: 'multi-sig (demo — see React app)', note: 'MultiSig via React app' };
+        } else {
+          result = await window._getSafeDelayAddress(ownerAddress, lockDuration);
+        }
+
+        document.getElementById('deployment-result').innerHTML = `
+          <div class="success">
+            <p><strong>Contract address computed!</strong></p>
+            <div style="margin-top: 1rem; font-size: 0.9rem;">
+              <div style="margin-bottom: 0.5rem;"><strong>Contract Type:</strong> ${isMultiSig ? 'SafeDelay MultiSig' : 'SafeDelay'}</div>
+              <div style="margin-bottom: 0.5rem;"><strong>Lock Duration:</strong> ${lockDuration} blocks (~${Math.round(lockDuration/144)} days)</div>
+              <div style="margin-bottom: 0.5rem;"><strong>Deposit:</strong> ${depositAmount} BCH</div>
+              <div style="margin-top: 1rem; padding: 1rem; background: #1a1a2e; border-radius: 8px;">
+                <div style="color: #888; font-size: 0.8rem; margin-bottom: 0.25rem;">Contract Address</div>
+                <div style="font-family: monospace; word-break: break-all; color: #f39c12;">${result.address}</div>
+              </div>
             </div>
           </div>
-        </div>
-        <p style="margin-top: 1rem; color: #888; font-size: 0.85rem;">
-          Note: Full wallet integration requires connecting a BCH wallet (like CashPay or Wormhole).
-        </p>
-      `;
-      
-      deployBtn.disabled = false;
-      deployBtn.textContent = 'Deploy Contract';
-      
-      document.getElementById('wizard-step4').classList.remove('active');
-      document.getElementById('wizard-step5').classList.add('active');
+          <p style="margin-top: 1rem; color: #888; font-size: 0.85rem;">
+            ${result.note || 'Send BCH to this address to fund your SafeDelay vault.'}
+          </p>
+          <p style="margin-top: 0.5rem; font-size: 0.8rem; color: #666;">
+            Explorer: <a href="https://blockchair.com/bitcoin-cash/address/${result.address}" target="_blank" style="color: #4f46e5;">View on Blockchair</a>
+          </p>
+        `;
+
+      } catch (err) {
+        document.getElementById('deployment-result').innerHTML = `
+          <div class="error" style="background:#2c0b0e; border:1px solid #e74c3c; color:#e74c3c; padding:1rem; border-radius:8px;">
+            <strong>Error:</strong> ${err.message || err}
+          </div>
+        `;
+      } finally {
+        deployBtn.disabled = false;
+        deployBtn.textContent = 'Deploy Contract';
+        document.getElementById('wizard-step4').classList.remove('active');
+        document.getElementById('wizard-step5').classList.add('active');
+      }
     }
+
+    // Bridge: expose safe delay address calculation to the global scope.
+    // Loads CashScript + libauth from CDN on first call.
+    window._getSafeDelayAddress = async function(ownerAddress, lockDuration) {
+      // Load CashScript (cached after first call)
+      if (!window._cashScriptModule) {
+        const { Contract } = await import('https://esm.sh/cashscript@0.7.3');
+        const { cashAddressToLockingBytecode } = await import('https://esm.sh/@bitauth/libauth');
+        window._cashScriptModule = { Contract, cashAddressToLockingBytecode };
+      }
+
+      const { Contract, cashAddressToLockingBytecode } = window._cashScriptModule;
+
+      // Convert BCH address → pubkey hash
+      const addr = ownerAddress.startsWith('bitcoincash:') ? ownerAddress : `bitcoincash:${ownerAddress}`;
+      const lockingBytecode = cashAddressToLockingBytecode(addr);
+      if (typeof lockingBytecode === 'string') {
+        throw new Error('Invalid BCH address: ' + lockingBytecode);
+      }
+
+      // Extract 20-byte PKH from P2PKH locking bytecode: OP_DUP OP_HASH160 <20 bytes> OP_EQUALVERIFY OP_CHECKSIG
+      const bytecodeArr = Array.from(lockingBytecode.bytecode);
+      if (bytecodeArr[0] !== 0x76 || bytecodeArr[1] !== 0xa9 || bytecodeArr[22] !== 0x88 || bytecodeArr[23] !== 0xac) {
+        throw new Error('Only P2PKH addresses are supported (not P2SH/multisig addresses)');
+      }
+      const pkh = bytecodeArr.slice(2, 22).map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Create contract instance and get address
+      const contract = new Contract(SAFE_DELAY_ARTIFACT, [pkh, BigInt(lockDuration)], { network: 'mainnet' });
+      return {
+        address: contract.address,
+        note: 'Send BCH to this address to fund your SafeDelay vault. The full wallet integration (broadcasting the funding tx) is available in the React app.'
+      };
+    };
+    window._cashScriptModule = null;
 
     // Initialize
     updateUnlockDate();
