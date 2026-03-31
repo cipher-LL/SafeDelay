@@ -501,6 +501,17 @@
         <button class="btn-secondary" style="margin-top:0.75rem; width:100%;" onclick="loadDemoVault()">🔁 Load Example Vault</button>
 
         <div id="result" class="result"></div>
+
+        <!-- Contract Balance Lookup -->
+        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #1e1e30;">
+          <label style="margin-bottom: 0.6rem;">🔍 Contract Address / UTXO Lookup</label>
+          <div style="display:flex;gap:0.5rem;">
+            <input type="text" id="lookupAddress" placeholder="bchtest:qz3s202c4cxrgq8dl8rupee3kx7asy8cvyue6lwhqt" style="flex:1;" />
+            <button class="btn-primary" style="width:auto;margin:0;" onclick="lookupBalance()">Check Balance</button>
+          </div>
+          <p class="info-text">Query any BCH address for UTXOs and balance on testnet</p>
+          <div id="balanceResult" class="result" style="margin-top:0.75rem;"></div>
+        </div>
       </div>
     </div>
 
@@ -739,20 +750,21 @@ contract SafeDelay(
         const heightData = await heightRes.json();
         const currentBlock = heightData.result || 0;
 
-        // Use the known demo vault address and look up its UTXOs
+        // Use Electrum RPC to get real UTXOs for the demo vault
         const utxoRes = await fetch(RPC[network], {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             jsonrpc: '1.0',
-            method: 'addressutxos',
-            params: ['https://explorer.slopesa.org.au/contract/SafeDelay', 0, 100]
+            method: 'blockchain.address.listunspent',
+            params: [DEMO_VAULT],
+            id: 1
           })
         });
+        const utxoData = await utxoRes.json();
+        const utxos = utxoData.result || [];
 
-        // We don't have actual UTXO lookup for this demo address, so show static info
-        resultDiv.className = 'result show success';
-        resultDiv.innerHTML = `
+        let html = `
           <div class="result-summary">
             <span>Demo Vault:</span>
             <span style="font-family:monospace;font-size:0.8rem;">${DEMO_VAULT}</span>
@@ -761,21 +773,185 @@ contract SafeDelay(
             <span>Current Block:</span>
             <span>${currentBlock.toLocaleString()}</span>
           </div>
+        `;
+
+        if (utxos.length > 0) {
+          const totalSats = utxos.reduce((sum, u) => sum + u.value, 0);
+          html += `
+            <div class="result-summary">
+              <span>Balance:</span>
+              <span>${(totalSats / 1e8).toFixed(8)} BCH</span>
+            </div>
+            <div class="result-summary">
+              <span>UTXOs:</span>
+              <span>${utxos.length}</span>
+            </div>
+          `;
+          // Auto-populate the lookup field
+          document.getElementById('lookupAddress').value = DEMO_VAULT;
+        } else {
+          html += `
+            <div class="result-summary">
+              <span>Balance:</span>
+              <span>0 BCH</span>
+            </div>
+          `;
+        }
+
+        html += `
           <div class="result-contract">
             <p style="margin:0 0 0.5rem; color:#888; font-size:0.82rem;">
-              This is a demo contract. Deploy your own above with your mnemonic!
+              Try the balance lookup above for live on-chain data!
             </p>
             <p style="margin:0; color:#666; font-size:0.8rem;">
-              Check its status with the
-              <a href="03-check-status.html" style="color:#4ade80;">Check Status</a> demo.
+              Or check any address using the 🔍 Contract Lookup above.
             </p>
           </div>
         `;
+
+        resultDiv.className = 'result show success';
+        resultDiv.innerHTML = html;
 
       } catch (err) {
         resultDiv.className = 'result show error';
         resultDiv.innerHTML = 'Error loading demo: ' + err.message;
       }
+    }
+
+    async function lookupBalance() {
+      const balanceResultDiv = document.getElementById('balanceResult');
+      const address = document.getElementById('lookupAddress').value.trim();
+      const network = document.getElementById('network').value;
+
+      if (!address) {
+        balanceResultDiv.className = 'result show error';
+        balanceResultDiv.innerHTML = 'Please enter a contract or address.';
+        return;
+      }
+
+      balanceResultDiv.className = 'result show';
+      balanceResultDiv.innerHTML = '<span style="color:#888;">Querying blockchain...</span>';
+
+      try {
+        const RPC = {
+          testnet: 'https://api.blacktown.io/rpc',
+          mainnet: 'https://api.blacktown.io/rpc'
+        };
+
+        const [heightRes, utxoRes] = await Promise.all([
+          fetch(RPC[network], {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '1.0',
+              method: 'getblockcount',
+              params: [],
+              id: 1
+            })
+          }),
+          fetch(RPC[network], {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '1.0',
+              method: 'blockchain.address.listunspent',
+              params: [address],
+              id: 2
+            })
+          })
+        ]);
+
+        const heightData = await heightRes.json();
+        const currentBlock = heightData.result || 0;
+        const utxoData = await utxoRes.json();
+        const utxos = utxoData.result || [];
+
+        if (utxos.length === 0) {
+          balanceResultDiv.className = 'result show success';
+          balanceResultDiv.innerHTML = `
+            <div class="result-summary">
+              <span>Address:</span>
+              <span style="font-family:monospace;font-size:0.8rem;">${escapeHtml(address)}</span>
+            </div>
+            <div class="result-summary">
+              <span>Balance:</span>
+              <span>0 BCH</span>
+            </div>
+            <div class="result-summary">
+              <span>UTXOs:</span>
+              <span>0</span>
+            </div>
+            <p style="margin:0.5rem 0 0; color:#666; font-size:0.8rem;">
+              No unspent outputs found at this address.
+            </p>
+          `;
+          return;
+        }
+
+        const totalSats = utxos.reduce((sum, u) => sum + u.value, 0);
+        const explorerBase = network === 'testnet'
+          ? 'https://explorer.slopesa.org.au/address/'
+          : 'https://explorer.bitcoin.com/bch/address/';
+
+        let utxoRows = utxos.slice(0, 10).map(u => `
+          <tr>
+            <td style="color:#888;font-size:0.78rem;font-family:monospace;">${u.tx_hash.slice(0, 16)}...</td>
+            <td style="color:#4ade80;font-size:0.82rem;">${(u.value / 1e8).toFixed(8)} BCH</td>
+            <td style="color:#888;font-size:0.78rem;">${u.height > 0 ? u.height.toLocaleString() : 'unconfirmed'}</td>
+          </tr>
+        `).join('');
+
+        if (utxos.length > 10) {
+          utxoRows += `<tr><td colspan="3" style="color:#666;font-size:0.78rem;text-align:center;">+${utxos.length - 10} more UTXOs</td></tr>`;
+        }
+
+        balanceResultDiv.className = 'result show success';
+        balanceResultDiv.innerHTML = `
+          <div class="result-summary">
+            <span>Address:</span>
+            <span style="font-family:monospace;font-size:0.8rem;word-break:break-all;">${escapeHtml(address)}</span>
+          </div>
+          <div class="result-summary">
+            <span>Balance:</span>
+            <span style="color:#4ade80;font-size:1.1rem;font-weight:700;">${(totalSats / 1e8).toFixed(8)} BCH</span>
+          </div>
+          <div class="result-summary">
+            <span>UTXOs:</span>
+            <span>${utxos.length}</span>
+          </div>
+          <div class="result-summary">
+            <span>Current Block:</span>
+            <span>${currentBlock.toLocaleString()}</span>
+          </div>
+          <div style="margin-top:0.75rem; overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+              <thead>
+                <tr style="border-bottom:1px solid #2a2a40;">
+                  <th style="text-align:left;color:#666;padding:0.25rem;">TX Hash</th>
+                  <th style="text-align:left;color:#666;padding:0.25rem;">Value</th>
+                  <th style="text-align:left;color:#666;padding:0.25rem;">Height</th>
+                </tr>
+              </thead>
+              <tbody>${utxoRows}</tbody>
+            </table>
+          </div>
+          <div style="margin-top:0.75rem;text-align:center;">
+            <a href="${explorerBase}${address}" target="_blank" style="color:#4ade80;font-size:0.82rem;">
+              View on Block Explorer →
+            </a>
+          </div>
+        `;
+
+      } catch (err) {
+        balanceResultDiv.className = 'result show error';
+        balanceResultDiv.innerHTML = 'Lookup failed: ' + err.message;
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
     }
 
     // Standard P2PKH locking script builder
