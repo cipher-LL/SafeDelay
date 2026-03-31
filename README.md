@@ -35,8 +35,20 @@ SafeDelay is a time-locked wallet where funds can only be withdrawn after a spec
 
 ### Installation
 
+Since SafeDelay is a private package (not yet published to npm), install from the repository:
+
 ```bash
-npm install safedelay
+# Clone the repository
+git clone https://github.com/LifestoneLabs/SafeDelay.git
+
+# Navigate to the project
+cd SafeDelay
+
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
 ```
 
 ### TypeScript Support
