@@ -1,4 +1,4 @@
-import { Contract } from 'cashscript';
+import { Contract, ElectrumNetworkProvider, Network } from 'cashscript';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -6,6 +6,20 @@ import { fileURLToPath } from 'url';
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Map our network strings to CashScript Network type
+function toCashScriptNetwork(network: string): Network {
+  switch (network) {
+    case 'mainnet':
+      return Network.MAINNET;
+    case 'testnet':
+      return Network.TESTNET3;
+    case 'chipnet':
+      return Network.CHIPNET;
+    default:
+      return Network.TESTNET3;
+  }
+}
 
 // Load compiled contract artifact
 function getContractArtifact(contractName: string) {
@@ -31,9 +45,8 @@ export interface DeployResult {
 export async function deploySafeDelay(options: DeployOptions): Promise<DeployResult> {
   const { ownerPubkeyHash, lockEndBlock, network } = options;
   
-  // Get current block height
-  // In production, fetch from network; here we estimate
-  const currentBlockHeight = getEstimatedBlockHeight(network);
+  // Get current block height from Electrum (with hardcoded fallback)
+  const currentBlockHeight = await fetchCurrentBlockHeight(network);
   const actualLockEndBlock = currentBlockHeight + lockEndBlock;
   
   // Create contract instance from artifact
@@ -68,18 +81,32 @@ export async function deploySafeDelay(options: DeployOptions): Promise<DeployRes
   };
 }
 
-// Get estimated block height (placeholder - would need network connection)
-function getEstimatedBlockHeight(network: string): number {
-  // For chipnet/testnet, return a reasonable current height
-  // In production, fetch from Electrum server
+// Fallback block heights when Electrum is unavailable
+function getHardcodedBlockHeight(network: string): number {
   switch (network) {
     case 'mainnet':
-      return 870000; // Approximate
+      return 870000;
     case 'testnet':
-      return 2500000; // Approximate
+      return 2500000;
     case 'chipnet':
     default:
-      return 100000; // Approximate chipnet height
+      return 100000;
+  }
+}
+
+/**
+ * Fetch current block height from Electrum network.
+ * Falls back to hardcoded estimate if Electrum is unavailable.
+ */
+async function fetchCurrentBlockHeight(network: 'mainnet' | 'testnet' | 'chipnet'): Promise<number> {
+  try {
+    const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+    const blockHeight = await provider.getBlockHeight();
+    console.log(`[SafeDelay] Live block height from Electrum (${network}):`, Number(blockHeight));
+    return Number(blockHeight);
+  } catch (error) {
+    console.warn(`[SafeDelay] Could not fetch block height from Electrum (${network}), using hardcoded estimate:`, error instanceof Error ? error.message : error);
+    return getHardcodedBlockHeight(network);
   }
 }
 
@@ -97,7 +124,7 @@ export interface DeployMultiSigOptions {
 export async function deploySafeDelayMultiSig(options: DeployMultiSigOptions): Promise<DeployResult> {
   const { owner1Pkh, owner2Pkh, owner3Pkh, threshold, lockEndBlock, network } = options;
 
-  const currentBlockHeight = getEstimatedBlockHeight(network);
+  const currentBlockHeight = await fetchCurrentBlockHeight(network);
   const actualLockEndBlock = currentBlockHeight + lockEndBlock;
 
   const artifact = getContractArtifact('SafeDelayMultiSig');
