@@ -101,13 +101,48 @@ docker run -p 8080:80 safedelay
 
 ## Smart Contract Deployment
 
-The CashScript contracts in `src/` need to be compiled and deployed separately:
+### Compile Contracts
 
 ```bash
 npm run compile:contracts
 ```
 
 This outputs compiled `.cash.json` artifacts to `dist/`.
+
+### Deploy to Chain
+
+Use the deployment script to deploy SafeDelay or SafeDelayMultiSig contracts:
+
+**Single-owner SafeDelay:**
+```bash
+node scripts/deploy-contract.mjs --owner <pkh_hex> --blocks <num_blocks> [--network chipnet|mainnet]
+```
+
+Example (chipnet, 100 blocks ~16 hours lock):
+```bash
+node scripts/deploy-contract.mjs --owner 1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b --blocks 100 --network chipnet
+```
+
+**Multi-signature SafeDelay (3 owners):**
+```bash
+node scripts/deploy-contract.mjs --multi-sig --owner1 <pkh> --owner2 <pkh> --owner3 <pkh> --threshold 2 --blocks 100
+```
+
+**Options:**
+- `--owner` — Owner public key hash (40 hex chars = 20 bytes)
+- `--blocks` — Lock duration in blocks (~10 min/block on BCH mainnet)
+- `--network` — `chipnet` (default) or `mainnet`
+- `--multi-sig` — Enable 3-owner multi-sig mode
+- `--threshold` — Required signatures (for multi-sig)
+
+**How it works:**
+1. Computes the P2SH32 contract address from bytecode + constructor args
+2. Auto-funds via paytaca CLI if available (or shows manual funding instructions)
+3. Waits for UTXO confirmation
+4. Prints the deployed contract address
+
+**Get your PKH from a BCH address:**
+Use `@bitauth/libauth` or any BCH utility to derive the hash160 of a P2PKH address.
 
 ## Support
 
