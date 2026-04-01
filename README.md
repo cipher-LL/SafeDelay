@@ -35,6 +35,13 @@ SafeDelay is a time-locked wallet where funds can only be withdrawn after a spec
 
 ### Installation
 
+1. Copy the environment file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. (Optional) Add your WalletConnect Project ID to `.env` if using WalletConnect functionality.
+
 Since SafeDelay is a private package (not yet published to npm), install from the repository:
 
 ```bash
@@ -274,3 +281,17 @@ The function works by:
 2. All funds are returned to the first valid signer
 3. Owners coordinate to create a new SafeDelayMultiSig contract with the new `lockEndBlock`
 4. Funds are redeposited into the new contract
+
+
+## Environment Variables
+
+SafeDelay uses environment variables for wallet and network configuration:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_WALLETCONNECT_PROJECT_ID` | For WalletConnect | Your WalletConnect Project ID from [cloud.walletconnect.com](https://cloud.walletconnect.com/) |
+| `VITE_ELECTRUM_MAINNET` | No | Electrum RPC URL for mainnet (optional, defaults provided) |
+| `VITE_ELECTRUM_TESTNET` | No | Electrum RPC URL for chipnet/testnet (optional, defaults provided) |
+
+See `.env.example` for the full template.
+
