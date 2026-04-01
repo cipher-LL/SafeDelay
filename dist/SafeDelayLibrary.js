@@ -2,7 +2,7 @@
  * SafeDelayLibrary - TypeScript library for SafeDelay contract
  */
 import { readFileSync } from 'fs';
-import { Contract, SignatureTemplate, ElectrumNetworkProvider } from 'cashscript';
+import { TransactionBuilder, Contract, SignatureTemplate, ElectrumNetworkProvider } from 'cashscript';
 import { Network } from 'cashscript/dist/interfaces.js';
 /**
  * Helper to convert network string to Network enum
@@ -101,11 +101,27 @@ export class SafeDelayLibrary {
             throw new Error('Contract not initialized');
         }
         const depositor = new SignatureTemplate(depositorKey);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tx = await this.contract.functions
-            .deposit(depositor, depositor)
-            .send();
-        return tx.txid;
+        const contractUtxos = await this.contract.getUtxos();
+        if (contractUtxos.length === 0) {
+            throw new Error('No UTXOs available in the contract');
+        }
+        // Get depositor UTXOs to fund the deposit
+        const depositorUtxos = await this.provider.getUtxos(this.contract.address);
+        // Find a UTXO with enough funds (need at least deposit amount + fee)
+        const depositUtxo = depositorUtxos.find(utxo => utxo.satoshis >= 10000n);
+        if (!depositUtxo) {
+            throw new Error('No suitable UTXO found for deposit');
+        }
+        const tb = new TransactionBuilder({ provider: this.provider });
+        // Input 0: Depositor's BCH UTXO
+        tb.addInput(depositUtxo, depositor.unlockP2PKH());
+        // Output 0: Deposit to contract
+        tb.addOutput({
+            to: this.contract.address,
+            amount: depositUtxo.satoshis - 2000n, // Subtract estimated fee
+        });
+        const tx = await tb.build();
+        return tx;
     }
     /**
      * Withdraw funds from the contract (after lock expires)
@@ -121,14 +137,35 @@ export class SafeDelayLibrary {
         const recipient = recipientAddress || this.getAddress();
         // Get current block height for locktime
         const currentBlock = await this.provider.getBlockHeight();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tx = await this.contract.functions
-            .withdraw(owner, owner, amount)
-            .from(await this.contract.getUtxos())
-            .to(recipient, amount)
-            .withTime(currentBlock)
-            .send();
-        return tx.txid;
+        const contractUtxos = await this.contract.getUtxos();
+        if (contractUtxos.length === 0) {
+            throw new Error('No UTXOs available in the contract');
+        }
+        // Find a UTXO with enough funds
+        const withdrawUtxo = contractUtxos.find(utxo => utxo.satoshis >= amount);
+        if (!withdrawUtxo) {
+            throw new Error(`Insufficient balance. Available: ${contractUtxos.reduce((sum, u) => sum + u.satoshis, 0n)}`);
+        }
+        const tb = new TransactionBuilder({ provider: this.provider });
+        // Input 0: Contract UTXO
+        tb.addInput(withdrawUtxo, this.contract.unlock.withdraw(owner, owner, amount));
+        // Output 0: Send to recipient
+        tb.addOutput({
+            to: recipient,
+            amount: amount,
+        });
+        // Output 1: Change back to contract (if any remaining)
+        const remaining = withdrawUtxo.satoshis - amount;
+        if (remaining > 2000n) {
+            tb.addOutput({
+                to: this.contract.address,
+                amount: remaining - 1000n, // Estimated fee
+            });
+        }
+        // Set locktime to current block
+        tb.setLocktime(currentBlock);
+        const tx = await tb.build();
+        return tx;
     }
     /**
      * Cancel and refund all funds
@@ -139,11 +176,20 @@ export class SafeDelayLibrary {
             throw new Error('Contract not initialized');
         }
         const owner = new SignatureTemplate(ownerKey);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tx = await this.contract.functions
-            .cancel(owner, owner)
-            .send();
-        return tx.txid;
+        const contractUtxos = await this.contract.getUtxos();
+        if (contractUtxos.length === 0) {
+            throw new Error('No UTXOs available in the contract');
+        }
+        const tb = new TransactionBuilder({ provider: this.provider });
+        // Input 0: Contract UTXO
+        tb.addInput(contractUtxos[0], this.contract.unlock.cancel(owner, owner));
+        // Output 0: Refund to owner
+        tb.addOutput({
+            to: this.getAddress(),
+            amount: contractUtxos[0].satoshis - 2000n,
+        });
+        const tx = await tb.build();
+        return tx;
     }
     /**
      * Check if the lock has expired
