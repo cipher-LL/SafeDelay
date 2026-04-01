@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --outDir dist-frontend",
     "compile": "cashc src/SafeDelay.cash --hex --output dist/",
     "compile:contracts": "cashc src/*.cash --hex --output dist/",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.json"

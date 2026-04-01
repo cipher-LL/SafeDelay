@@ -1,11 +1,12 @@
-import { Contract, ElectrumNetworkProvider, Network } from 'cashscript';
-import { readFileSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+/**
+ * SafeDelay contract deployment utilities (browser-compatible)
+ * 
+ * Uses static artifact imports (bundled by Vite) instead of fs reads.
+ */
 
-// Get __dirname equivalent in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { Contract, ElectrumNetworkProvider, Network } from 'cashscript';
+import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
+import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
 
 // Map our network strings to CashScript Network type
 function toCashScriptNetwork(network: string): Network {
@@ -21,12 +22,6 @@ function toCashScriptNetwork(network: string): Network {
   }
 }
 
-// Load compiled contract artifact
-function getContractArtifact(contractName: string) {
-  const artifactPath = resolve(__dirname, `../artifacts/${contractName}.artifact.json`);
-  return JSON.parse(readFileSync(artifactPath, 'utf8'));
-}
-
 // Interface for deployment options
 export interface DeployOptions {
   ownerPubkeyHash: string; // hex string (40 chars = 20 bytes)
@@ -39,46 +34,6 @@ export interface DeployResult {
   contractAddress: string;
   contract: Contract;
   actualLockEndBlock: number; // Absolute block height when lock expires
-}
-
-// Deploy a SafeDelay contract
-export async function deploySafeDelay(options: DeployOptions): Promise<DeployResult> {
-  const { ownerPubkeyHash, lockEndBlock, network } = options;
-  
-  // Get current block height from Electrum (with hardcoded fallback)
-  const currentBlockHeight = await fetchCurrentBlockHeight(network);
-  const actualLockEndBlock = currentBlockHeight + lockEndBlock;
-  
-  // Create contract instance from artifact
-  const artifact = getContractArtifact('SafeDelay');
-  
-  const contract = new Contract(
-    artifact,
-    [
-      ownerPubkeyHash,           // bytes20 - public key hash as hex string
-      BigInt(actualLockEndBlock) // int - lock end block as BigInt
-    ],
-    { 
-      // @ts-expect-error - CashScript expects network through provider
-      network,
-      // No provider needed just to generate address
-      provider: undefined 
-    }
-  );
-  
-  console.log('Deploying SafeDelay contract...');
-  console.log('  Owner PKH:', ownerPubkeyHash);
-  console.log('  Current block:', currentBlockHeight);
-  console.log('  Lock ends at block:', actualLockEndBlock);
-  console.log('  Contract address:', contract.address);
-  console.log('  Lock ends at block:', actualLockEndBlock);
-  
-  // Return the contract address and actual lock end block
-  return {
-    contractAddress: contract.address,
-    contract,
-    actualLockEndBlock,
-  };
 }
 
 // Fallback block heights when Electrum is unavailable
@@ -102,20 +57,43 @@ async function fetchCurrentBlockHeight(network: 'mainnet' | 'testnet' | 'chipnet
   try {
     const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
     const blockHeight = await provider.getBlockHeight();
-    console.log(`[SafeDelay] Live block height from Electrum (${network}):`, Number(blockHeight));
     return Number(blockHeight);
-  } catch (error) {
-    console.warn(`[SafeDelay] Could not fetch block height from Electrum (${network}), using hardcoded estimate:`, error instanceof Error ? error.message : error);
+  } catch {
     return getHardcodedBlockHeight(network);
   }
 }
 
+// Deploy a SafeDelay contract
+export async function deploySafeDelay(options: DeployOptions): Promise<DeployResult> {
+  const { ownerPubkeyHash, lockEndBlock, network } = options;
+  
+  const currentBlockHeight = await fetchCurrentBlockHeight(network);
+  const actualLockEndBlock = currentBlockHeight + lockEndBlock;
+  
+  const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+  
+  const contract = new Contract(
+    SafeDelayArtifact as any,
+    [
+      ownerPubkeyHash,
+      BigInt(actualLockEndBlock),
+    ],
+    { provider } as any
+  );
+  
+  return {
+    contractAddress: contract.address,
+    contract,
+    actualLockEndBlock,
+  };
+}
+
 // Interface for multi-sig deployment options
 export interface DeployMultiSigOptions {
-  owner1Pkh: string; // hex string (20 bytes)
-  owner2Pkh: string; // hex string (20 bytes)
-  owner3Pkh: string; // hex string (20 bytes)
-  threshold: number; // e.g. 2 for 2-of-3
+  owner1Pkh: string;
+  owner2Pkh: string;
+  owner3Pkh: string;
+  threshold: number;
   lockEndBlock: number;
   network: 'mainnet' | 'testnet' | 'chipnet';
 }
@@ -127,10 +105,10 @@ export async function deploySafeDelayMultiSig(options: DeployMultiSigOptions): P
   const currentBlockHeight = await fetchCurrentBlockHeight(network);
   const actualLockEndBlock = currentBlockHeight + lockEndBlock;
 
-  const artifact = getContractArtifact('SafeDelayMultiSig');
+  const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
 
   const contract = new Contract(
-    artifact,
+    SafeDelayMultiSigArtifact as any,
     [
       owner1Pkh,
       owner2Pkh,
@@ -138,20 +116,8 @@ export async function deploySafeDelayMultiSig(options: DeployMultiSigOptions): P
       BigInt(threshold),
       BigInt(actualLockEndBlock),
     ],
-    {
-      // @ts-expect-error - CashScript expects network through provider
-      network,
-      provider: undefined,
-    }
+    { provider } as any
   );
-
-  console.log('Deploying SafeDelayMultiSig contract...');
-  console.log('  Owner1 PKH:', owner1Pkh);
-  console.log('  Owner2 PKH:', owner2Pkh);
-  console.log('  Owner3 PKH:', owner3Pkh);
-  console.log('  Threshold:', threshold, 'of 3');
-  console.log('  Lock ends at block:', actualLockEndBlock);
-  console.log('  Contract address:', contract.address);
 
   return {
     contractAddress: contract.address,
@@ -161,70 +127,43 @@ export async function deploySafeDelayMultiSig(options: DeployMultiSigOptions): P
 }
 
 // Get contract instance from existing address (for interacting with deployed contract)
-// Note: This requires the original constructor arguments to work properly
 export function getSafeDelayContract(
   _address: string,
   ownerPubkeyHash: string,
   lockEndBlock: number,
   _network: 'mainnet' | 'testnet' | 'chipnet',
-  provider?: any
+  provider?: ElectrumNetworkProvider
 ) {
-  const artifact = getContractArtifact('SafeDelay');
-  return new Contract(artifact, [ownerPubkeyHash, BigInt(lockEndBlock)], { provider });
+  return new Contract(SafeDelayArtifact as any, [ownerPubkeyHash, BigInt(lockEndBlock)], {
+    provider,
+  } as any);
 }
 
-// Helper: Convert a BCH address (legacy base58 or cashaddress format) to pubkey hash
-// Supports bitcoincash: prefix or plain addresses
+// Helper: Convert a BCH address to pubkey hash (browser-compatible)
 export async function addressToPubkeyHash(address: string): Promise<string> {
   const { cashAddressToLockingBytecode } = await import('@bitauth/libauth');
 
   const addr = address.trim();
-
-  // Try cashaddress format first (bitcoincash:, bchtest:, bchreg:)
   const cashPrefixMatch = addr.match(/^(bitcoincash:|bchtest:|bchreg:)/i);
   const addrToDecode = cashPrefixMatch ? addr : `bitcoincash:${addr}`;
 
   try {
-    const lockingBytecode = cashAddressToLockingBytecode(addrToDecode);
-    if (typeof lockingBytecode !== 'string') {
-      // For P2PKH: [OP_DUP, OP_HASH160, 0x14, <20-byte PKH>, OP_EQUALVERIFY, OP_CHECKSIG]
-      // bytecode[2] through bytecode[21] is the 20-byte pubkey hash
-      const bytecodeArr = Array.from(lockingBytecode.bytecode);
-      if (bytecodeArr[1] === 0xa9 && bytecodeArr[0] === 0x76) {
-        // P2PKH format confirmed
+    const result = cashAddressToLockingBytecode(addrToDecode);
+    if (typeof result !== 'string' && result && result.bytecode) {
+      const bytecodeArr = Array.from(result.bytecode);
+      // P2PKH: [OP_DUP, OP_HASH160, 0x14, <20-byte PKH>, OP_EQUALVERIFY, OP_CHECKSIG]
+      if (bytecodeArr[1] === 0xa9 && bytecodeArr[0] === 0x76 && bytecodeArr[22] === 0x88) {
         const pkh = bytecodeArr.slice(2, 22);
-        return pkh.map(b => b.toString(16).padStart(2, '0')).join('');
+        return (pkh as number[]).map(b => b.toString(16).padStart(2, '0')).join('');
       }
-      // For P2SH: [OP_HASH160, 0x14, <20-byte hash>, OP_EQUAL]
+      // P2SH: [OP_HASH160, 0x14, <20-byte hash>, OP_EQUAL]
       if (bytecodeArr[0] === 0xa9 && bytecodeArr[22] === 0x87) {
         const hash = bytecodeArr.slice(2, 22);
-        return hash.map(b => b.toString(16).padStart(2, '0')).join('');
+        return (hash as number[]).map(b => b.toString(16).padStart(2, '0')).join('');
       }
     }
   } catch {
-    // Fall through to legacy decode
-  }
-
-  // Try legacy base58check format (for addresses starting with q, 1, etc.)
-  // We need to decode base58check - let's use the bs58 package
-  try {
-    // Dynamic import of base-x for base58 decoding
-    const { default: BaseX } = await import('base-x');
-    const base58 = BaseX('123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz');
-
-    const addrNoPrefix = addr.replace(/^(bitcoincash:|bchtest:|bchreg:)/i, '');
-    // Legacy BCH addresses are base58check encoded
-    // First try direct base58 decode + validate
-    const decoded = base58.decode(addrNoPrefix);
-    if (decoded.length === 25) {
-      // Legacy format: [version(1) + hash(20) + checksum(4)]
-      // version 0x00 = mainnet P2PKH, 0x05 = mainnet P2SH
-      // version 0x6f = testnet P2PKH, 0xc4 = testnet P2SH
-      const pkh = decoded.slice(1, 21);
-      return Array.from(pkh).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-  } catch {
-    // Fall through
+    // Fall through to error
   }
 
   throw new Error(`Could not decode BCH address: ${address}`);
