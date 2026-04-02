@@ -185,20 +185,154 @@ await nftVault.functions.emergencyWithdraw(memoryId, emergencyPk, sig)
   .to(emergencyAddress, amount).send();
 ```
 
-## Error Handling
+## WIF Key & Offline Signing
+
+SafeDelay supports offline transaction signing using WIF (Wallet Import Format) private keys. This allows you to:
+- Keep your private keys on an air-gapped device
+- Sign transactions offline for enhanced security
+- Use hardware wallets that support WIF export
+
+### What is WIF?
+
+WIF (Wallet Import Format) is a standardized format for encoding private keys. A WIF private key looks like:
+```
+L4rK1yDtCWekvXuE6oXD9jCYfFNV2cWRpVuPLBcCU2z8TrisoyY1
+```
+
+### Generating a WIF Key
+
+**Option 1: Using Bitcoin.com Wallet**
+1. Go to Settings → Wallet → Private Keys
+2. Export the key for your address
+3. Choose WIF format
+
+**Option 2: Using bitbox2 (Hardware Wallet)**
+```typescript
+import { BITBOX } from 'bitbox-sdk';
+const bitbox = new BITBOX();
+const keyPair = bitbox.CashScript.createKeyPair();
+const wif = keyPair.toWIF();
+// keyPair.pubkey.toString('hex') gives you the public key
+```
+
+**Option 3: Using cashweb KeyDerivation**
+```typescript
+import { deriveKey, mnemonicToKey } from 'cashweb-key-derivation';
+const keyPair = mnemonicToKey('your 12 or 24 word mnemonic');
+const wif = keyPair.toWIF();
+```
+
+**Option 4: Using OpenClaw Paytaca CLI** (Recommended)
+```bash
+# Generate a new WIF key
+paytaca wallet create --name my-vault
+
+# Export existing key as WIF
+paytaca wallet export --wif
+
+# Get key info
+paytaca wallet info
+```
+
+### Using WIF Keys with SafeDelay
 
 ```typescript
-try {
-  await vault.functions.withdraw(pk, sig, amount).to(addr, amount).send();
-} catch (err) {
-  if (err.message.includes('locktime')) {
-    console.log('Lock period not yet expired');
-  } else if (err.message.includes('signature')) {
-    console.log('Invalid signature');
-  } else {
-    console.error('Transaction failed:', err.message);
-  }
+import { SafeDelayLibrary } from 'safedelay';
+
+// Initialize with your WIF key (never share this!)
+const wifKey = 'L4rK1yDtCWekvXuE6oXD9jCYfFNV2cWRpVuPLBcCU2z8TrisoyY1';
+
+const library = new SafeDelayLibrary({
+  network: 'mainnet',
+  ownerWif: wifKey,
+  lockEndBlock: 850000,
+});
+
+// Deposits use the WIF key for signing
+const depositTx = await library.deposit(depositorWif);
+console.log('Deposit TX:', depositTx);
+
+// Withdraws also use the WIF key
+const withdrawTx = await library.withdraw(ownerWif, 100000n, recipientAddress);
+console.log('Withdraw TX:', withdrawTx);
+```
+
+### Offline Signing Workflow
+
+For maximum security, sign on an air-gapped device:
+
+**Step 1: On Online Machine (Prepare Unsigned TX)**
+```typescript
+import { Contract, TransactionBuilder, ElectrumNetworkProvider } from 'cashscript';
+
+const provider = new ElectrumNetworkProvider(Network.MAINNET, 'ssl://electrum.mainnet...');
+const vault = await Contract.fromArtifact(SafeDelayArtifact, {...}, { provider });
+
+// Build the transaction hex WITHOUT signing
+const unsignedTxHex = await vault.functions
+  .withdraw(Buffer.alloc(33), Buffer.alloc(64), 100000n) // placeholder sigs
+  .to(recipientAddress, 100000n)
+  .build();
+
+// Export the unsigned transaction
+console.log('Unsigned TX:', unsignedTxHex);
+```
+
+**Step 2: On Air-Gapped Machine (Sign)**
+```typescript
+import { ECPair, Transaction } from 'bitcoincashjs-lib';
+
+const key = ECPair.fromWIF('L4rK1yDtCWekvXuE6oXD9jCYfFNV2cWRpVuPLBcCU2z8TrisoyY1');
+const tx = Transaction.fromHex(unsignedTxHex);
+
+// Sign each input
+const txb = TransactionBuilder.fromTransaction(tx, Network.MAINNET);
+for (let i = 0; i < txb.inputs.length; i++) {
+  txb.sign(i, key);
 }
+
+const signedTxHex = txb.build().toHex();
+console.log('Signed TX:', signedTxHex);
+```
+
+**Step 3: On Online Machine (Broadcast)**
+```typescript
+import { ElectrumCash } from '@electrum-cash/electrum-cash';
+
+const electrum = new ElectrumCash(['electrum.mainnet...'], 50002, true);
+await electrum.transactionBroadcast(signedTxHex);
+console.log('Broadcast! TX ID:', electrum.transactionId);
+```
+
+### Security Best Practices
+
+**DO:**
+- ✅ Store WIF keys in a password manager
+- ✅ Use hardware wallets that support WIF export
+- ✅ Keep backups of your WIF keys in multiple secure locations
+- ✅ Use air-gapped devices for signing sensitive transactions
+
+**DON'T:**
+- ❌ Share your WIF key with anyone
+- ❌ Store WIF keys in plain text files
+- ❌ Send WIF keys over email or chat
+- ❌ Use WIF keys from untrusted sources
+
+### Importing Existing Wallet
+
+To use an existing BCH wallet with SafeDelay:
+
+```typescript
+import { ECPair, CashAddress } from 'bitcoincashjs-lib';
+
+const key = ECPair.fromWIF('your-wif-key');
+const pubKeyHash = key.getAddressData().hashBuffer;
+
+// Use the pubKeyHash (20 bytes, hex) for ownerPKH
+const ownerPKH = pubKeyHash.toString('hex');
+
+// Derive the CashAddress
+const address = CashAddress.p2pkh(pubKeyHash, 'bitcoincash');
 ```
 
 ## Complete React Example
