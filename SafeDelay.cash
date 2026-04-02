@@ -2,16 +2,16 @@ pragma cashscript ^0.12.0;
 
 /**
  * SafeDelay - Time-locked Wallet Contract
- * 
+ *
  * A time-locked wallet where funds can only be withdrawn after a specified delay.
  * Useful for savings accounts, vesting schedules, and emergency funds with a cooldown.
- * 
+ *
  * How it works:
  * - Owner creates contract with a lock duration (in blocks)
  * - Funds are locked until lockEndBlock
  * - After lock expires, owner can withdraw any amount
  * - Owner can cancel anytime to get funds back (before or after expiry)
- * 
+ *
  * Security model:
  * - Single owner (ownerPKH)
  * - No other withdrawals possible
@@ -22,30 +22,30 @@ contract SafeDelay(
 ) {
     /**
      * Deposit funds into the time-locked wallet
-     * 
-     * Anyone can deposit BCH - extends the lock but keeps existing lockEndBlock.
-     * This allows adding to the locked amount without resetting the timer.
-     * 
+     *
+     * Anyone can deposit BCH into the time-locked wallet. Depositing extends the lock
+     * duration but preserves the existing lockEndBlock.
+     *
      * inputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract)
-     *   1   Depositor input    [any]         (any, provides signature)
+     *   1   Depositor input    [any]         (owner, provides signature)
      * outputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract with new balance)
      *   1   Depositor change   [any]         (optional)
      */
     function deposit(pubkey depositorPk, sig depositorSig) {
         require(checkSig(depositorSig, depositorPk));
-        
+
         // Output 0: Recreate contract with combined balance
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);
     }
-    
+
     /**
      * Withdraw funds after lock expires
-     * 
+     *
      * Only owner can withdraw, and only after lockEndBlock has passed.
-     * 
+     *
      * inputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract)
      *   1   Owner input        [any]         (owner provides signature)
@@ -57,29 +57,29 @@ contract SafeDelay(
     function withdraw(pubkey ownerPk, sig ownerSig, int withdrawAmount) {
         require(hash160(ownerPk) == ownerPKH);
         require(checkSig(ownerSig, ownerPk));
-        
+
         // Verify lock has expired
         require(tx.locktime >= lockEndBlock);
-        
+
         int contractBalance = tx.inputs[0].value;
         int remainingBalance = contractBalance - withdrawAmount - 1000; // Leave dust for remaining UTXO
-        
+
         // Output 0: Pay owner the withdrawal amount
         require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
         require(tx.outputs[0].value >= withdrawAmount);
-        
+
         // Output 1: Recreate contract with remaining balance (if any left)
         if (remainingBalance > 1000) {
             require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);
             require(tx.outputs[1].value == remainingBalance);
         }
     }
-    
+
     /**
      * Cancel and refund - owner can cancel anytime
-     * 
+     *
      * Owner gets all funds back. This effectively closes the contract.
-     * 
+     *
      * inputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract)
      *   1   Owner input        [any]         (owner provides signature)
@@ -90,24 +90,26 @@ contract SafeDelay(
     function cancel(pubkey ownerPk, sig ownerSig) {
         require(hash160(ownerPk) == ownerPKH);
         require(checkSig(ownerSig, ownerPk));
-        
-        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
-        
+
+        // tx.inputs[0] = contract UTXO (locked funds)
+        // tx.inputs[1] = owner input UTXO (provides signature only, not a source of funds)
+        int totalBalance = tx.inputs[0].value - 1000;
+
         // Output 0: Pay owner everything
         require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
         require(tx.outputs[0].value >= totalBalance);
     }
-    
+
     /**
      * Extend the lock period (one-way extension)
-     * 
+     *
      * Owner can extend the lock period to a later block height.
      * This is a one-way operation - the lock can only be extended, never shortened.
      * This prevents hasty decisions about unlocking funds prematurely.
-     * 
+     *
      * Note: This function withdraws all funds and recreates the contract with a new lockEndBlock.
      * The owner will need to deposit funds into the new contract instance.
-     * 
+     *
      * inputs:
      *   0   SafeDelay UTXO     [BCH]         (this contract)
      *   1   Owner input        [any]         (owner provides signature)
@@ -118,12 +120,14 @@ contract SafeDelay(
     function extend(pubkey ownerPk, sig ownerSig, int newLockEndBlock) {
         require(hash160(ownerPk) == ownerPKH);
         require(checkSig(ownerSig, ownerPk));
-        
+
         // One-way extension: new lock must be later than current lock
         require(newLockEndBlock > lockEndBlock);
         
-        int totalBalance = tx.inputs[0].value + tx.inputs[1].value - 1000;
-        
+        // tx.inputs[0] = contract UTXO (locked funds)
+        // tx.inputs[1] = owner input UTXO (provides signature only, not a source of funds)
+        int totalBalance = tx.inputs[0].value - 1000;
+
         // Output 0: Pay owner everything (owner must redeposit into new contract)
         require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(ownerPKH));
         require(tx.outputs[0].value >= totalBalance);
