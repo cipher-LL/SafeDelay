@@ -7,10 +7,12 @@ import { useWalletBackup } from '../hooks/useWalletBackup';
 import { useDepositMilestones } from '../hooks/useDepositMilestones';
 import { useStoredContracts, useElectrumContractData } from '../hooks/useSafeDelayContracts';
 import { useOnChainTxHistory } from '../hooks/useOnChainTxHistory';
+import { useWifSigner } from '../hooks/useWifSigner';
 import { QRCodeSVG } from 'qrcode.react';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
+import { deposit } from '../utils/SafeDelayLibrary';
 
 const STORAGE_KEY = 'safedelay_transactions';
 
@@ -660,6 +662,7 @@ export default function Dashboard() {
   const { getLabel, setLabel, removeLabel } = useWalletLabels();
   const { contracts: storedContracts } = useStoredContracts();
   const { contracts: contractsWithData, currentBlock } = useElectrumContractData(storedContracts, network);
+  const { signWithdraw, signCancel, getAddressFromWif } = useWifSigner();
   const [contracts, setContracts] = useState<TimeLock[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'cancel' | 'create'>('all');
@@ -677,6 +680,11 @@ export default function Dashboard() {
   const [txStatus, setTxStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [scanningOnChain, setScanningOnChain] = useState(false);
   const [lastOnChainScan, setLastOnChainScan] = useState<number>(0);
+  // WIF signing state
+  const [wifMode, setWifMode] = useState(false);
+  const [wifKey, setWifKey] = useState('');
+  const [wifAddress, setWifAddress] = useState('');
+  const [wifError, setWifError] = useState('');
 
   const { fetchHistory } = useOnChainTxHistory();
 
@@ -1002,7 +1010,7 @@ export default function Dashboard() {
     if (!hasSigner) {
       setTxStatus({
         type: 'error',
-        message: 'No wallet signing available. SafeDelay requires a CashScript-compatible wallet (Paytaca, Electron Cash SLP) to sign transactions. Manual WIF signing is not yet supported.',
+        message: 'No wallet signer available. Use "Sign with WIF Private Key" button below to sign with your WIF key instead.',
       });
       return;
     }
@@ -1113,7 +1121,139 @@ export default function Dashboard() {
     setPendingTx(null);
     setDepositAmount('');
     setTxStatus(null);
+    setWifMode(false);
+    setWifKey('');
+    setWifAddress('');
+    setWifError('');
   }, []);
+
+  // ─── Execute transaction using WIF key ───────────────────────────────────
+  const executeWifTx = useCallback(async () => {
+    if (!pendingTx) return;
+    if (!wifKey.trim()) {
+      setWifError('Please enter your WIF private key.');
+      return;
+    }
+
+    setPendingTx(prev => prev ? { ...prev, status: 'broadcasting' } : null);
+    setTxStatus(null);
+    setWifError('');
+
+    try {
+      const stored = storedContracts.find(c => c.address === pendingTx.contractAddress);
+      if (!stored) throw new Error('Contract not found in local storage. Add it from the Create tab.');
+
+      const ownerPkh = stored.ownerPkh || wallet.pubkeyHash || '';
+      if (!ownerPkh) throw new Error('Owner public key hash not found for this contract.');
+
+      // Validate WIF key and get derived address
+      let derivedAddress: string;
+      try {
+        derivedAddress = getAddressFromWif(wifKey.trim(), network);
+      } catch (e) {
+        throw new Error(`Invalid WIF key: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
+      let txHash: string;
+
+      // Fetch contract balance from blockchain
+      const wifProvider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+      const contractUtxos = await wifProvider.getUtxos(pendingTx.contractAddress);
+      const contractBalance = contractUtxos.reduce((sum: bigint, u: any) => sum + u.satoshis, 0n);
+
+      if (pendingTx.type === 'withdraw') {
+        const withdrawAmount = pendingTx.amount
+          ? BigInt(Math.round(pendingTx.amount * 100000000))
+          : contractBalance;
+        txHash = await signWithdraw({
+          wifKey: wifKey.trim(),
+          network,
+          ownerPkh,
+          lockEndBlock: stored.lockEndBlock,
+          contractAddress: pendingTx.contractAddress,
+          walletAddress: derivedAddress,
+          amountSats: withdrawAmount,
+        });
+      } else if (pendingTx.type === 'cancel') {
+        txHash = await signCancel({
+          wifKey: wifKey.trim(),
+          network,
+          ownerPkh,
+          lockEndBlock: stored.lockEndBlock,
+          contractAddress: pendingTx.contractAddress,
+          walletAddress: derivedAddress,
+          contractBalance,
+        });
+      } else {
+        // Deposit via SafeDelayLibrary
+        const amountSats = BigInt(Math.round((parseFloat(depositAmount) || 0.01) * 100000000));
+        const result = await deposit({
+          wifKey: wifKey.trim(),
+          amountSats,
+          contractAddress: pendingTx.contractAddress,
+          ownerPkh,
+          lockEndBlock: stored.lockEndBlock,
+          config: { network },
+        });
+        txHash = result.txHash;
+      }
+
+      addTransactionRecord({
+        type: pendingTx.type === 'deposit' ? 'deposit' : pendingTx.type === 'cancel' ? 'cancel' : 'withdraw',
+        amount: pendingTx.amount || 0,
+        txHash,
+        contractAddress: pendingTx.contractAddress,
+      });
+
+      setPendingTx(prev => prev ? { ...prev, status: 'success', txHash } : null);
+      setTxStatus({
+        type: 'success',
+        message: `${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} transaction broadcast! TxHash: ${txHash.slice(0, 16)}...`,
+      });
+
+      // Clear WIF key from memory
+      setWifKey('');
+      setWifAddress('');
+
+      setTimeout(() => {
+        setPendingTx(null);
+        setDepositAmount('');
+        setWifMode(false);
+      }, 4000);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Transaction failed.';
+      let userMsg = errorMsg;
+
+      if (errorMsg.includes('not satisfied') || errorMsg.includes('lock') || errorMsg.includes('block')) {
+        userMsg = `Transaction failed: ${errorMsg}. Make sure the lock period has expired before withdrawing.`;
+      } else if (errorMsg.includes('UTXO') || errorMsg.includes('funds') || errorMsg.includes('balance')) {
+        userMsg = `UTXO error: ${errorMsg}. Make sure the contract has a balance and your wallet has BCH for miner fees.`;
+      } else if (errorMsg.includes('sign') || errorMsg.includes('provider') || errorMsg.includes('wallet')) {
+        userMsg = `Signing error: ${errorMsg}. Make sure your WIF key matches your wallet.`;
+      }
+
+      setPendingTx(prev => prev ? { ...prev, status: 'error', error: userMsg } : null);
+      setTxStatus({ type: 'error', message: userMsg });
+    }
+  }, [pendingTx, wifKey, wallet.pubkeyHash, storedContracts, network, getAddressFromWif, signWithdraw, signCancel, addTransactionRecord, depositAmount]);
+
+  // ─── Validate WIF key as user types ─────────────────────────────────────
+  const handleWifKeyChange = useCallback((value: string) => {
+    setWifKey(value);
+    setWifError('');
+    if (value.trim().length > 50) {
+      try {
+        const addr = getAddressFromWif(value.trim(), network);
+        setWifAddress(addr);
+        setWifError('');
+      } catch (e) {
+        setWifAddress('');
+        setWifError(e instanceof Error ? `Invalid WIF: ${e.message}` : 'Invalid WIF key');
+      }
+    } else {
+      setWifAddress('');
+    }
+  }, [network, getAddressFromWif]);
 
   // Calculate analytics
   const totalDeposits = transactions
@@ -1585,7 +1725,6 @@ export default function Dashboard() {
               {pendingTx.type === 'withdraw' && 'Withdraw your locked BCH once the lock period has expired. This will send all funds to your wallet address.'}
               {pendingTx.type === 'cancel' && 'Cancel the SafeDelay contract and return all funds to your wallet immediately. No wait time required.'}
               {pendingTx.type === 'deposit' && `Deposit BCH into your SafeDelay contract at ${pendingTx.contractAddress.slice(0, 16)}...`}
-              {' '}Transaction will be signed with your WIF private key.
             </ModalDesc>
 
             {pendingTx.status === 'error' && pendingTx.error && (
@@ -1622,19 +1761,101 @@ export default function Dashboard() {
               </div>
             )}
 
-            {pendingTx.status === 'confirm' && !hasSigner && (
-              <MessageBox $type="error" style={{ marginBottom: '16px', fontSize: '13px' }}>
-                ⚠️ No wallet signer detected. SafeDelay requires a CashScript-compatible wallet (Paytaca, Electron Cash SLP with CashScript extension) to sign and send transactions.
-              </MessageBox>
+            {/* ── Signing mode selector ── */}
+            {pendingTx.status === 'confirm' && (
+              <>
+                {!wifMode ? (
+                  /* CashScript wallet signing mode */
+                  <>
+                    {hasSigner ? (
+                      <ModalDesc style={{ marginBottom: '8px', fontSize: '13px' }}>
+                        This transaction will be signed by your connected CashScript wallet and broadcast to the {network} network.
+                      </ModalDesc>
+                    ) : (
+                      <ModalDesc style={{ marginBottom: '8px', fontSize: '13px' }}>
+                        No CashScript wallet detected. Use the WIF key option below to sign with your private key.
+                      </ModalDesc>
+                    )}
+                    <ModalActions style={{ flexDirection: 'column', gap: '8px' }}>
+                      {hasSigner ? (
+                        <ModalConfirmBtn
+                          style={{ width: '100%' }}
+                          onClick={executePendingTx}
+                          disabled={pendingTx.type === 'deposit' && !depositAmount}
+                        >
+                          {pendingTx.type === 'withdraw' ? '💸 Withdraw (Wallet)' :
+                           pendingTx.type === 'cancel' ? '✕ Cancel Contract (Wallet)' :
+                           '💰 Deposit (Wallet)'}
+                        </ModalConfirmBtn>
+                      ) : null}
+                      <ModalCancelBtn
+                        style={{ width: '100%', textAlign: 'center' }}
+                        onClick={() => setWifMode(true)}
+                      >
+                        🔑 Sign with WIF Private Key
+                      </ModalCancelBtn>
+                      <ModalCancelBtn
+                        style={{ width: '100%', textAlign: 'center' }}
+                        onClick={closePendingTx}
+                      >
+                        Cancel
+                      </ModalCancelBtn>
+                    </ModalActions>
+                  </>
+                ) : (
+                  /* WIF key signing mode */
+                  <>
+                    <ModalDesc style={{ marginBottom: '8px', fontSize: '13px', color: '#f59e0b' }}>
+                      🔐 WIF signing keeps your key in memory only — it is never stored or transmitted.
+                    </ModalDesc>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
+                        Enter WIF Private Key:
+                      </label>
+                      <ModalInput
+                        type="password"
+                        placeholder="L1aW4aubWDZB...."
+                        value={wifKey}
+                        onChange={(e) => handleWifKeyChange(e.target.value)}
+                        style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                      />
+                      {wifError && (
+                        <MessageBox $type="error" style={{ fontSize: '12px', marginTop: '6px' }}>
+                          {wifError}
+                        </MessageBox>
+                      )}
+                      {wifAddress && !wifError && (
+                        <MessageBox $type="success" style={{ fontSize: '12px', marginTop: '6px' }}>
+                          ✅ Key valid — Address: <span style={{ fontFamily: 'monospace' }}>{wifAddress.slice(0, 20)}...</span>
+                        </MessageBox>
+                      )}
+                    </div>
+                    <ModalActions style={{ flexDirection: 'column', gap: '8px' }}>
+                      <ModalConfirmBtn
+                        style={{ width: '100%' }}
+                        onClick={executeWifTx}
+                        disabled={!wifAddress || (pendingTx.type === 'deposit' && !depositAmount)}
+                      >
+                        {`🔑 Sign with WIF — ${pendingTx.type === 'withdraw' ? 'Withdraw' : pendingTx.type === 'cancel' ? 'Cancel' : 'Deposit'}`}
+                      </ModalConfirmBtn>
+                      <ModalCancelBtn
+                        style={{ width: '100%', textAlign: 'center' }}
+                        onClick={() => {
+                          setWifMode(false);
+                          setWifKey('');
+                          setWifAddress('');
+                          setWifError('');
+                        }}
+                      >
+                        ← Back
+                      </ModalCancelBtn>
+                    </ModalActions>
+                  </>
+                )}
+              </>
             )}
 
-            {pendingTx.status === 'confirm' && hasSigner && (
-              <ModalDesc style={{ marginBottom: '8px', fontSize: '13px' }}>
-                This transaction will be signed by your connected CashScript wallet and broadcast to the {network} network.
-              </ModalDesc>
-            )}
-
-            {pendingTx.status !== 'success' && (
+            {pendingTx.status !== 'success' && pendingTx.status !== 'confirm' && (
               <ModalActions>
                 <ModalCancelBtn onClick={closePendingTx}>Cancel</ModalCancelBtn>
                 <ModalConfirmBtn
