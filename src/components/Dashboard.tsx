@@ -6,6 +6,7 @@ import { useWalletLabels } from '../hooks/useWalletLabels';
 import { useWalletBackup } from '../hooks/useWalletBackup';
 import { useDepositMilestones } from '../hooks/useDepositMilestones';
 import { useStoredContracts, useElectrumContractData } from '../hooks/useSafeDelayContracts';
+import { useOnChainTxHistory } from '../hooks/useOnChainTxHistory';
 import { QRCodeSVG } from 'qrcode.react';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
@@ -674,6 +675,10 @@ export default function Dashboard() {
   const [pendingTx, setPendingTx] = useState<PendingTx | null>(null);
   const [depositAmount, setDepositAmount] = useState('');
   const [txStatus, setTxStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [scanningOnChain, setScanningOnChain] = useState(false);
+  const [lastOnChainScan, setLastOnChainScan] = useState<number>(0);
+
+  const { fetchHistory } = useOnChainTxHistory();
 
   // Load saved transactions from localStorage
   useEffect(() => {
@@ -789,6 +794,72 @@ export default function Dashboard() {
       updateBlockHeight(currentBlock);
     }
   }, [currentBlock, wallet.connected, updateBlockHeight]);
+
+  // Scan on-chain transaction history for contracts when they load
+  useEffect(() => {
+    if (!wallet.connected || contractsWithData.length === 0) return;
+    if (scanningOnChain) return; // Already scanning
+    // Skip if we scanned recently (within 5 minutes)
+    if (Date.now() - lastOnChainScan < 5 * 60 * 1000) return;
+
+    let cancelled = false;
+    setScanningOnChain(true);
+
+    async function scanContracts() {
+      // Build set of known tx hashes from localStorage for deduplication
+      const knownHashes = new Set(transactions.map(t => t.txHash));
+
+      const allOnChainTxs: Transaction[] = [];
+
+      for (const contract of contractsWithData) {
+        try {
+          const onChainTxs = await fetchHistory(contract.address, network, knownHashes);
+
+          for (const otx of onChainTxs) {
+            // Skip if we already have this tx locally
+            if (knownHashes.has(otx.txHash)) continue;
+
+            // Map OnChainTx type to Transaction type
+            // 'send' and 'receive' are standard BCH sends not related to SafeDelay functions
+            // We only record SafeDelay-relevant types
+            if (otx.type === 'unknown' || otx.type === 'send' || otx.type === 'receive') {
+              // Skip standard BCH sends - only record contract function calls
+              continue;
+            }
+
+            allOnChainTxs.push({
+              id: `onchain-${otx.txHash}-${otx.blockHeight}`,
+              type: otx.type as 'deposit' | 'withdraw' | 'cancel' | 'create',
+              amount: otx.amount,
+              timestamp: otx.timestamp,
+              txHash: otx.txHash,
+              contractAddress: contract.address,
+            });
+          }
+        } catch (e) {
+          console.warn(`Error scanning on-chain history for ${contract.address}:`, e);
+        }
+      }
+
+      if (!cancelled && allOnChainTxs.length > 0) {
+        // Merge: new on-chain txs + existing local txs, sorted by timestamp desc
+        const merged = [...allOnChainTxs, ...transactions];
+        merged.sort((a, b) => b.timestamp - a.timestamp);
+        saveTransactions(merged);
+        setLastOnChainScan(Date.now());
+      }
+
+      if (!cancelled) {
+        setScanningOnChain(false);
+      }
+    }
+
+    scanContracts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet.connected, contractsWithData, scanningOnChain, lastOnChainScan]);
 
   // Sort contracts based on selected option
   const sortedContracts = [...contracts].sort((a, b) => {
