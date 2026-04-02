@@ -66,8 +66,24 @@ const ConnectButton = styled.button`
   font-weight: 600;
   transition: all 0.2s;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--accent-hover);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const WalletButton = styled(ConnectButton)`
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  font-size: 13px;
+  padding: 8px 16px;
+
+  &:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.3);
   }
 `;
 
@@ -85,6 +101,14 @@ const Address = styled.span`
   font-size: 14px;
 `;
 
+const ProviderBadge = styled.span<{ $hasSigner: boolean }>`
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: ${({ $hasSigner }) => $hasSigner ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'};
+  color: ${({ $hasSigner }) => $hasSigner ? '#10b981' : '#f59e0b'};
+`;
+
 const ConnectInput = styled.input`
   padding: 8px 12px;
   border: 1px solid var(--input-border);
@@ -99,21 +123,40 @@ const ConnectInput = styled.input`
   }
 `;
 
+const ErrorText = styled.span`
+  font-size: 12px;
+  color: #ef4444;
+  max-width: 200px;
+`;
+
 export default function Header() {
   const { network, setNetwork } = useNetwork();
-  const { wallet, connect, disconnect } = useWallet();
+  const { wallet, connect, connectManual, disconnect, hasSigner } = useWallet();
   const { theme, toggleTheme } = useTheme();
   const [inputAddress, setInputAddress] = useState('');
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const toggleNetwork = () => {
     setNetwork(network === 'mainnet' ? 'testnet' : 'mainnet');
   };
 
-  const handleConnect = () => {
-    if (inputAddress) {
-      connect(inputAddress);
-      setInputAddress('');
+  const handleWalletConnect = async () => {
+    setConnectError(null);
+    try {
+      await connect();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Connection failed';
+      setConnectError(msg.length > 40 ? msg.slice(0, 40) + '...' : msg);
     }
+  };
+
+  const handleManualConnect = () => {
+    const addr = inputAddress.trim();
+    if (!addr) return;
+    // Use a placeholder PKH for manual mode (no signing will work in this mode)
+    connectManual(addr, '0000000000000000000000000000000000000000');
+    setInputAddress('');
+    setConnectError(null);
   };
 
   return (
@@ -128,18 +171,27 @@ export default function Header() {
         </NetworkToggle>
         {wallet.connected ? (
           <WalletInfo>
+            <ProviderBadge $hasSigner={hasSigner}>
+              {hasSigner ? '🔐 Wallet' : '📖 Read-only'}
+            </ProviderBadge>
             <Address>{wallet.address?.slice(0, 8)}...{wallet.address?.slice(-4)}</Address>
-            <ConnectButton onClick={disconnect}>Disconnect</ConnectButton>
+            <ConnectButton onClick={disconnect} style={{ padding: '4px 12px', fontSize: '12px' }}>Disconnect</ConnectButton>
           </WalletInfo>
         ) : (
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <WalletButton onClick={handleWalletConnect} disabled={connectError !== null}>
+              🔗 Wallet
+            </WalletButton>
             <ConnectInput
-              placeholder="Enter BCH address"
+              placeholder="BCH address (read-only)"
               value={inputAddress}
-              onChange={(e) => setInputAddress(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+              onChange={(e) => { setInputAddress(e.target.value); setConnectError(null); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleManualConnect()}
             />
-            <ConnectButton onClick={handleConnect}>Connect</ConnectButton>
+            <ConnectButton onClick={handleManualConnect} style={{ padding: '8px 16px', fontSize: '13px' }}>
+              Add
+            </ConnectButton>
+            {connectError && <ErrorText>{connectError}</ErrorText>}
           </div>
         )}
       </Controls>

@@ -7,6 +7,11 @@ import { useWalletBackup } from '../hooks/useWalletBackup';
 import { useDepositMilestones } from '../hooks/useDepositMilestones';
 import { useStoredContracts, useElectrumContractData } from '../hooks/useSafeDelayContracts';
 import { QRCodeSVG } from 'qrcode.react';
+import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
+import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
+import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
+
+const STORAGE_KEY = 'safedelay_transactions';
 
 const DashboardContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -177,6 +182,7 @@ const ContractStatus = styled.span<{ $locked: boolean }>`
 const ContractActions = styled.div`
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 `;
 
 const ActionButton = styled.button`
@@ -187,7 +193,7 @@ const ActionButton = styled.button`
   font-weight: 500;
   transition: all 0.2s;
   cursor: pointer;
-  
+
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -249,7 +255,7 @@ const FilterButton = styled.button<{ $active: boolean }>`
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
-  
+
   &:hover {
     border-color: #4f46e5;
   }
@@ -294,7 +300,7 @@ const SortSelect = styled.select`
   color: white;
   font-size: 13px;
   cursor: pointer;
-  
+
   &:focus {
     outline: none;
     border-color: #4f46e5;
@@ -309,12 +315,12 @@ const LabelInput = styled.input`
   color: white;
   font-size: 13px;
   width: 140px;
-  
+
   &:focus {
     outline: none;
     border-color: #4f46e5;
   }
-  
+
   &::placeholder {
     color: rgba(255, 255, 255, 0.4);
   }
@@ -332,7 +338,7 @@ const LabelButton = styled.button`
 const SaveLabelBtn = styled(LabelButton)`
   background: rgba(16, 185, 129, 0.2);
   color: #10b981;
-  
+
   &:hover {
     background: rgba(16, 185, 129, 0.3);
   }
@@ -341,7 +347,7 @@ const SaveLabelBtn = styled(LabelButton)`
 const RemoveLabelBtn = styled(LabelButton)`
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
-  
+
   &:hover {
     background: rgba(239, 68, 68, 0.3);
   }
@@ -382,7 +388,7 @@ const BackupButton = styled.button`
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  
+
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -419,12 +425,12 @@ const PasswordInput = styled.input`
   color: white;
   font-size: 14px;
   width: 200px;
-  
+
   &:focus {
     outline: none;
     border-color: #4f46e5;
   }
-  
+
   &::placeholder {
     color: rgba(255, 255, 255, 0.4);
   }
@@ -436,13 +442,13 @@ const PasswordLabel = styled.span`
   margin-left: 12px;
 `;
 
-const MessageBox = styled.div<{ $type: 'success' | 'error' }>`
+const MessageBox = styled.div<{ $type: 'success' | 'error' | 'info' }>`
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 14px;
   margin-top: 12px;
-  background: ${({ $type }) => $type === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'};
-  color: ${({ $type }) => $type === 'success' ? '#10b981' : '#ef4444'};
+  background: ${({ $type }) => $type === 'success' ? 'rgba(16, 185, 129, 0.2)' : $type === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(79, 70, 229, 0.2)'};
+  color: ${({ $type }) => $type === 'success' ? '#10b981' : $type === 'error' ? '#ef4444' : '#a5b4fc'};
 `;
 
 const EncryptNote = styled.p`
@@ -465,7 +471,7 @@ const TransactionIcon = styled.span<{ $type: string }>`
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  background: ${({ $type }) => 
+  background: ${({ $type }) =>
     $type === 'deposit' ? 'rgba(16, 185, 129, 0.2)' :
     $type === 'withdraw' ? 'rgba(239, 68, 68, 0.2)' :
     'rgba(79, 70, 229, 0.2)'};
@@ -486,11 +492,116 @@ const TransactionDate = styled.div`
 const TransactionAmount = styled.div<{ $type: string }>`
   font-size: 18px;
   font-weight: 700;
-  color: ${({ $type }) => 
+  color: ${({ $type }) =>
     $type === 'deposit' ? '#10b981' :
     $type === 'withdraw' ? '#ef4444' : '#4f46e5'};
 `;
 
+const TxHashLink = styled.a`
+  font-size: 12px;
+  color: #a5b4fc;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+// --- Pending Transaction Modal ---
+const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+`;
+
+const ModalBox = styled.div`
+  background: #1a1a2e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 480px;
+  width: 90%;
+`;
+
+const ModalTitle = styled.h3`
+  font-size: 20px;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.95);
+`;
+
+const ModalDesc = styled.p`
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 20px;
+  line-height: 1.5;
+`;
+
+const ModalInput = styled.input`
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 14px;
+  font-family: monospace;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+  }
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+`;
+
+const ModalConfirmBtn = styled.button`
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #4f46e5;
+  color: white;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: #4338ca;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const ModalCancelBtn = styled.button`
+  padding: 10px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+`;
+
+// --- Types ---
 interface TimeLock {
   address: string;
   balance: number;
@@ -502,24 +613,55 @@ interface TimeLock {
 
 interface Transaction {
   id: string;
-  type: 'deposit' | 'withdraw' | 'create';
+  type: 'deposit' | 'withdraw' | 'cancel' | 'create';
   amount: number;
   timestamp: number;
   txHash: string;
   contractAddress: string;
 }
 
+interface PendingTx {
+  id: string;
+  contractAddress: string;
+  type: 'withdraw' | 'cancel' | 'deposit';
+  amount?: number;
+  status: 'confirm' | 'broadcasting' | 'success' | 'error';
+  txHash?: string;
+  error?: string;
+}
+
 type SortOption = 'date' | 'amount' | 'unlock';
+
+// Map our network strings to CashScript Network type
+function toCashScriptNetwork(network: 'mainnet' | 'testnet' | 'chipnet'): Network {
+  switch (network) {
+    case 'mainnet':
+      return Network.MAINNET;
+    case 'testnet':
+      return Network.TESTNET3;
+    case 'chipnet':
+      return Network.CHIPNET;
+    default:
+      return Network.TESTNET3;
+  }
+}
+
+function getExplorerUrl(network: 'mainnet' | 'testnet' | 'chipnet', txHash: string): string {
+  if (network === 'mainnet') {
+    return `https://blockchair.com/bitcoin-cash/transaction/${txHash}`;
+  }
+  return `https://chipnet.blockchair.com/bitcoin-cash/transaction/${txHash}`;
+}
 
 export default function Dashboard() {
   const { network } = useNetwork();
-  const { wallet } = useWallet();
+  const { wallet, hasSigner } = useWallet();
   const { getLabel, setLabel, removeLabel } = useWalletLabels();
   const { contracts: storedContracts } = useStoredContracts();
   const { contracts: contractsWithData, currentBlock } = useElectrumContractData(storedContracts, network);
   const [contracts, setContracts] = useState<TimeLock[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'create'>('all');
+  const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'cancel' | 'create'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date');
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
@@ -529,6 +671,37 @@ export default function Dashboard() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [showQRCode, setShowQRCode] = useState<string | null>(null);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const [pendingTx, setPendingTx] = useState<PendingTx | null>(null);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [txStatus, setTxStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Load saved transactions from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setTransactions(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Error loading transactions:', e);
+    }
+  }, []);
+
+  // Save transactions to localStorage
+  const saveTransactions = useCallback((txs: Transaction[]) => {
+    setTransactions(txs);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(txs));
+  }, []);
+
+  // Add a transaction record
+  const addTransactionRecord = useCallback((tx: Omit<Transaction, 'id' | 'timestamp'>) => {
+    const newTx: Transaction = {
+      ...tx,
+      id: `${tx.txHash}-${Date.now()}`,
+      timestamp: Date.now(),
+    };
+    saveTransactions([newTx, ...transactions]);
+  }, [transactions, saveTransactions]);
 
   // Wallet backup data getter
   const getWalletData = useCallback(() => ({
@@ -546,7 +719,6 @@ export default function Dashboard() {
     },
   }), [contracts, getLabel, network]);
 
-  // Use backup hook
   const {
     exportBackup,
     importBackup,
@@ -581,19 +753,18 @@ export default function Dashboard() {
       setImportPassword('');
     }
   };
-  
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setImportFile(file);
-      e.target.value = ''; // Reset file input
+      e.target.value = '';
     }
   };
 
   // Sync contracts from Electrum hook to local state
   useEffect(() => {
     if (wallet.connected && contractsWithData.length > 0) {
-      // Convert ContractWithBalance to TimeLock format
       const timeLocks: TimeLock[] = contractsWithData.map(c => ({
         address: c.address,
         balance: c.balance,
@@ -604,13 +775,11 @@ export default function Dashboard() {
       }));
       setContracts(timeLocks);
 
-      // Track deposits for milestone notifications
       contractsWithData.forEach(c => {
         addDeposit(c.address, c.lockEndBlock, c.currentBlock);
       });
     } else if (!wallet.connected) {
       setContracts([]);
-      setTransactions([]);
     }
   }, [wallet.connected, contractsWithData, addDeposit]);
 
@@ -632,7 +801,6 @@ export default function Dashboard() {
         return aRemaining - bRemaining;
       case 'date':
       default:
-        // Sort by lock end block (earliest first)
         return a.lockEndBlock - b.lockEndBlock;
     }
   });
@@ -654,7 +822,6 @@ export default function Dashboard() {
   };
 
   const handleCopyAddress = async (address: string) => {
-    // Strip the bitcoincash: prefix for clipboard if present
     const cleanAddress = address.replace(/^bitcoincash:/, '');
     await navigator.clipboard.writeText(cleanAddress);
     setCopiedAddress(address);
@@ -682,25 +849,220 @@ export default function Dashboard() {
     });
   };
 
+  // Get contract instance from address + stored metadata
+  const getContractInstance = useCallback((
+    address: string,
+    lockEndBlock: number,
+    type: 'single' | 'multisig',
+    owners?: string[]
+  ): any => {
+    try {
+      const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+      if (type === 'multisig' && owners && owners.length >= 3) {
+        return new Contract(
+          SafeDelayMultiSigArtifact as any,
+          [owners[0], owners[1], owners[2], BigInt(2), BigInt(lockEndBlock)],
+          { provider } as any
+        );
+      }
+      // Single owner: storedContracts has ownerPkh
+      const stored = storedContracts.find(c => c.address === address);
+      const pkh = stored?.ownerPkh || wallet.pubkeyHash || '';
+      return new Contract(
+        SafeDelayArtifact as any,
+        [pkh, BigInt(lockEndBlock)],
+        { provider } as any
+      );
+    } catch (e) {
+      console.error('Error creating contract instance:', e);
+      return null;
+    }
+  }, [network, wallet.pubkeyHash, storedContracts]);
+
+  // ─── Withdraw handler ───────────────────────────────────────────────────
+  const handleWithdraw = useCallback((contract: TimeLock) => {
+    if (contract.balance <= 0) {
+      setTxStatus({ type: 'error', message: 'No balance to withdraw from this contract.' });
+      return;
+    }
+    setPendingTx({
+      id: `withdraw-${contract.address}-${Date.now()}`,
+      contractAddress: contract.address,
+      type: 'withdraw',
+      amount: contract.balance,
+      status: 'confirm',
+    });
+  }, []);
+
+  // ─── Cancel handler ──────────────────────────────────────────────────────
+  const handleCancel = useCallback((contract: TimeLock) => {
+    if (contract.balance <= 0) {
+      setTxStatus({ type: 'error', message: 'No balance to cancel from this contract.' });
+      return;
+    }
+    setPendingTx({
+      id: `cancel-${contract.address}-${Date.now()}`,
+      contractAddress: contract.address,
+      type: 'cancel',
+      status: 'confirm',
+    });
+  }, []);
+
+  // ─── Deposit handler ─────────────────────────────────────────────────────
+  const handleDepositRequest = useCallback((contract: TimeLock) => {
+    setPendingTx({
+      id: `deposit-${contract.address}-${Date.now()}`,
+      contractAddress: contract.address,
+      type: 'deposit',
+      amount: depositAmount ? parseFloat(depositAmount) : 0.01,
+      status: 'confirm',
+    });
+  }, [depositAmount]);
+
+  // ─── Execute pending transaction ─────────────────────────────────────────
+  const executePendingTx = useCallback(async () => {
+    if (!pendingTx) return;
+
+    if (!wallet.connected) {
+      setTxStatus({ type: 'error', message: 'Please connect your wallet first.' });
+      return;
+    }
+
+    if (!hasSigner) {
+      setTxStatus({
+        type: 'error',
+        message: 'No wallet signing available. SafeDelay requires a CashScript-compatible wallet (Paytaca, Electron Cash SLP) to sign transactions. Manual WIF signing is not yet supported.',
+      });
+      return;
+    }
+
+    setPendingTx(prev => prev ? { ...prev, status: 'broadcasting' } : null);
+    setTxStatus(null);
+
+    try {
+      const stored = storedContracts.find(c => c.address === pendingTx.contractAddress);
+      if (!stored) throw new Error('Contract not found in local storage. Add it from the Create tab.');
+
+      const contract = getContractInstance(
+        pendingTx.contractAddress,
+        stored.lockEndBlock,
+        stored.type,
+        stored.owners
+      );
+      if (!contract) throw new Error('Could not create contract instance. Check network and contract address.');
+
+      // Get contract UTXOs to spend
+      const contractUtxos = await (contract as any).getUtxos();
+      if (!contractUtxos || contractUtxos.length === 0) {
+        throw new Error('No UTXOs found at this contract address. Make sure it has a balance.');
+      }
+
+      // Get wallet UTXOs for fee payment
+      const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+      const walletUtxos = wallet.address ? await provider.getUtxos(wallet.address) : [];
+      if (walletUtxos.length === 0) {
+        throw new Error('No wallet UTXOs found. Your wallet needs BCH to pay miner fees.');
+      }
+
+      // Owner PKH hex — stored from when contract was created
+      const ownerPkh = stored.ownerPkh || wallet.pubkeyHash || '';
+      if (!ownerPkh) throw new Error('Owner public key hash not found for this contract.');
+
+      // Build and send transaction based on action type
+      let tx: any;
+      let txHash: string;
+
+      if (pendingTx.type === 'withdraw') {
+        // withdraw(pubkey ownerPk, sig ownerSig, int withdrawAmount)
+        // The locktime is enforced via .withHardcodedLockTime()
+        const contractBalance = contractUtxos.reduce((sum: bigint, u: any) => sum + u.satoshis, 0);
+        const withdrawAmount = pendingTx.amount ? BigInt(Math.round(pendingTx.amount * 100000000)) : contractBalance;
+        const withdrawTx = (contract as any).functions.withdraw(ownerPkh, withdrawAmount);
+        tx = await withdrawTx
+          .from([contractUtxos[0], walletUtxos[0]])
+          .withHardcodedLockTime(stored.lockEndBlock)
+          .send();
+        txHash = typeof tx === 'string' ? tx : (tx.txid || tx.hash || '');
+      } else if (pendingTx.type === 'cancel') {
+        // cancel(pubkey ownerPk, sig ownerSig) — no locktime restriction
+        const cancelTx = (contract as any).functions.cancel(ownerPkh);
+        tx = await cancelTx
+          .from([contractUtxos[0], walletUtxos[0]])
+          .send();
+        txHash = typeof tx === 'string' ? tx : (tx.txid || tx.hash || '');
+      } else {
+        // deposit(pubkey depositorPk, sig depositorSig)
+        // Contract UTXO + depositor wallet UTXO -> contract UTXO with combined value
+        if (!wallet.address) throw new Error('Wallet address not available.');
+        // Use owner PKH as depositor (anyone can deposit, sig just needs to match)
+        const depositTx = (contract as any).functions.deposit(ownerPkh);
+        tx = await depositTx
+          .from([contractUtxos[0], walletUtxos[0]])
+          .send();
+        txHash = typeof tx === 'string' ? tx : (tx.txid || tx.hash || '');
+      }
+
+      if (!txHash) throw new Error('No transaction hash returned from the network.');
+
+      addTransactionRecord({
+        type: pendingTx.type === 'deposit' ? 'deposit' : pendingTx.type === 'cancel' ? 'cancel' : 'withdraw',
+        amount: pendingTx.amount || 0,
+        txHash,
+        contractAddress: pendingTx.contractAddress,
+      });
+
+      setPendingTx(prev => prev ? { ...prev, status: 'success', txHash } : null);
+      setTxStatus({
+        type: 'success',
+        message: `${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} transaction broadcast! TxHash: ${txHash.slice(0, 16)}...`,
+      });
+
+      setTimeout(() => {
+        setPendingTx(null);
+        setDepositAmount('');
+      }, 4000);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Transaction failed.';
+      let userMsg = errorMsg;
+
+      if (errorMsg.includes('not satisfied') || errorMsg.includes('lock') || errorMsg.includes('block')) {
+        userMsg = `Transaction failed: ${errorMsg}. Make sure the lock period has expired before withdrawing.`;
+      } else if (errorMsg.includes('UTXO') || errorMsg.includes('funds') || errorMsg.includes('balance')) {
+        userMsg = `UTXO error: ${errorMsg}. Make sure the contract has a balance and your wallet has BCH for miner fees.`;
+      } else if (errorMsg.includes('sign') || errorMsg.includes('provider') || errorMsg.includes('wallet')) {
+        userMsg = `Wallet error: ${errorMsg}. Make sure your CashScript wallet (Paytaca, Electron Cash SLP) is connected and has the correct keys.`;
+      }
+
+      setPendingTx(prev => prev ? { ...prev, status: 'error', error: userMsg } : null);
+      setTxStatus({ type: 'error', message: userMsg });
+    }
+  }, [pendingTx, wallet, hasSigner, getContractInstance, storedContracts, addTransactionRecord, network]);
+
+  const closePendingTx = useCallback(() => {
+    setPendingTx(null);
+    setDepositAmount('');
+    setTxStatus(null);
+  }, []);
+
   // Calculate analytics
   const totalDeposits = transactions
     .filter(t => t.type === 'deposit')
     .reduce((sum, t) => sum + t.amount, 0);
-  
+
   const totalWithdrawals = transactions
-    .filter(t => t.type === 'withdraw')
+    .filter(t => t.type === 'withdraw' || t.type === 'cancel')
     .reduce((sum, t) => sum + t.amount, 0);
-  
-  const avgLockDuration = contracts.length > 0 
+
+  const avgLockDuration = contracts.length > 0
     ? Math.round(contracts.reduce((sum, c) => sum + (c.lockEndBlock - c.currentBlock), 0) / contracts.length / 144)
     : 0;
-  
+
   const unlockedPercent = contracts.length > 0
     ? Math.round((contracts.filter(c => c.lockEndBlock <= c.currentBlock).length / contracts.length) * 100)
     : 0;
 
-  const filteredTransactions = txFilter === 'all' 
-    ? transactions 
+  const filteredTransactions = txFilter === 'all'
+    ? transactions
     : transactions.filter(t => t.type === txFilter);
 
   return (
@@ -709,6 +1071,13 @@ export default function Dashboard() {
       <Description>
         View and manage your time-locked wallets
       </Description>
+
+      {/* Status message banner */}
+      {txStatus && (
+        <MessageBox $type={txStatus.type} style={{ marginBottom: '20px' }}>
+          {txStatus.message}
+        </MessageBox>
+      )}
 
       <StatsGrid>
         <StatCard>
@@ -741,7 +1110,7 @@ export default function Dashboard() {
         </AnalyticsCard>
         <AnalyticsCard>
           <AnalyticsValue>{totalWithdrawals.toFixed(4)} BCH</AnalyticsValue>
-          <AnalyticsLabel>Total Withdrawn</AnalyticsLabel>
+          <AnalyticsLabel>Total Withdrawn/Cancelled</AnalyticsLabel>
           <ProgressBar>
             <ProgressFill $percent={Math.min((totalWithdrawals / (totalDeposits + totalWithdrawals || 1)) * 100, 100)} />
           </ProgressBar>
@@ -765,7 +1134,7 @@ export default function Dashboard() {
         <Description>
           Get notified when your deposits reach certain lock percentages
         </Description>
-        
+
         {permission === 'default' && (
           <div style={{ marginBottom: '16px' }}>
             <button
@@ -888,11 +1257,14 @@ export default function Dashboard() {
           <FilterButton $active={txFilter === 'withdraw'} onClick={() => setTxFilter('withdraw')}>
             Withdrawals
           </FilterButton>
+          <FilterButton $active={txFilter === 'cancel'} onClick={() => setTxFilter('cancel')}>
+            Cancels
+          </FilterButton>
           <FilterButton $active={txFilter === 'create'} onClick={() => setTxFilter('create')}>
             Created
           </FilterButton>
         </FilterBar>
-        
+
         {wallet.connected ? (
           filteredTransactions.length > 0 ? (
             <TransactionList>
@@ -900,23 +1272,32 @@ export default function Dashboard() {
                 <TransactionItem key={tx.id}>
                   <TransactionInfo>
                     <TransactionIcon $type={tx.type}>
-                      {tx.type === 'deposit' ? '↓' : tx.type === 'withdraw' ? '↑' : '✦'}
+                      {tx.type === 'deposit' ? '↓' : tx.type === 'withdraw' ? '↑' : tx.type === 'cancel' ? '✕' : '✦'}
                     </TransactionIcon>
                     <TransactionDetails>
                       <TransactionType>
                         {tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}
                       </TransactionType>
                       <TransactionDate>{formatDate(tx.timestamp)}</TransactionDate>
+                      {tx.txHash && (
+                        <TxHashLink
+                          href={getExplorerUrl(network, tx.txHash)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {tx.txHash.slice(0, 12)}... ↗
+                        </TxHashLink>
+                      )}
                     </TransactionDetails>
                   </TransactionInfo>
                   <TransactionAmount $type={tx.type}>
-                    {tx.type === 'withdraw' ? '-' : '+'}{tx.amount.toFixed(4)} BCH
+                    {tx.type === 'withdraw' || tx.type === 'cancel' ? '-' : '+'}{tx.amount.toFixed(4)} BCH
                   </TransactionAmount>
                 </TransactionItem>
               ))}
             </TransactionList>
           ) : (
-            <EmptyState>No transactions found</EmptyState>
+            <EmptyState>No transactions yet. Withdrawals and deposits will appear here.</EmptyState>
           )
         ) : (
           <EmptyState>Connect your wallet to view transaction history</EmptyState>
@@ -926,7 +1307,7 @@ export default function Dashboard() {
       {/* Active Contracts Section */}
       <TransactionSection>
         <SectionTitle>Active Contracts</SectionTitle>
-        
+
         {wallet.connected && contracts.length > 0 && (
           <SortBar>
             <SortLabel>Sort by:</SortLabel>
@@ -937,7 +1318,7 @@ export default function Dashboard() {
             </SortSelect>
           </SortBar>
         )}
-        
+
         {wallet.connected ? (
           sortedContracts.length > 0 ? (
             <ContractList>
@@ -945,13 +1326,13 @@ export default function Dashboard() {
                 const isLocked = contract.lockEndBlock > contract.currentBlock;
                 const existingLabel = getLabel(contract.address);
                 const isEditing = editingLabel === contract.address;
-                
+
                 return (
                   <ContractCard key={contract.address}>
                     <ContractInfo>
                       {isEditing ? (
                         <LabelDisplay>
-                          <LabelInput 
+                          <LabelInput
                             value={labelInput}
                             onChange={(e) => setLabelInput(e.target.value)}
                             placeholder="Enter label..."
@@ -964,7 +1345,7 @@ export default function Dashboard() {
                       ) : (
                         <LabelDisplay>
                           {existingLabel && <WalletLabel>{existingLabel}</WalletLabel>}
-                          <LabelButton 
+                          <LabelButton
                             onClick={() => handleEditLabel(contract.address)}
                             style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', padding: '2px 8px', fontSize: '12px' }}
                           >
@@ -982,8 +1363,8 @@ export default function Dashboard() {
                         </CopyButton>
                         {showQRCode === contract.address && (
                           <QRCodeWrapper>
-                            <QRCodeSVG 
-                              value={contract.address.replace(/^bitcoincash:/, '')} 
+                            <QRCodeSVG
+                              value={contract.address.replace(/^bitcoincash:/, '')}
                               size={100}
                               level="M"
                             />
@@ -1000,9 +1381,20 @@ export default function Dashboard() {
                       {isLocked ? '🔒 Locked' : '✅ Unlocked'}
                     </ContractStatus>
                     <ContractActions>
-                      <DepositButton>Deposit</DepositButton>
-                      <WithdrawButton disabled={isLocked}>Withdraw</WithdrawButton>
-                      <CancelButton>Cancel</CancelButton>
+                      <DepositButton onClick={() => handleDepositRequest(contract)}>Deposit</DepositButton>
+                      <WithdrawButton
+                        disabled={isLocked}
+                        onClick={() => !isLocked && handleWithdraw(contract)}
+                        title={isLocked ? 'Lock period has not expired yet' : 'Withdraw all funds after lock expires'}
+                      >
+                        Withdraw
+                      </WithdrawButton>
+                      <CancelButton
+                        onClick={() => handleCancel(contract)}
+                        title="Cancel anytime — returns all funds immediately"
+                      >
+                        Cancel
+                      </CancelButton>
                     </ContractActions>
                   </ContractCard>
                 );
@@ -1026,29 +1418,29 @@ export default function Dashboard() {
         <Description>
           Export your wallet configuration for disaster recovery or import from a backup file
         </Description>
-        
+
         <BackupActions>
-          <ExportBtn 
-            onClick={handleExport} 
+          <ExportBtn
+            onClick={handleExport}
             disabled={!wallet.connected || exporting || contracts.length === 0}
           >
             {exporting ? 'Exporting...' : '📥 Export Backup'}
           </ExportBtn>
-          
+
           <label>
             <ImportBtn as="span" style={{ display: 'inline-block' }}>
               📤 Choose Backup File
             </ImportBtn>
-            <FileInput 
-              type="file" 
-              accept=".json" 
+            <FileInput
+              type="file"
+              accept=".json"
               onChange={handleFileChange}
               disabled={importing}
             />
           </label>
-          
+
           {importFile && (
-            <ImportBtn 
+            <ImportBtn
               onClick={handleImport}
               disabled={importing}
             >
@@ -1083,8 +1475,8 @@ export default function Dashboard() {
 
         <div style={{ marginBottom: '12px' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               checked={showExportPassword}
               onChange={(e) => setShowExportPassword(e.target.checked)}
             />
@@ -1099,7 +1491,7 @@ export default function Dashboard() {
         </EncryptNote>
 
         {(backupError || backupSuccess) && (
-          <MessageBox 
+          <MessageBox
             $type={backupError ? 'error' : 'success'}
             onClick={clearBackupMessages}
             style={{ cursor: 'pointer' }}
@@ -1108,6 +1500,92 @@ export default function Dashboard() {
           </MessageBox>
         )}
       </BackupSection>
+
+      {/* ─── Pending Transaction Modal ─────────────────────────────────────── */}
+      {pendingTx && (
+        <ModalOverlay onClick={(e) => { if (e.target === e.currentTarget) closePendingTx(); }}>
+          <ModalBox>
+            <ModalTitle>
+              {pendingTx.type === 'withdraw' ? '💸 Withdraw Funds' :
+               pendingTx.type === 'cancel' ? '✕ Cancel Contract' :
+               '💰 Deposit Funds'}
+            </ModalTitle>
+            <ModalDesc>
+              {pendingTx.type === 'withdraw' && 'Withdraw your locked BCH once the lock period has expired. This will send all funds to your wallet address.'}
+              {pendingTx.type === 'cancel' && 'Cancel the SafeDelay contract and return all funds to your wallet immediately. No wait time required.'}
+              {pendingTx.type === 'deposit' && `Deposit BCH into your SafeDelay contract at ${pendingTx.contractAddress.slice(0, 16)}...`}
+              {' '}Transaction will be signed with your WIF private key.
+            </ModalDesc>
+
+            {pendingTx.status === 'error' && pendingTx.error && (
+              <MessageBox $type="error" style={{ marginBottom: '16px' }}>
+                {pendingTx.error}
+              </MessageBox>
+            )}
+
+            {pendingTx.status === 'success' && pendingTx.txHash && (
+              <MessageBox $type="success" style={{ marginBottom: '16px' }}>
+                ✅ Transaction broadcast!<br />
+                <TxHashLink href={getExplorerUrl(network, pendingTx.txHash)} target="_blank" rel="noopener noreferrer">
+                  {pendingTx.txHash.slice(0, 24)}... ↗
+                </TxHashLink>
+              </MessageBox>
+            )}
+
+            {pendingTx.status === 'confirm' && pendingTx.type === 'deposit' && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
+                  Deposit amount (BCH):
+                </label>
+                <ModalInput
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  placeholder="0.01"
+                  value={depositAmount}
+                  onChange={(e) => {
+                    setDepositAmount(e.target.value);
+                    setPendingTx(prev => prev ? { ...prev, amount: parseFloat(e.target.value) || 0.01 } : null);
+                  }}
+                />
+              </div>
+            )}
+
+            {pendingTx.status === 'confirm' && !hasSigner && (
+              <MessageBox $type="error" style={{ marginBottom: '16px', fontSize: '13px' }}>
+                ⚠️ No wallet signer detected. SafeDelay requires a CashScript-compatible wallet (Paytaca, Electron Cash SLP with CashScript extension) to sign and send transactions.
+              </MessageBox>
+            )}
+
+            {pendingTx.status === 'confirm' && hasSigner && (
+              <ModalDesc style={{ marginBottom: '8px', fontSize: '13px' }}>
+                This transaction will be signed by your connected CashScript wallet and broadcast to the {network} network.
+              </ModalDesc>
+            )}
+
+            {pendingTx.status !== 'success' && (
+              <ModalActions>
+                <ModalCancelBtn onClick={closePendingTx}>Cancel</ModalCancelBtn>
+                <ModalConfirmBtn
+                  onClick={executePendingTx}
+                  disabled={pendingTx.status === 'broadcasting' || (pendingTx.type === 'deposit' && !depositAmount)}
+                >
+                  {pendingTx.status === 'broadcasting' ? '⏳ Signing & Broadcasting...' :
+                   pendingTx.type === 'withdraw' ? '💸 Withdraw' :
+                   pendingTx.type === 'cancel' ? '✕ Cancel Contract' :
+                   '💰 Deposit'}
+                </ModalConfirmBtn>
+              </ModalActions>
+            )}
+
+            {pendingTx.status === 'success' && (
+              <ModalActions>
+                <ModalConfirmBtn onClick={closePendingTx}>Done</ModalConfirmBtn>
+              </ModalActions>
+            )}
+          </ModalBox>
+        </ModalOverlay>
+      )}
     </DashboardContainer>
   );
 }
