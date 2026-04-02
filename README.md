@@ -295,3 +295,155 @@ SafeDelay uses environment variables for wallet and network configuration:
 
 See `.env.example` for the full template.
 
+---
+
+## WIF Key Offline Signing
+
+SafeDelay supports **WIF (Wallet Import Format) key offline signing** for users who want to sign transactions without a browser extension wallet. This is useful for:
+
+- **Cold storage** - Sign transactions with an offline/air-gapped private key
+- **Hardware wallet integration** - Export WIF from supported hardware wallets
+- **Maximum security** - The WIF key is used in-memory only, never stored or transmitted
+- **No browser extension required** - Just paste your WIF key and sign
+
+### How It Works
+
+When you use WIF signing in the SafeDelay dashboard:
+
+1. You paste your WIF private key (never sent anywhere — only used in your browser's memory)
+2. SafeDelay derives your public key and address from the WIF key
+3. It verifies the derived address matches your wallet (prevents signing with wrong key)
+4. The transaction is signed locally using the WIF key's private key
+5. The signed transaction is broadcast to the network via an Electrum RPC
+6. The WIF key is cleared from memory immediately after signing
+
+**Your private key never leaves your browser and is never stored.**
+
+### Exporting a WIF Key
+
+#### From CashScript / Electron Cash
+
+1. Open Electron Cash
+2. Go to **Wallet** → **Private Keys** → **Export**
+3. Select **WIF** format
+4. Copy the WIF key (starts with `5`, `K`, or `L` for mainnet; `9`, `c`, or `p` for testnet/chipnet)
+
+#### From a BIP39 Mnemonic (programmatic)
+
+```typescript
+import { mnemonicToWalletImportFormat } from '@bitauth/libauth';
+
+// Derive WIF from mnemonic
+const wif = mnemonicToWalletImportFormat({
+  mnemonic: 'your 12 or 24 word mnemonic',
+  network: 'mainnet', // or 'testnet' for chipnet
+});
+```
+
+#### From bitcoincash.js (programmatic)
+
+```typescript
+import { fromMnemonic } from '@bitauth/libauth';
+
+const key = fromMnemonic('your mnemonic here');
+const wif = key.toWIFString(); // 'mainnet' or 'testnet'
+```
+
+> ⚠️ **Testnet/Chipnet WIF keys** (starting with `9`, `c`, or `p`) work with the SafeDelay dashboard when set to Testnet or Chipnet mode. **Mainnet WIF keys** (starting with `5`, `K`, or `L`) only work on Mainnet.
+
+### Using WIF Signing in the Dashboard
+
+1. **Open the SafeDelay dashboard** at [safedelay.cash](https://safedelay.cash)
+2. **Connect your wallet** using WalletConnect or paste a contract address to manage
+3. **Create or load a SafeDelay contract**
+4. **Switch to WIF signing mode:**
+   - If no CashScript wallet is detected, the UI automatically shows the WIF option
+   - If a wallet IS detected, look for the **"🔑 Sign with WIF Private Key"** button
+5. **Enter your WIF private key** in the input field
+6. The dashboard validates the key and shows the derived address
+7. Confirm the address matches your expected wallet address
+8. Click **"🔑 Sign with WIF"** to sign and broadcast
+
+The dashboard will show validation errors if:
+- The WIF key is invalid (wrong format or checksum)
+- The derived address doesn't match your wallet address
+- The network doesn't match (mainnet WIF on chipnet, etc.)
+
+### Security Best Practices
+
+#### ✅ Do:
+- **Use testnet/chipnet first** — Always test with a small amount on testnet before mainnet
+- **Verify the address** — The dashboard shows the derived address; confirm it matches your wallet
+- **Clear the key after use** — Close the tab or clear the field after signing
+- **Use a dedicated wallet** — Create a separate wallet for SafeDelay with only the funds you intend to lock
+- **Check the URL** — Ensure you're on the legitimate safedelay.cash before entering any private key
+
+#### ❌ Don't:
+- **Don't use WIF keys from exchanges** — Most exchanges don't allow direct WIF export
+- **Don't send all your funds** — Always keep a buffer for miner fees and emergencies
+- **Don't share your WIF key** — Anyone with this key can spend your funds
+- **Don't paste into random websites** — Only use the official SafeDelay dashboard
+- **Don't use keys derived from weak mnemonics** — Use strong, randomly generated seeds
+
+### WIF Key Format Reference
+
+| Network | Prefix | Example |
+|---------|--------|---------|
+| Mainnet | `5`, `K`, `L` | `L4rK1y...` |
+| Testnet/Chipnet | `9`, `c`, `p` | `cTLx3T...` |
+
+The SafeDelay dashboard automatically detects the network from the WIF prefix and validates accordingly.
+
+### Programmatic Usage (Node.js)
+
+If you're using SafeDelay in a Node.js script, you can use the `useWifSigner` hook or the `SafeDelayLibrary` functions directly:
+
+```typescript
+import { useWifSigner } from 'safedelay';
+
+const { signWithdraw, signCancel, validateWifKey, getAddressFromWif } = useWifSigner();
+
+// Validate a WIF key before using
+const info = validateWifKey('your_wif_key', 'mainnet');
+console.log('Address:', info.address);
+console.log('PKH:', info.pkh);
+
+// Sign a withdraw (after lock expires)
+const txHash = await signWithdraw({
+  wifKey: 'your_wif_key',
+  network: 'mainnet',
+  ownerPkh: 'your_contract_owner_pkh',
+  lockEndBlock: 890000,
+  contractAddress: 'bitcoincash:...',
+  walletAddress: 'bitcoincash:...',
+  amountSats: 100000n,
+});
+console.log('Transaction hash:', txHash);
+
+// Sign a cancel (anytime)
+const cancelTxHash = await signCancel({
+  wifKey: 'your_wif_key',
+  network: 'mainnet',
+  ownerPkh: 'your_contract_owner_pkh',
+  lockEndBlock: 890000,
+  contractAddress: 'bitcoincash:...',
+  walletAddress: 'bitcoincash:...',
+  contractBalance: 500000n,
+});
+```
+
+### How the Signing Works (Technical)
+
+The WIF key is decoded using `@bitauth/libauth`'s `decodePrivateKeyWif` function. From the decoded private key:
+
+1. A CashScript `SignatureTemplate` is created for signing
+2. The public key is derived from the private key
+3. The P2PKH address is derived from the public key (using the correct network prefix)
+4. The transaction is built using the SafeDelay contract artifact
+5. The `SignatureTemplate` signs the transaction digest
+6. The signed transaction is broadcast via Electrum RPC
+
+This is the same underlying mechanism used by hardware wallets — a private key signs a transaction digest — but without the hardware.
+
+> 🔐 **Air-gapped signing:** For the highest security, you can generate a WIF key on an air-gapped machine, transfer it to your SafeDelay machine via QR code or USB (in a controlled environment), and then destroy the key after use.
+
