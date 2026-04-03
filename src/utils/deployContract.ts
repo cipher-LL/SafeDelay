@@ -152,11 +152,13 @@ export async function addressToPubkeyHash(address: string): Promise<string> {
     if (typeof result !== 'string' && result && result.bytecode) {
       const bytecodeArr = Array.from(result.bytecode);
       // P2PKH: [OP_DUP, OP_HASH160, 0x14, <20-byte PKH>, OP_EQUALVERIFY, OP_CHECKSIG]
+      // Bytes 3-22 contain the 20-byte pubkey hash
       if (bytecodeArr[1] === 0xa9 && bytecodeArr[0] === 0x76 && bytecodeArr[22] === 0x88) {
-        const pkh = bytecodeArr.slice(2, 22);
+        const pkh = bytecodeArr.slice(3, 23);
         return (pkh as number[]).map(b => b.toString(16).padStart(2, '0')).join('');
       }
       // P2SH: [OP_HASH160, 0x14, <20-byte hash>, OP_EQUAL]
+      // Bytes 2-21 contain the 20-byte script hash
       if (bytecodeArr[0] === 0xa9 && bytecodeArr[22] === 0x87) {
         const hash = bytecodeArr.slice(2, 22);
         return (hash as number[]).map(b => b.toString(16).padStart(2, '0')).join('');
