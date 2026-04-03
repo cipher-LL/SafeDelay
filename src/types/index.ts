@@ -168,3 +168,60 @@ export function calculateLockBlocks(days: number, blocksPerDay: number = 144): n
 export function isLockExpired(currentBlock: number, lockEndBlock: number): boolean {
   return currentBlock >= lockEndBlock;
 }
+
+// ============================================================
+// SafeDelayManager Types
+// ============================================================
+
+/**
+ * Configuration for deploying SafeDelayManager contract
+ */
+export interface SafeDelayManagerConfig {
+  serviceProviderPublicKeyHash: string;  // 40 hex chars (20 bytes)
+}
+
+/**
+ * Parameters for createDelay function
+ */
+export interface CreateDelayParams {
+  ownerPublicKeyHash: string;    // 40 hex chars (20 bytes) - owner's p2pkh address without prefix
+  lockEndBlock: number;          // Block height when lock expires
+  feeSats: bigint;               // Fee to service provider in sats
+}
+
+/**
+ * SafeDelayManager UTXO with registry data
+ */
+export interface SafeDelayManagerUtxo extends Utxo {
+  managerData: {
+    serviceProviderPkh: string;
+    delayCount: number;
+    delays: Array<{
+      ownerPkh: string;
+      lockEndBlock: number;
+    }>;
+  };
+}
+
+/**
+ * A registered SafeDelay entry in the manager
+ */
+export interface SafeDelayManagerEntry {
+  ownerPkh: string;       // 40 hex chars (20 bytes)
+  lockEndBlock: number;  // Block height
+  address?: string;      // Computed SafeDelay address (off-chain)
+}
+
+/**
+ * Artifact type for SafeDelayManager
+ */
+export interface SafeDelayManagerArtifact {
+  contractName: string;
+  constructorInputs: Array<{ name: string; type: string }>;
+  abi: Array<{
+    name: string;
+    inputs: Array<{ name: string; type: string }>;
+  }>;
+  bytecode: string;
+  compiler: { name: string; version: string };
+}
