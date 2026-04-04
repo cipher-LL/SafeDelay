@@ -1,0 +1,94 @@
+{
+  "contractName": "SafeDelayManager",
+  "constructorInputs": [
+    {
+      "name": "serviceProviderPkh",
+      "type": "bytes20"
+    }
+  ],
+  "abi": [
+    {
+      "name": "createDelay",
+      "inputs": [
+        {
+          "name": "ownerPkh",
+          "type": "bytes20"
+        },
+        {
+          "name": "lockEndBlock",
+          "type": "bytes"
+        },
+        {
+          "name": "feeSats",
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "bytecode": "OP_TXINPUTCOUNT OP_2 OP_GREATERTHANOREQUAL OP_VERIFY OP_1 OP_UTXOTOKENCATEGORY OP_0 OP_EQUALVERIFY OP_1 OP_OUTPUTBYTECODE 76a914 OP_ROT OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_1 OP_OUTPUTTOKENCATEGORY OP_0 OP_EQUALVERIFY OP_1 OP_OUTPUTVALUE OP_3 OP_PICK OP_NUMEQUALVERIFY OP_0 OP_UTXOTOKENCATEGORY OP_0 OP_EQUAL OP_NOT OP_VERIFY OP_0 OP_UTXOTOKENCOMMITMENT OP_SWAP OP_ROT OP_CAT OP_CAT OP_0 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENCATEGORY OP_0 OP_UTXOTOKENCATEGORY OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_NUMEQUALVERIFY OP_0 OP_OUTPUTTOKENCOMMITMENT OP_EQUALVERIFY OP_1 OP_UTXOVALUE OP_SWAP OP_SUB e803 OP_SUB OP_DUP e803 OP_GREATERTHANOREQUAL OP_IF OP_2 OP_OUTPUTBYTECODE OP_1 OP_UTXOBYTECODE OP_EQUALVERIFY OP_2 OP_OUTPUTTOKENCATEGORY OP_0 OP_EQUALVERIFY OP_2 OP_OUTPUTVALUE OP_OVER OP_NUMEQUALVERIFY OP_ENDIF OP_DROP OP_1",
+  "source": "/**\n * SafeDelayManager.cash - SafeDelay Registry\n *\n * Tracks all SafeDelay wallets created through the platform.\n *\n * Commitment format: [entry1_pkh(20)][entry1_lockEndBlock(8)][entry2_pkh(20)][entry2_lockEndBlock(8)]...\n *\n * Off-chain computation (to find the user's SafeDelay address):\n *   SafeDelay address = hash256(ownerPKH_le || lockEndBlock_le || SafeDelayBytecode)\n *   Use the SafeDelay bytecode from the artifacts directory.\n *\n * Note: lockEndBlock is stored as 8 bytes big-endian. Off-chain must use the\n * same encoding when computing the child address.\n *\n * Bytecode estimate: ~550 bytes (well under 1650 BCH limit)\n */\npragma cashscript ^0.12.0;\n\ncontract SafeDelayManager(\n    bytes20 serviceProviderPkh           // Service provider PKH for fee collection\n) {\n    /**\n     * Register a new SafeDelay wallet\n     *\n     * User must deploy and fund the SafeDelay separately.\n     * The manager only tracks the entry in its NFT commitment.\n     *\n     * inputs:\n     *   0   Manager UTXO       [NFT]         (this manager contract)\n     *   1   Creator BCH        [BCH]         (from creator, for fees)\n     * outputs:\n     *   0   Manager UTXO       [NFT]         (with updated commitment)\n     *   1   Service provider   [BCH]         (fee to service provider)\n     *   2   Creator change     [BCH]         (optional)\n     */\n    function createDelay(\n        bytes20 ownerPkh,\n        bytes lockEndBlock,    // 8 bytes big-endian encoding of block height\n        int feeSats\n    ) {\n        // Verify BCH input for fee payment\n        require(tx.inputs.length >= 2);\n        require(tx.inputs[1].tokenCategory == 0x);\n\n        // Fee to service provider (output 1)\n        require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(serviceProviderPkh));\n        require(tx.outputs[1].tokenCategory == 0x);\n        require(tx.outputs[1].value == feeSats);\n\n        // Manager UTXO (output 0) - append new delay entry\n        require(tx.inputs[0].tokenCategory != 0x);\n\n        bytes existingCommitment = tx.inputs[0].nftCommitment;\n\n        // New entry: ownerPkh(20) + lockEndBlock(8)\n        bytes newEntry = ownerPkh + lockEndBlock;\n\n        // Append new entry to existing commitment\n        bytes newCommitment = existingCommitment + newEntry;\n\n        // Verify manager output preserves contract state\n        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);\n        require(tx.outputs[0].tokenCategory == tx.inputs[0].tokenCategory);\n        require(tx.outputs[0].value == tx.inputs[0].value);\n        require(tx.outputs[0].nftCommitment == newCommitment);\n\n        // Change output (output 2)\n        int totalIn = tx.inputs[1].value;\n        int change = totalIn - feeSats - 1000;\n        if (change >= 1000) {\n            require(tx.outputs[2].lockingBytecode == tx.inputs[1].lockingBytecode);\n            require(tx.outputs[2].tokenCategory == 0x);\n            require(tx.outputs[2].value == change);\n        }\n    }\n}\n",
+  "debug": {
+    "bytecode": "c352a26951ce008851cd0376a9147b7e0288ac7e8851d1008851cc53799d00ce0087916900cf7c7b7e7e00cd00c78800d100ce8800cc00c69d00d28851c67c9402e803947602e803a26352cd51c78852d1008852cc789d687551",
+    "sourceMap": "42:16:42:32;:36::37;:16:::1;:8::39;43:26:43:27:0;:16::42:1;:46::48:0;:8::50:1;46:27:46:28:0;:16::45:1;:49::93:0;:74::92;:49::93:1;;;:8::95;47:27:47:28:0;:16::43:1;:47::49:0;:8::51:1;48:27:48:28:0;:16::35:1;:39::46:0;;:8::48:1;51:26:51:27:0;:16::42:1;:46::48:0;:16:::1;;:8::50;53:45:53:46:0;:35::61:1;56:25:56:33:0;:36::48;:25:::1;59:30:59:59;62:27:62:28:0;:16::45:1;:59::60:0;:49::77:1;:8::79;63:27:63:28:0;:16::43:1;:57::58:0;:47::73:1;:8::75;64:27:64:28:0;:16::35:1;:49::50:0;:39::57:1;:8::59;65:27:65:28:0;:16::43:1;:8::62;68:32:68:33:0;:22::40:1;69:31:69:38:0;:21:::1;:41::45:0;:21:::1;70:12:70:18:0;:22::26;:12:::1;:28:74:9:0;71:31:71:32;:20::49:1;:63::64:0;:53::81:1;:12::83;72:31:72:32:0;:20::47:1;:51::53:0;:12::55:1;73:31:73:32:0;:20::39:1;:43::49:0;:12::51:1;70:28:74:9;36:4:75:5;",
+    "logs": [],
+    "requires": [
+      {
+        "ip": 4,
+        "line": 42
+      },
+      {
+        "ip": 8,
+        "line": 43
+      },
+      {
+        "ip": 16,
+        "line": 46
+      },
+      {
+        "ip": 20,
+        "line": 47
+      },
+      {
+        "ip": 25,
+        "line": 48
+      },
+      {
+        "ip": 31,
+        "line": 51
+      },
+      {
+        "ip": 42,
+        "line": 62
+      },
+      {
+        "ip": 47,
+        "line": 63
+      },
+      {
+        "ip": 52,
+        "line": 64
+      },
+      {
+        "ip": 55,
+        "line": 65
+      },
+      {
+        "ip": 70,
+        "line": 71
+      },
+      {
+        "ip": 74,
+        "line": 72
+      },
+      {
+        "ip": 78,
+        "line": 73
+      }
+    ]
+  },
+  "compiler": {
+    "name": "cashc",
+    "version": "0.12.1"
+  },
+  "updatedAt": "2026-04-03T03:14:57.932Z"
+}

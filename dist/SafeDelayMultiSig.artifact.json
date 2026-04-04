@@ -1,0 +1,216 @@
+{
+  "contractName": "SafeDelayMultiSig",
+  "constructorInputs": [
+    {
+      "name": "owner1",
+      "type": "bytes20"
+    },
+    {
+      "name": "owner2",
+      "type": "bytes20"
+    },
+    {
+      "name": "owner3",
+      "type": "bytes20"
+    },
+    {
+      "name": "threshold",
+      "type": "int"
+    },
+    {
+      "name": "lockEndBlock",
+      "type": "int"
+    }
+  ],
+  "abi": [
+    {
+      "name": "deposit",
+      "inputs": [
+        {
+          "name": "depositorPk",
+          "type": "pubkey"
+        },
+        {
+          "name": "depositorSig",
+          "type": "sig"
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "inputs": [
+        {
+          "name": "pk1",
+          "type": "pubkey"
+        },
+        {
+          "name": "sig1",
+          "type": "sig"
+        },
+        {
+          "name": "pk2",
+          "type": "pubkey"
+        },
+        {
+          "name": "sig2",
+          "type": "sig"
+        },
+        {
+          "name": "pk3",
+          "type": "pubkey"
+        },
+        {
+          "name": "sig3",
+          "type": "sig"
+        },
+        {
+          "name": "recipient",
+          "type": "bytes20"
+        },
+        {
+          "name": "withdrawAmount",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "cancel",
+      "inputs": [
+        {
+          "name": "pk1",
+          "type": "pubkey"
+        },
+        {
+          "name": "sig1",
+          "type": "sig"
+        },
+        {
+          "name": "pk2",
+          "type": "pubkey"
+        },
+        {
+          "name": "sig2",
+          "type": "sig"
+        },
+        {
+          "name": "pk3",
+          "type": "pubkey"
+        },
+        {
+          "name": "sig3",
+          "type": "sig"
+        },
+        {
+          "name": "recipient",
+          "type": "bytes20"
+        }
+      ]
+    }
+  ],
+  "bytecode": "OP_5 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_7 OP_ROLL OP_7 OP_ROLL OP_CHECKSIGVERIFY OP_0 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_NUMEQUALVERIFY OP_2DROP OP_2DROP OP_2DROP OP_1 OP_ELSE OP_5 OP_PICK OP_1 OP_NUMEQUAL OP_IF OP_0 OP_7 OP_PICK OP_HASH160 OP_2 OP_PICK OP_EQUALVERIFY OP_8 OP_ROLL OP_8 OP_ROLL OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_8 OP_PICK OP_HASH160 OP_4 OP_PICK OP_EQUAL OP_IF OP_9 OP_PICK OP_9 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ELSE OP_8 OP_PICK OP_HASH160 OP_5 OP_PICK OP_EQUAL OP_IF OP_9 OP_PICK OP_9 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ENDIF OP_ENDIF OP_10 OP_PICK OP_HASH160 OP_4 OP_PICK OP_EQUAL OP_IF OP_11 OP_PICK OP_11 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ELSE OP_10 OP_PICK OP_HASH160 OP_5 OP_PICK OP_EQUAL OP_IF OP_11 OP_PICK OP_11 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ENDIF OP_ENDIF OP_5 OP_ROLL OP_GREATERTHANOREQUAL OP_VERIFY OP_TXLOCKTIME OP_5 OP_ROLL OP_GREATERTHANOREQUAL OP_VERIFY OP_9 OP_PICK OP_ROT OP_EQUAL OP_9 OP_PICK OP_3 OP_ROLL OP_EQUAL OP_BOOLOR OP_8 OP_PICK OP_3 OP_ROLL OP_EQUAL OP_BOOLOR OP_VERIFY OP_0 OP_OUTPUTBYTECODE 76a914 OP_8 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_7 OP_ROLL OP_GREATERTHANOREQUAL OP_VERIFY OP_TXOUTPUTCOUNT OP_1 OP_GREATERTHAN OP_IF OP_1 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_ENDIF OP_2DROP OP_2DROP OP_2DROP OP_1 OP_ELSE OP_5 OP_ROLL OP_2 OP_NUMEQUALVERIFY OP_0 OP_6 OP_PICK OP_HASH160 OP_ROT OP_EQUALVERIFY OP_6 OP_ROLL OP_6 OP_ROLL OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_6 OP_PICK OP_HASH160 OP_3 OP_PICK OP_EQUAL OP_IF OP_7 OP_PICK OP_7 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ELSE OP_6 OP_PICK OP_HASH160 OP_4 OP_PICK OP_EQUAL OP_IF OP_7 OP_PICK OP_7 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ENDIF OP_ENDIF OP_8 OP_PICK OP_HASH160 OP_3 OP_ROLL OP_EQUAL OP_IF OP_8 OP_PICK OP_8 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ELSE OP_7 OP_PICK OP_HASH160 OP_3 OP_PICK OP_EQUAL OP_IF OP_8 OP_PICK OP_8 OP_PICK OP_CHECKSIGVERIFY OP_DUP OP_1ADD OP_NIP OP_ENDIF OP_ENDIF OP_3 OP_ROLL OP_GREATERTHANOREQUAL OP_VERIFY OP_0 OP_OUTPUTBYTECODE 76a914 OP_9 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_2DROP OP_2DROP OP_2DROP OP_DROP OP_1 OP_ENDIF OP_ENDIF",
+  "source": "pragma cashscript ^0.12.0;\n\n/**\n * SafeDelayMultiSig - Time-locked Wallet with Multi-Signature Support\n * \n * A time-locked wallet requiring M-of-N signatures for withdrawals.\n * Supports 2-of-3 or 3-of-3 configurations.\n */\ncontract SafeDelayMultiSig(\n    bytes20 owner1,\n    bytes20 owner2,\n    bytes20 owner3,\n    int threshold,\n    int lockEndBlock\n) {\n    /**\n     * Deposit funds into the time-locked wallet\n     */\n    function deposit(pubkey depositorPk, sig depositorSig) {\n        require(checkSig(depositorSig, depositorPk));\n        \n        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);\n        require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);\n    }\n    \n    /**\n     * Withdraw funds after lock expires - requires M-of-N signatures\n     * pk1 must be owner1, pk2/pk3 can be any of the other owners\n     * Funds are sent to the specified recipient (must be one of the owners)\n     */\n    function withdraw(\n        pubkey pk1, sig sig1,\n        pubkey pk2, sig sig2,\n        pubkey pk3, sig sig3,\n        bytes20 recipient,\n        int withdrawAmount\n    ) {\n        int validSigs = 0;\n        \n        // pk1 must be owner1\n        require(hash160(pk1) == owner1);\n        require(checkSig(sig1, pk1));\n        validSigs = validSigs + 1;\n        \n        // pk2 can be owner2 or owner3\n        if (hash160(pk2) == owner2) {\n            require(checkSig(sig2, pk2));\n            validSigs = validSigs + 1;\n        } else if (hash160(pk2) == owner3) {\n            require(checkSig(sig2, pk2));\n            validSigs = validSigs + 1;\n        }\n        \n        // pk3 can be owner2 or owner3 (if not already used)\n        if (hash160(pk3) == owner2) {\n            require(checkSig(sig3, pk3));\n            validSigs = validSigs + 1;\n        } else if (hash160(pk3) == owner3) {\n            require(checkSig(sig3, pk3));\n            validSigs = validSigs + 1;\n        }\n        \n        require(validSigs >= threshold);\n        require(tx.locktime >= lockEndBlock);\n        \n        // Recipient must be one of the owners\n        require(recipient == owner1 || recipient == owner2 || recipient == owner3);\n        \n        // Verify first output pays the withdrawal amount to the recipient\n        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipient));\n        require(tx.outputs[0].value >= withdrawAmount);\n        \n        // If there's a second output, it should be the contract (remaining balance)\n        if (tx.outputs.length > 1) {\n            require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);\n        }\n    }\n    \n    /**\n     * Cancel and refund - requires M-of-N signatures\n     * Funds are sent to the specified recipient (must be one of the owners)\n     */\n    function cancel(\n        pubkey pk1, sig sig1,\n        pubkey pk2, sig sig2,\n        pubkey pk3, sig sig3,\n        bytes20 recipient\n    ) {\n        int validSigs = 0;\n        \n        // pk1 must be owner1\n        require(hash160(pk1) == owner1);\n        require(checkSig(sig1, pk1));\n        validSigs = validSigs + 1;\n        \n        // pk2 can be owner2 or owner3\n        if (hash160(pk2) == owner2) {\n            require(checkSig(sig2, pk2));\n            validSigs = validSigs + 1;\n        } else if (hash160(pk2) == owner3) {\n            require(checkSig(sig2, pk2));\n            validSigs = validSigs + 1;\n        }\n        \n        // pk3 can be owner2 or owner3 (if not already used)\n        if (hash160(pk3) == owner2) {\n            require(checkSig(sig3, pk3));\n            validSigs = validSigs + 1;\n        } else if (hash160(pk3) == owner3) {\n            require(checkSig(sig3, pk3));\n            validSigs = validSigs + 1;\n        }\n        \n        require(validSigs >= threshold);\n        \n        // Cancel sends all funds to the specified recipient (any P2PKH address)\n        // The 2-of-3 signatures already prove authorization\n        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(recipient));\n    }\n}\n",
+  "debug": {
+    "bytecode": "5579009c63577a577aad00cd00c78800cc00c651c69302e803949d6d6d6d51675579519c63005779a9527988587a587aad768b5879a95479876359795979ad768b77675879a95579876359795979ad768b7768685a79a9547987635b795b79ad768b77675a79a9557987635b795b79ad768b776868557aa269c5557aa26959797b875979537a879b5879537a879b6900cd0376a914587a7e0288ac7e8800cc577aa269c451a06351cd00c788686d6d6d5167557a529d005679a97b88567a567aad768b5679a95379876357795779ad768b77675679a95479876357795779ad768b7768685879a9537a876358795879ad768b77675779a95379876358795879ad768b776868537aa26900cd0376a914597a7e0288ac7e886d6d6d75516868",
+    "sourceMap": "19:4:24:5;;;;;20:25:20:37;;:39::50;;:8::53:1;22:27:22:28:0;:16::45:1;:59::60:0;:49::77:1;:8::79;23:27:23:28:0;:16::35:1;:49::50:0;:39::57:1;:70::71:0;:60::78:1;:39;:81::85:0;:39:::1;:8::87;19:4:24:5;;;;;31::77::0;;;;;38:24:38:25;41::41:27;;:16::28:1;:32::38:0;;:8::40:1;42:25:42:29:0;;:31::34;;:8::37:1;43:20:43:29:0;:::33:1;46::46:23:0;;:12::24:1;:28::34:0;;:12:::1;:36:49:9:0;47:29:47:33;;:35::38;;:12::41:1;48:24:48:33:0;:::37:1;:12::38;49:15:52:9:0;:27:49:30;;:19::31:1;:35::41:0;;:19:::1;:43:52:9:0;50:29:50:33;;:35::38;;:12::41:1;51:24:51:33:0;:::37:1;:12::38;49:43:52:9;:15;55:20:55:23:0;;:12::24:1;:28::34:0;;:12:::1;:36:58:9:0;56:29:56:33;;:35::38;;:12::41:1;57:24:57:33:0;:::37:1;:12::38;58:15:61:9:0;:27:58:30;;:19::31:1;:35::41:0;;:19:::1;:43:61:9:0;59:29:59:33;;:35::38;;:12::41:1;60:24:60:33:0;:::37:1;:12::38;58:43:61:9;:15;63:29:63:38:0;;:16:::1;:8::40;64:16:64:27:0;:31::43;;:16:::1;:8::45;67:16:67:25:0;;:29::35;:16:::1;:39::48:0;;:52::58;;:39:::1;:16;:62::71:0;;:75::81;;:62:::1;:16;:8::83;70:27:70:28:0;:16::45:1;:49::84:0;:74::83;;:49::84:1;;;:8::86;71:27:71:28:0;:16::35:1;:39::53:0;;:16:::1;:8::55;74:12:74:29:0;:32::33;:12:::1;:35:76:9:0;75:31:75:32;:20::49:1;:63::64:0;:53::81:1;:12::83;74:35:76:9;31:4:77:5;;;;;83::119::0;;;;89:24:89:25;92::92:27;;:16::28:1;:32::38:0;:8::40:1;93:25:93:29:0;;:31::34;;:8::37:1;94:20:94:29:0;:::33:1;97::97:23:0;;:12::24:1;:28::34:0;;:12:::1;:36:100:9:0;98:29:98:33;;:35::38;;:12::41:1;99:24:99:33:0;:::37:1;:12::38;100:15:103:9:0;:27:100:30;;:19::31:1;:35::41:0;;:19:::1;:43:103:9:0;101:29:101:33;;:35::38;;:12::41:1;102:24:102:33:0;:::37:1;:12::38;100:43:103:9;:15;106:20:106:23:0;;:12::24:1;:28::34:0;;:12:::1;:36:109:9:0;107:29:107:33;;:35::38;;:12::41:1;108:24:108:33:0;:::37:1;:12::38;109:15:112:9:0;:27:109:30;;:19::31:1;:35::41:0;;:19:::1;:43:112:9:0;110:29:110:33;;:35::38;;:12::41:1;111:24:111:33:0;:::37:1;:12::38;109:43:112:9;:15;114:29:114:38:0;;:16:::1;:8::40;118:27:118:28:0;:16::45:1;:49::84:0;:74::83;;:49::84:1;;;:8::86;83:4:119:5;;;;;9:0:120:1;",
+    "logs": [],
+    "requires": [
+      {
+        "ip": 14,
+        "line": 20
+      },
+      {
+        "ip": 19,
+        "line": 22
+      },
+      {
+        "ip": 29,
+        "line": 23
+      },
+      {
+        "ip": 46,
+        "line": 41
+      },
+      {
+        "ip": 51,
+        "line": 42
+      },
+      {
+        "ip": 65,
+        "line": 47
+      },
+      {
+        "ip": 81,
+        "line": 50
+      },
+      {
+        "ip": 98,
+        "line": 56
+      },
+      {
+        "ip": 114,
+        "line": 59
+      },
+      {
+        "ip": 123,
+        "line": 63
+      },
+      {
+        "ip": 128,
+        "line": 64
+      },
+      {
+        "ip": 145,
+        "line": 67
+      },
+      {
+        "ip": 154,
+        "line": 70
+      },
+      {
+        "ip": 160,
+        "line": 71
+      },
+      {
+        "ip": 169,
+        "line": 75
+      },
+      {
+        "ip": 185,
+        "line": 92
+      },
+      {
+        "ip": 190,
+        "line": 93
+      },
+      {
+        "ip": 204,
+        "line": 98
+      },
+      {
+        "ip": 220,
+        "line": 101
+      },
+      {
+        "ip": 237,
+        "line": 107
+      },
+      {
+        "ip": 253,
+        "line": 110
+      },
+      {
+        "ip": 262,
+        "line": 114
+      },
+      {
+        "ip": 271,
+        "line": 118
+      }
+    ]
+  },
+  "compiler": {
+    "name": "cashc",
+    "version": "0.12.1"
+  },
+  "updatedAt": "2026-04-03T03:08:38.050Z"
+}

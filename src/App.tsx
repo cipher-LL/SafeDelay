@@ -6,6 +6,7 @@ import { WalletProvider } from './context/WalletContext';
 import SafeDelayForm from './components/SafeDelayForm';
 import SafeDelayMultiSigForm from './components/SafeDelayMultiSigForm';
 import Dashboard from './components/Dashboard';
+import SafeDelayManagerDashboard from './components/SafeDelayManagerDashboard';
 import Header from './components/Header';
 
 const Container = styled.div`
@@ -36,7 +37,7 @@ const Tab = styled.button<{ $active: boolean }>`
   }
 `;
 
-type TabType = 'create' | 'multisig' | 'dashboard';
+type TabType = 'create' | 'multisig' | 'dashboard' | 'manager';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<TabType>('create');
@@ -65,11 +66,18 @@ function AppContent() {
             >
               Dashboard
             </Tab>
+            <Tab 
+              $active={activeTab === 'manager'} 
+              onClick={() => setActiveTab('manager')}
+            >
+              Manager Registry
+            </Tab>
           </TabContainer>
           
           {activeTab === 'create' && <SafeDelayForm />}
           {activeTab === 'multisig' && <SafeDelayMultiSigForm />}
           {activeTab === 'dashboard' && <Dashboard />}
+          {activeTab === 'manager' && <SafeDelayManagerDashboard />}
         </Container>
       </WalletProvider>
     </NetworkProvider>
