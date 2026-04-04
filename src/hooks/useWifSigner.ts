@@ -55,30 +55,95 @@ interface ElectrumUtxo {
   height: number;
 }
 
-async function electrumRpc<T>(url: string, method: string, params: unknown[] = []): Promise<T> {
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-  });
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  return data.result;
+// Backup Electrum servers — ordered by perceived reliability
+const ELECTRUM_SERVERS: Record<string, { hostname: string; name: string }[]> = {
+  chipnet: [
+    { hostname: 'chipnet.imaginary.cash', name: 'Imaginary Cash (Chipnet)' },
+    { hostname: 'electroncash.de', name: 'Electron Cash DE (Chipnet)' },
+    { hostname: 'blacktown.io', name: 'Blacktown (Chipnet)' },
+  ],
+  testnet: [
+    { hostname: 'electrum.imaginary.cash', name: 'Imaginary Cash (Testnet)' },
+    { hostname: 'bch.imaginary.machine', name: 'Imaginary Machine' },
+    { hostname: 'electroncash.org', name: 'Electron Cash' },
+  ],
+  mainnet: [
+    { hostname: 'electrum.imaginary.cash', name: 'Imaginary Cash' },
+    { hostname: 'bch.imaginary.machine', name: 'Imaginary Machine' },
+    { hostname: 'electroncash.org', name: 'Electron Cash' },
+    { hostname: 'electrum-abc.cash', name: 'ABC Electrum' },
+    { hostname: 'bch.liops.co', name: 'Liops' },
+  ],
+};
+
+// Last successful server per network (preferred on next call)
+let lastServer: Record<string, string> = {
+  chipnet: '',
+  testnet: '',
+  mainnet: '',
+};
+
+const MAX_RETRIES = 2; // retries per server before moving to next
+
+async function electrumRpc<T>(
+  url: string,
+  method: string,
+  params: unknown[] = [],
+  retries = MAX_RETRIES
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      return data.result;
+    } catch (e) {
+      lastError = e as Error;
+    }
+  }
+  throw lastError || new Error('Electrum RPC failed');
 }
 
-async function getUtxos(address: string): Promise<ElectrumUtxo[]> {
+async function getUtxos(address: string, network: NetworkConfig['network'] = 'chipnet'): Promise<ElectrumUtxo[]> {
   try {
     const result = cashAddressToLockingBytecode(address);
     if (typeof result === 'string') throw new Error('Invalid address: ' + result);
-    // Create a regular ArrayBuffer copy for crypto.subtle.digest (avoids SharedArrayBuffer type issue)
     const bytecode = result.bytecode;
     const ab = new ArrayBuffer(bytecode.byteLength);
     new Uint8Array(ab).set(bytecode);
     const scriptHashBuffer = await crypto.subtle.digest('SHA-256', ab);
     const scriptHash = new Uint8Array(scriptHashBuffer).reverse();
     const scripthashHex = Array.from(scriptHash).map(b => b.toString(16).padStart(2, '0')).join('');
-    // Use a public Electrum server
-    return await electrumRpc<ElectrumUtxo[]>('https://api.blacktown.io/rpc', 'blockchain.scripthash.listunspent', [scripthashHex]);
+
+    const servers = ELECTRUM_SERVERS[network] || ELECTRUM_SERVERS.chipnet;
+
+    // Build server list: last successful first, then the rest
+    const lastHost = lastServer[network];
+    const serversToTry = lastHost
+      ? [servers.find(s => s.hostname.includes(lastHost))?.hostname || lastHost, ...servers.map(s => s.hostname).filter(h => h !== lastHost)]
+      : servers.map(s => s.hostname);
+
+    let lastError: Error | null = null;
+    for (const hostname of serversToTry) {
+      const url = `https://${hostname}/rpc`;
+      try {
+        const utxos = await electrumRpc<ElectrumUtxo[]>(url, 'blockchain.scripthash.listunspent', [scripthashHex]);
+        lastServer[network] = hostname;
+        console.log(`[useWifSigner] ✅ UTXOs fetched from ${hostname}`);
+        return utxos;
+      } catch (e) {
+        lastError = e as Error;
+        console.warn(`[useWifSigner] ⚠️ Failed ${hostname}: ${lastError.message}, trying next server...`);
+      }
+    }
+
+    console.error('[useWifSigner] ❌ All Electrum servers failed:', lastError?.message);
+    return [];
   } catch (e) {
     console.error('[useWifSigner] Error fetching UTXOs:', e);
     return [];
@@ -175,7 +240,7 @@ export function useWifSigner() {
       throw new Error('No UTXOs found at contract address. Make sure the contract is funded.');
     }
 
-    const walletUtxos = await getUtxos(walletAddress);
+    const walletUtxos = await getUtxos(walletAddress, network);
     if (walletUtxos.length === 0) {
       throw new Error('No wallet UTXOs found. Your wallet needs BCH to pay miner fees.');
     }
@@ -235,7 +300,7 @@ export function useWifSigner() {
       throw new Error('No UTXOs found at contract address.');
     }
 
-    const walletUtxos = await getUtxos(walletAddress);
+    const walletUtxos = await getUtxos(walletAddress, network);
     if (walletUtxos.length === 0) {
       throw new Error('No wallet UTXOs found.');
     }
