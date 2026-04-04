@@ -18,6 +18,7 @@ SafeDelay is a time-locked wallet where funds can only be withdrawn after a spec
 |----------|-------------|
 | `SafeDelay` | Single-owner time-locked wallet |
 | `SafeDelayMultiSig` | 2-of-3 or 3-of-3 multi-sig time-locked wallet |
+| `SafeDelayManager` | Registry that tracks all SafeDelay wallets created on the platform |
 
 ---
 
@@ -281,6 +282,103 @@ The function works by:
 2. All funds are returned to the first valid signer
 3. Owners coordinate to create a new SafeDelayMultiSig contract with the new `lockEndBlock`
 4. Funds are redeposited into the new contract
+
+
+## SafeDelayManager (Registry)
+
+A **registry contract** that tracks all SafeDelay wallets created through the platform. It maintains an on-chain list of user wallets, enabling discovery and management of multiple time-locked wallets from a single interface.
+
+### Why a Registry?
+
+Without a registry, users must manually track their SafeDelay wallet addresses. The manager provides:
+
+- **Wallet discovery** — Query the registry to find all your SafeDelay wallets
+- **Service provider fees** — Platform operators can collect a small fee for building on SafeDelay
+- **On-chain catalog** — All wallets are publicly verifiable on-chain
+
+### How It Works
+
+The SafeDelayManager is itself an NFT (Category 1) contract. Each user's wallet is registered as an entry in its **NFT commitment**:
+
+```
+NFT Commitment = [entry1_pkh(20) || entry1_lockEndBlock(8) ||
+                  entry2_pkh(20) || entry2_lockEndBlock(8) ||
+                  ...]
+```
+
+### Finding a User's SafeDelay Address (Off-Chain)
+
+Given an owner's PKH and lock end block, you can compute the SafeDelay wallet address off-chain:
+
+```
+SafeDelay address = hash256(ownerPKH_le || lockEndBlock_le || SafeDelayBytecode)
+```
+
+The bytecode is the compiled SafeDelay contract bytecode from `dist/SafeDelay.artifact.json`. This means the address is **deterministic** — no on-chain lookup needed.
+
+Use `SafeDelayManagerLibrary.computeSafeDelayAddress()` for this.
+
+### Registering a Wallet
+
+1. **Deploy your SafeDelay contract** with your owner PKH and desired lock end block
+2. **Fund the SafeDelay** with BCH
+3. **Call `createDelay()`** on the SafeDelayManager to register (pays a small fee to the service provider)
+
+The manager does NOT hold your funds — it only tracks the entry. Your SafeDelay wallet is independent.
+
+### Contract Functions
+
+| Function | Description |
+|----------|-------------|
+| `createDelay()` | Register a new SafeDelay wallet in the registry |
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `ownerPkh` | bytes20 | Owner's public key hash (20 bytes) |
+| `lockEndBlock` | bytes | 8-byte big-endian block height when lock expires |
+| `feeSats` | int | Fee to service provider (in satoshis) |
+
+### Example
+
+```typescript
+import { Contract } from 'cashscript';
+import { SafeDelayManagerArtifact } from 'safedelay';
+import { SafeDelayManagerLibrary } from 'safedelay';
+
+// Load the manager contract
+const manager = await Contract.fromArtifact(
+  SafeDelayManagerArtifact,
+  { serviceProviderPkh: 'service_provider_pkh' },
+  { provider }
+);
+
+// Compute your SafeDelay address before deploying
+const myAddress = SafeDelayManagerLibrary.computeSafeDelayAddress(
+  'owner_pkh_20_bytes_hex',
+  890000, // lock end block as number
+  'mainnet'
+);
+console.log('Your SafeDelay address:', myAddress);
+
+// Deploy your SafeDelay at this address (using the computed address)
+// Then register it with the manager:
+await manager.createDelay(
+  'owner_pkh_20_bytes_hex',
+  BigInt(890000),  // 8 bytes - must match the deployed contract
+  1000n            // 1000 sat fee to service provider
+).send();
+```
+
+### Commitment Format Details
+
+Each registry entry is **28 bytes**:
+
+- **20 bytes** — Owner's public key hash (PKH)
+- **8 bytes** — Lock end block as big-endian uint64
+
+The commitment is a flat concatenation of all entries. Maximum entries depend on the UTXO value (each entry adds 28 bytes to the commitment; with typical 546 sat dust limit, thousands of entries are possible).
 
 
 ## Environment Variables
