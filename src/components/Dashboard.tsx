@@ -9,6 +9,7 @@ import { useStoredContracts, useElectrumContractData } from '../hooks/useSafeDel
 import { useOnChainTxHistory } from '../hooks/useOnChainTxHistory';
 import { useWifSigner } from '../hooks/useWifSigner';
 import { QRCodeSVG } from 'qrcode.react';
+import QrScanner from './QrScanner';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
@@ -1812,12 +1813,13 @@ export default function Dashboard() {
                       <label style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
                         Enter WIF Private Key:
                       </label>
+                      <QrScanner onScan={handleWifKeyChange} />
                       <ModalInput
                         type="password"
                         placeholder="L1aW4aubWDZB...."
                         value={wifKey}
                         onChange={(e) => handleWifKeyChange(e.target.value)}
-                        style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                        style={{ fontFamily: 'monospace', fontSize: '13px', marginTop: '8px' }}
                       />
                       {wifError && (
                         <MessageBox $type="error" style={{ fontSize: '12px', marginTop: '6px' }}>
