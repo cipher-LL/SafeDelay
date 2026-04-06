@@ -18,13 +18,24 @@
  *   So we pre-compute the P2SH32 address, then the user funds it to activate.
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import * as libauth from '@bitauth/libauth';
+import * as crypto from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ARTIFACTS_DIR = join(__dirname, '..', 'artifacts');
+
+// ============ HASHES ============
+
+function loadHashes() {
+  const hashesPath = join(ARTIFACTS_DIR, 'HASHES.json');
+  if (existsSync(hashesPath)) {
+    return JSON.parse(readFileSync(hashesPath, 'utf8'));
+  }
+  return {};
+}
 
 // ============ CLI Args ============
 const args = process.argv.slice(2).reduce((acc, arg, i, arr) => {
@@ -100,7 +111,34 @@ function computeAddress(artifact, args) {
   });
 
   const address = typeof addressResult === 'string' ? addressResult : addressResult.address;
-  return { address, redeemScriptHex: Buffer.from(redeemScript).toString('hex') };
+  return { address, redeemScriptHex: Buffer.from(redeemScript).toString('hex'), bytecodeHash: null };
+}
+
+function verifyBytecode(artifact) {
+  const bytecodeHex = artifact.debug?.bytecode;
+  if (!bytecodeHex) return { verified: false, reason: 'No bytecode in artifact' };
+
+  const bytecodeBytes = Uint8Array.from(Buffer.from(bytecodeHex, 'hex'));
+  const hash = crypto.createHash('sha256').update(bytecodeBytes).digest('hex');
+  const hashes = loadHashes();
+  const contractName = artifact.contractName;
+
+  if (hashes[contractName]) {
+    const expected = hashes[contractName].bytecodeHash;
+    if (hash === expected) {
+      return { verified: true, hash, matches: expected, contractName };
+    }
+    return { verified: false, hash, expected, contractName };
+  }
+  return { verified: null, hash, reason: `No known hash for ${contractName} in HASHES.json` };
+}
+
+function formatBlockTime(blockHeight, currentBlock) {
+  const blocksUntil = blockHeight - (currentBlock || 0);
+  const minutesUntil = blocksUntil * 10;
+  const hoursUntil = Math.round(minutesUntil / 60);
+  const daysUntil = (hoursUntil / 24).toFixed(1);
+  return `block ${blockHeight} (~${daysUntil} days from now)`;
 }
 
 // ============ Electrum RPC Helpers ============
@@ -148,13 +186,27 @@ async function waitForFunding(address, minSats = DUST_SATS, timeoutMs = 180000) 
 
 // ============ Deployment ============
 
-async function deploySafeDelay(ownerPKH, lockEndBlock) {
+async function deploySafeDelay(ownerPKH, lockEndBlock, currentBlock) {
   const artifact = loadArtifact('SafeDelay');
 
-  console.log(`\n📦 Computing SafeDelay deployment address...`);
+  console.log(`\n📦 SafeDelay Deployment`);
   console.log(`   ownerPKH:      ${ownerPKH.slice(0, 8)}...${ownerPKH.slice(-8)}`);
-  console.log(`   lockEndBlock:  ${lockEndBlock}`);
+  console.log(`   lockEndBlock:  ${lockEndBlock} ${currentBlock ? `(${formatBlockTime(lockEndBlock, currentBlock)})` : ''}`);
   console.log(`   network:       ${NETWORK}`);
+
+  // Verify bytecode before deployment
+  const verification = verifyBytecode(artifact);
+  if (verification.verified === true) {
+    console.log(`\n   ✅ Bytecode verified`);
+    console.log(`   📋 Bytecode SHA256: ${verification.hash}`);
+  } else if (verification.verified === false) {
+    console.error(`\n   ❌ Bytecode MISMATCH! Expected: ${verification.expected}`);
+    console.error(`   📋 Got: ${verification.hash}`);
+    console.error(`   ⚠️  DO NOT PROCEED - bytecode does not match audited version!`);
+  } else {
+    console.log(`\n   ⚠️  Bytecode not in HASHES.json: ${verification.hash}`);
+    console.log(`   ℹ️  Add to artifacts/HASHES.json to enable verification`);
+  }
 
   const { address } = computeAddress(artifact, [ownerPKH, lockEndBlock]);
   console.log(`\n   Contract address: ${address}`);
@@ -296,9 +348,9 @@ For SafeDelayMultiSig (3 owners):
     : parseInt(blocks); // fallback: treat blocks as absolute height
 
   console.log(`   Lock duration: ${blocks} blocks`);
-  console.log(`   Lock end block: ${lockEndBlock}`);
+  console.log(`   Lock end block: ${lockEndBlock} (${formatBlockTime(lockEndBlock, currentBlock)})`);
 
-  const result = await deploySafeDelay(cleanOwner, lockEndBlock);
+  const result = await deploySafeDelay(cleanOwner, lockEndBlock, currentBlock);
 
   if (result.alreadyDeployed) {
     console.log(`\n📍 Already deployed: ${result.address}`);
