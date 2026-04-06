@@ -162,6 +162,7 @@ interface KeyPair {
 
 /**
  * Derive address, public key, and signer from a WIF key.
+ * Validates that the WIF key's encoded network matches the selected network.
  */
 function deriveKeyPair(wifKey: string, network: NetworkConfig['network']): KeyPair {
   const decoded = decodePrivateKeyWif(wifKey);
@@ -169,7 +170,27 @@ function deriveKeyPair(wifKey: string, network: NetworkConfig['network']): KeyPa
     throw new Error(`Invalid WIF key: ${decoded}`);
   }
 
-  const privateKey = decoded.privateKey;
+  const { privateKey, type: wifType } = decoded;
+
+  // Validate WIF-encoded network matches the UI's selected network
+  const isMainnet = wifType === 'mainnet' || wifType === 'mainnetUncompressed';
+  const isTestnet = wifType === 'testnet' || wifType === 'testnetUncompressed';
+  const isSelectedMainnet = network === 'mainnet';
+  const isSelectedTestnet = network === 'testnet' || network === 'chipnet';
+
+  if (isSelectedMainnet && !isMainnet) {
+    throw new Error(
+      `Network mismatch: this WIF key is for ${wifType === 'testnet' || wifType === 'testnetUncompressed' ? 'testnet/chipnet' : wifType}, but you have mainnet selected. ` +
+      `Please use a mainnet WIF key, or switch to testnet/chipnet in the network selector.`
+    );
+  }
+  if (isSelectedTestnet && !isTestnet) {
+    throw new Error(
+      `Network mismatch: this WIF key is for mainnet, but you have testnet/chipnet selected. ` +
+      `Please use a testnet or chipnet WIF key, or switch to mainnet in the network selector.`
+    );
+  }
+
   const prefix = networkPrefix(network);
 
   // Create signer and derive public key from private key
