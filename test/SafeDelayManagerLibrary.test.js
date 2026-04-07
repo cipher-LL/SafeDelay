@@ -8,7 +8,7 @@
  * Run with: node --experimental-vm-modules node_modules/jest/bin/jest.js
  */
 
-import { secp256k1, encodeCashAddress } from '@bitauth/libauth';
+import { secp256k1, encodeCashAddress, bigIntToVmNumber, hash256, encodeLockingBytecodeP2sh32, lockingBytecodeToCashAddress, cashAddressToLockingBytecode } from '@bitauth/libauth';
 import { hash160 } from '@cashscript/utils';
 
 // ─── Inline minimal implementations of library functions ────────────────────
@@ -358,5 +358,444 @@ describe('SafeDelayManagerLibrary', () => {
       const hex = Buffer.from(commitment).toString('hex');
       expect(hex.length % 56).toBe(0); // 28 bytes * 2 hex chars/byte
     });
+  });
+
+  // ─── addressToPkh ──────────────────────────────────────────────────────────
+
+  // Inline implementation matching SafeDelayManagerLibrary.addressToPkh()
+  function addressToPkh(address) {
+    const result = cashAddressToLockingBytecode(address);
+    if (typeof result === 'string') {
+      throw new Error('Could not decode address: ' + result);
+    }
+    const bytecodeArr = Array.from(result.bytecode);
+    // P2PKH: 76 a9 14 [20-byte PKH] 88 ac — 25 bytes, 0x88 at index 23
+    if (bytecodeArr[1] === 0xa9 && bytecodeArr[0] === 0x76 && bytecodeArr[23] === 0x88) {
+      const pkh = bytecodeArr.slice(3, 23);
+      return Array.from(pkh).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    // P2SH: a9 14 [20-byte hash] 87 — 23 bytes, 0x87 at index 22
+    if (bytecodeArr[0] === 0xa9 && bytecodeArr[1] === 0x14 && bytecodeArr[22] === 0x87) {
+      const hash = bytecodeArr.slice(2, 22);
+      return Array.from(hash).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    throw new Error('Could not decode address');
+  }
+
+  describe('addressToPkh', () => {
+    it('should extract PKH from a P2PKH mainnet address', () => {
+      const kp = generateKeyPair();
+      const pkhHex = addressToPkh(kp.address);
+      expect(pkhHex).toBe(Buffer.from(kp.pkh).toString('hex'));
+    });
+
+    it('should extract PKH from a P2PKH testnet/chipnet address', () => {
+      // Generate a testnet address
+      const privateKey = new Uint8Array(32);
+      crypto.getRandomValues(privateKey);
+      const publicKey = secp256k1.derivePublicKeyCompressed(privateKey);
+      const pkh = hash160(new Uint8Array(publicKey));
+      const result = encodeCashAddress({ network: 'bchtest', type: 'p2pkh', payload: pkh });
+      const address = result.address;
+
+      const extracted = addressToPkh(address);
+      expect(extracted).toBe(Buffer.from(pkh).toString('hex'));
+    });
+
+    it('should throw for invalid address format', () => {
+      expect(() => addressToPkh('notavalidaddress')).toThrow();
+    });
+  });
+});
+
+// ─── Inline implementations for computeSafeDelayAddress tests ───────────────
+
+const NETWORK_PREFIXES_COMPUTE = {
+  mainnet: 'bitcoincash',
+  chipnet: 'bchtest',
+  testnet: 'bchtest',
+};
+
+let _testSafeDelayBytecode = null;
+function setSafeDelayBytecodeForTest(bytecodeHex) {
+  _testSafeDelayBytecode = bytecodeHex;
+}
+
+function computeSafeDelayAddressForTest(ownerPkh, lockEndBlock, network = 'chipnet') {
+  if (!_testSafeDelayBytecode) {
+    throw new Error('SafeDelay bytecode not set. Call setSafeDelayBytecodeForTest() first.');
+  }
+
+  const bytecodeHex = _testSafeDelayBytecode;
+  const ownerPkhBytes = Uint8Array.from(
+    Buffer.from(ownerPkh.replace(/^0x/, '').padStart(40, '0'), 'hex')
+  );
+  const lockEndBlockVmNumber = bigIntToVmNumber(BigInt(lockEndBlock));
+
+  const redeemScript = new Uint8Array([
+    ...[...ownerPkhBytes].reverse(),
+    ...[...lockEndBlockVmNumber].reverse(),
+    ...Buffer.from(bytecodeHex, 'hex')
+  ]);
+
+  const hashResult = hash256(redeemScript);
+  const lockingBytecode = encodeLockingBytecodeP2sh32(hashResult);
+  const result = lockingBytecodeToCashAddress({
+    prefix: NETWORK_PREFIXES_COMPUTE[network],
+    bytecode: lockingBytecode,
+  });
+
+  return typeof result === 'string' ? result : result.address;
+}
+
+// Extract PKH from a BCH address (inline version for tests)
+function addressToPkhInline(address) {
+  const result = encodeCashAddress(address);
+  if (typeof result !== 'object') throw new Error('Invalid address');
+  const bytecodeArr = Array.from(result.bytecode);
+  // P2PKH: 0x76 0xa9 0x14 <20-bytes> 0x88 0xac
+  if (bytecodeArr[1] === 0xa9 && bytecodeArr[0] === 0x76 && bytecodeArr[22] === 0x88) {
+    const pkh = bytecodeArr.slice(3, 23);
+    return Array.from(pkh).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  // P2SH: 0xa9 0x14 <20-bytes> 0x87
+  if (bytecodeArr[0] === 0xa9 && bytecodeArr[22] === 0x87) {
+    const hash = bytecodeArr.slice(2, 22);
+    return Array.from(hash).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  throw new Error('Could not decode address');
+}
+
+describe('computeSafeDelayAddress', () => {
+  // SafeDelay bytecode extracted from the compiled artifact
+  const SAFE_DELAY_BYTECODE = 'OP_2 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_0 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_NUMEQUAL OP_NIP OP_NIP OP_NIP OP_ELSE OP_2 OP_PICK OP_1 OP_NUMEQUAL OP_IF OP_3 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_TXLOCKTIME OP_ROT OP_GREATERTHANOREQUAL OP_VERIFY OP_0 OP_UTXOVALUE OP_3 OP_PICK OP_SUB e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_3 OP_ROLL OP_GREATERTHANOREQUAL OP_VERIFY OP_DUP e803 OP_GREATERTHAN OP_IF OP_1 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_1 OP_OUTPUTVALUE OP_OVER OP_NUMEQUALVERIFY OP_ENDIF OP_2DROP OP_1 OP_ELSE OP_2 OP_PICK OP_2 OP_NUMEQUAL OP_IF OP_3 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_LESSTHANOREQUAL OP_NIP OP_NIP OP_ELSE OP_ROT OP_3 OP_NUMEQUALVERIFY OP_2 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_2SWAP OP_CHECKSIGVERIFY OP_ROT OP_ROT OP_GREATERTHAN OP_VERIFY OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_LESSTHANOREQUAL OP_ENDIF OP_ENDIF OP_ENDIF';
+
+  beforeEach(() => {
+    setSafeDelayBytecodeForTest(SAFE_DELAY_BYTECODE);
+  });
+
+  it('should throw if bytecode not set', () => {
+    // Create a fresh context without bytecode set
+    const freshBytecode = _testSafeDelayBytecode;
+    _testSafeDelayBytecode = null;
+    expect(() => computeSafeDelayAddressForTest('a'.repeat(40), 1000)).toThrow('SafeDelay bytecode not set');
+    _testSafeDelayBytecode = freshBytecode;
+  });
+
+  it('should compute a valid chipnet P2SH32 address', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    const address = computeSafeDelayAddressForTest(pkhHex, 1000, 'chipnet');
+    // chipnet addresses start with bchtest
+    expect(address).toMatch(/^bchtest:/);
+    expect(address.length).toBeGreaterThan(20);
+  });
+
+  it('should compute a valid mainnet P2SH32 address', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    const address = computeSafeDelayAddressForTest(pkhHex, 1000, 'mainnet');
+    // mainnet addresses start with bitcoincash
+    expect(address).toMatch(/^bitcoincash:/);
+    expect(address.length).toBeGreaterThan(20);
+  });
+
+  it('should produce different addresses for different ownerPKHs', () => {
+    const kp1 = generateKeyPair();
+    const kp2 = generateKeyPair();
+    const pkhHex1 = Buffer.from(kp1.pkh).toString('hex');
+    const pkhHex2 = Buffer.from(kp2.pkh).toString('hex');
+    const address1 = computeSafeDelayAddressForTest(pkhHex1, 1000, 'chipnet');
+    const address2 = computeSafeDelayAddressForTest(pkhHex2, 1000, 'chipnet');
+    expect(address1).not.toBe(address2);
+  });
+
+  it('should produce different addresses for different lockEndBlocks', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    const address1 = computeSafeDelayAddressForTest(pkhHex, 1000, 'chipnet');
+    const address2 = computeSafeDelayAddressForTest(pkhHex, 2000, 'chipnet');
+    expect(address1).not.toBe(address2);
+  });
+
+  it('should produce same address for same inputs (deterministic)', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    const address1 = computeSafeDelayAddressForTest(pkhHex, 5000, 'chipnet');
+    const address2 = computeSafeDelayAddressForTest(pkhHex, 5000, 'chipnet');
+    expect(address1).toBe(address2);
+  });
+
+  it('should handle zero block height', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    const address = computeSafeDelayAddressForTest(pkhHex, 0, 'chipnet');
+    expect(address).toMatch(/^bchtest:/);
+  });
+
+  it('should handle very large block height (uint64 max)', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    // 2^64-1 is the max uint64 — this is an edge case
+    const address = computeSafeDelayAddressForTest(pkhHex, Number.MAX_SAFE_INTEGER, 'chipnet');
+    expect(address).toMatch(/^bchtest:/);
+  });
+
+  it('should produce chipnet and mainnet addresses for same inputs', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    const chipnetAddr = computeSafeDelayAddressForTest(pkhHex, 720000, 'chipnet');
+    const mainnetAddr = computeSafeDelayAddressForTest(pkhHex, 720000, 'mainnet');
+    expect(chipnetAddr).not.toBe(mainnetAddr);
+    expect(chipnetAddr).toMatch(/^bchtest:/);
+    expect(mainnetAddr).toMatch(/^bitcoincash:/);
+  });
+
+  it('should handle PKH with and without 0x prefix', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    const address1 = computeSafeDelayAddressForTest(pkhHex, 1000, 'chipnet');
+    const address2 = computeSafeDelayAddressForTest('0x' + pkhHex, 1000, 'chipnet');
+    expect(address1).toBe(address2);
+  });
+
+  it('should pad short PKH with zeros', () => {
+    const kp = generateKeyPair();
+    const pkhHex = Buffer.from(kp.pkh).toString('hex');
+    const shortPkh = pkhHex.slice(0, 38); // 19 bytes instead of 20
+    // Should pad with leading zeros internally
+    const address = computeSafeDelayAddressForTest(shortPkh, 1000, 'chipnet');
+    expect(address).toMatch(/^bchtest:/);
+  });
+});
+
+// ─── getAllManagerDelays (mock-based) ───────────────────────────────────────
+
+describe('getAllManagerDelays', () => {
+  const MANAGER_ADDRESS = 'bchtest:qp2yk3x2cjg5v0x609z5ectrl0t3sltfs5vvs9qpkd';
+  const ELECTRUM_URL = 'https://chipnet.electroncash.de/api';
+
+  // Helper to build a mock electrum response for get_address_utxos
+  function buildElectrumUtxoResponse(utxos) {
+    return {
+      jsonrpc: '2.0',
+      id: 1,
+      result: utxos.map(u => ({
+        txid: u.txid,
+        vout: u.vout,
+        value: u.value,
+        tokenCategory: u.tokenCategory,
+        nftCommitment: u.nftCommitment,
+      })),
+    };
+  }
+
+  // Inline implementation of getManagerUtxos for testing
+  async function getManagerUtxosForTest(managerAddress, electrumUrl) {
+    const resp = await fetch(electrumUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'get_address_utxos',
+        params: [managerAddress, 0, 100],
+      }),
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const utxos = [];
+    for (const utxo of data.result) {
+      if (utxo.tokenCategory && utxo.tokenCategory !== '0x') {
+        const commitmentBytes = Buffer.from(utxo.nftCommitment || '', 'hex');
+        const entries = parseManagerCommitment(commitmentBytes);
+        utxos.push({
+          ...utxo,
+          tokenCategory: utxo.tokenCategory,
+          amount: BigInt(utxo.value),
+          managerData: {
+            serviceProviderPkh: '',
+            delayCount: entries.length,
+            delays: entries,
+          },
+        });
+      }
+    }
+    return utxos;
+  }
+
+  // Inline implementation of getAllManagerDelays for testing
+  async function getAllManagerDelaysForTest(managerAddress, electrumUrl, network = 'chipnet') {
+    setSafeDelayBytecodeForTest(SAFE_DELAY_BYTECODE);
+    const utxos = await getManagerUtxosForTest(managerAddress, electrumUrl);
+    const allEntries = [];
+
+    for (const utxo of utxos) {
+      for (const entry of utxo.managerData.delays) {
+        const address = computeSafeDelayAddressForTest(entry.ownerPkh, entry.lockEndBlock, network);
+        allEntries.push({
+          ownerPkh: entry.ownerPkh,
+          lockEndBlock: entry.lockEndBlock,
+          address,
+        });
+      }
+    }
+
+    return allEntries;
+  }
+
+  const SAFE_DELAY_BYTECODE = 'OP_2 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_0 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_NUMEQUAL OP_NIP OP_NIP OP_NIP OP_ELSE OP_2 OP_PICK OP_1 OP_NUMEQUAL OP_IF OP_3 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_TXLOCKTIME OP_ROT OP_GREATERTHANOREQUAL OP_VERIFY OP_0 OP_UTXOVALUE OP_3 OP_PICK OP_SUB e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_3 OP_ROLL OP_GREATERTHANOREQUAL OP_VERIFY OP_DUP e803 OP_GREATERTHAN OP_IF OP_1 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_1 OP_OUTPUTVALUE OP_OVER OP_NUMEQUALVERIFY OP_ENDIF OP_2DROP OP_1 OP_ELSE OP_2 OP_PICK OP_2 OP_NUMEQUAL OP_IF OP_3 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_4 OP_ROLL OP_4 OP_ROLL OP_CHECKSIGVERIFY OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_LESSTHANOREQUAL OP_NIP OP_NIP OP_ELSE OP_ROT OP_3 OP_NUMEQUALVERIFY OP_2 OP_PICK OP_HASH160 OP_OVER OP_EQUALVERIFY OP_2SWAP OP_CHECKSIGVERIFY OP_ROT OP_ROT OP_GREATERTHAN OP_VERIFY OP_0 OP_UTXOVALUE OP_1 OP_UTXOVALUE OP_ADD e803 OP_SUB OP_0 OP_OUTPUTBYTECODE 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_LESSTHANOREQUAL OP_ENDIF OP_ENDIF OP_ENDIF';
+
+  beforeEach(() => {
+    // Set bytecode for address computation
+    setSafeDelayBytecodeForTest(SAFE_DELAY_BYTECODE);
+  });
+
+  it('should return empty array when manager has no UTXOs', async () => {
+    const mockResponse = buildElectrumUtxoResponse([]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => {
+      return {
+        async json() { return mockResponse; }
+      };
+    };
+
+    try {
+      const delays = await getAllManagerDelaysForTest(MANAGER_ADDRESS, ELECTRUM_URL);
+      expect(delays).toEqual([]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('should return empty array when manager UTXOs have no NFT tokens', async () => {
+    // UTXOs without tokenCategory (pure BCH)
+    const mockResponse = {
+      jsonrpc: '2.0', id: 1, result: [
+        { txid: 'abc', vout: 0, value: 100000, tokenCategory: '0x', nftCommitment: '' }
+      ]
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ async json() { return mockResponse; } });
+
+    try {
+      const delays = await getAllManagerDelaysForTest(MANAGER_ADDRESS, ELECTRUM_URL);
+      expect(delays).toEqual([]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('should parse NFT commitment and compute SafeDelay addresses', async () => {
+    const kp1 = generateKeyPair();
+    const kp2 = generateKeyPair();
+    const block1 = encodeLockEndBlockBytes(1000);
+    const block2 = encodeLockEndBlockBytes(2000);
+
+    const commitment1 = new Uint8Array([...kp1.pkh, ...block1]);
+    const commitment2 = new Uint8Array([...kp2.pkh, ...block2]);
+
+    const mockResponse = {
+      jsonrpc: '2.0', id: 1, result: [
+        {
+          txid: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+          vout: 0,
+          value: 100000,
+          tokenCategory: '1111111111111111111111111111111111111111111111111111111111111111',
+          nftCommitment: Buffer.from(commitment1).toString('hex'),
+        },
+        {
+          txid: 'bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222',
+          vout: 0,
+          value: 100000,
+          tokenCategory: '2222222222222222222222222222222222222222222222222222222222222222',
+          nftCommitment: Buffer.from(commitment2).toString('hex'),
+        },
+      ]
+    };
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ async json() { return mockResponse; } });
+
+    try {
+      const delays = await getAllManagerDelaysForTest(MANAGER_ADDRESS, ELECTRUM_URL, 'chipnet');
+      expect(delays.length).toBe(2);
+
+      // Check first entry
+      expect(delays[0].ownerPkh).toBe(Buffer.from(kp1.pkh).toString('hex'));
+      expect(delays[0].lockEndBlock).toBe(1000);
+      expect(delays[0].address).toMatch(/^bchtest:/);
+
+      // Check second entry
+      expect(delays[1].ownerPkh).toBe(Buffer.from(kp2.pkh).toString('hex'));
+      expect(delays[1].lockEndBlock).toBe(2000);
+      expect(delays[1].address).toMatch(/^bchtest:/);
+
+      // Addresses should be different
+      expect(delays[0].address).not.toBe(delays[1].address);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('should throw on electrum error response', async () => {
+    const mockResponse = { jsonrpc: '2.0', id: 1, error: { message: 'Address not found' } };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ async json() { return mockResponse; } });
+
+    try {
+      await expect(
+        getAllManagerDelaysForTest(MANAGER_ADDRESS, ELECTRUM_URL)
+      ).rejects.toThrow('Address not found');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('should return all entries across multiple manager UTXOs', async () => {
+    const kp = generateKeyPair();
+    const block = encodeLockEndBlockBytes(5000);
+    const commitment = new Uint8Array([...kp.pkh, ...block]);
+
+    // 3 UTXOs, each with the same commitment
+    const mockResponse = {
+      jsonrpc: '2.0', id: 1, result: [
+        {
+          txid: 'aaaa1111'.padEnd(64, 'a'),
+          vout: 0, value: 100000,
+          tokenCategory: 'aaaa0000'.padEnd(64, 'a'),
+          nftCommitment: Buffer.from(commitment).toString('hex'),
+        },
+        {
+          txid: 'bbbb1111'.padEnd(64, 'b'),
+          vout: 0, value: 100000,
+          tokenCategory: 'bbbb0000'.padEnd(64, 'b'),
+          nftCommitment: Buffer.from(commitment).toString('hex'),
+        },
+        {
+          txid: 'cccc1111'.padEnd(64, 'c'),
+          vout: 0, value: 100000,
+          tokenCategory: 'cccc0000'.padEnd(64, 'c'),
+          nftCommitment: Buffer.from(commitment).toString('hex'),
+        },
+      ]
+    };
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ async json() { return mockResponse; } });
+
+    try {
+      const delays = await getAllManagerDelaysForTest(MANAGER_ADDRESS, ELECTRUM_URL, 'chipnet');
+      expect(delays.length).toBe(3);
+      // All entries should have the same owner and lockEndBlock
+      for (const delay of delays) {
+        expect(delay.ownerPkh).toBe(Buffer.from(kp.pkh).toString('hex'));
+        expect(delay.lockEndBlock).toBe(5000);
+        expect(delay.address).toMatch(/^bchtest:/);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
