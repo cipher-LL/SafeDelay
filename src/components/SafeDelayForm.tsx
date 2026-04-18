@@ -4,6 +4,7 @@ import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
 import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
+import HASHES from '../../artifacts/HASHES.json';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -123,6 +124,28 @@ const ResultValue = styled.div`
   word-break: break-all;
 `;
 
+const BytecodeErrorBox = styled.div`
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+`;
+
+const BytecodeErrorIcon = styled.span`
+  font-size: 18px;
+  line-height: 1.4;
+`;
+
+const BytecodeErrorText = styled.div`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+`;
+
 export default function SafeDelayForm() {
   const { wallet } = useWallet();
   const { network } = useNetwork();
@@ -132,6 +155,7 @@ export default function SafeDelayForm() {
   const [depositAmount, setDepositAmount] = useState('');
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [bytecodeError, setBytecodeError] = useState<string | null>(null);
 
   const getDurationInBlocks = () => {
     const days = durationUnit === 'days' 
@@ -151,7 +175,25 @@ export default function SafeDelayForm() {
     }
 
     setLoading(true);
+    setBytecodeError(null);
     try {
+      // Verify embedded artifact bytecode against known-good hash before deployment
+      const SafeDelayArtifact = (await import('../../artifacts/SafeDelay.artifact.json')).default;
+      const bytecodeHex = SafeDelayArtifact.debug?.bytecode;
+      if (bytecodeHex) {
+        const buf = Buffer.from(bytecodeHex, 'hex');
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buf);
+        const actualHash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+        const knownHash = HASHES.SafeDelay?.bytecodeHash;
+        if (knownHash && actualHash !== knownHash) {
+          const msg = 'Contract bytecode verification failed — embedded artifact does not match the expected deployed bytecode. Please ensure you are using the correct compiled artifact. See docs/troubleshooting.md for how to fix this.';
+          setBytecodeError(msg);
+          console.error('[SafeDelayForm] Bytecode mismatch:', actualHash, '!=', knownHash);
+          setLoading(false);
+          return;
+        }
+      }
       // Calculate lock end block relative to current block height
       const blocks = getDurationInBlocks();
       
@@ -238,9 +280,16 @@ export default function SafeDelayForm() {
           <HelpText>Leave empty to create contract without initial deposit</HelpText>
         </FormGroup>
 
-        <SubmitButton type="submit" disabled={loading || !wallet.connected}>
+        <SubmitButton type="submit" disabled={loading || !wallet.connected || !!bytecodeError}>
           {loading ? 'Creating...' : 'Create SafeDelay'}
         </SubmitButton>
+
+        {bytecodeError && (
+          <BytecodeErrorBox>
+            <BytecodeErrorIcon>⚠️</BytecodeErrorIcon>
+            <BytecodeErrorText>{bytecodeError}</BytecodeErrorText>
+          </BytecodeErrorBox>
+        )}
 
         {!wallet.connected && (
           <HelpText style={{ color: '#f59e0b', textAlign: 'center' }}>
