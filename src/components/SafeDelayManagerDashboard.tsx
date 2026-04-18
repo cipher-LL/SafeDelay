@@ -282,6 +282,8 @@ export default function SafeDelayManagerDashboard() {
     remaining: number;
     days: number;
     balance: number;
+    verified: boolean | null;
+    computedAddress: string | null;
   } | null>(null);
 
   // ─── Track external SafeDelay address ────────────────────────────────────
@@ -302,18 +304,45 @@ export default function SafeDelayManagerDashboard() {
       let address = externalAddressInput.trim();
       let ownerPkh = externalOwnerPkh.trim();
       let lockEndBlock = externalLockEnd;
+      let verified: boolean | null = null;
+      let computedAddress: string | null = null;
 
-      // If only owner PKH is provided, compute address from bytecode + params
-      if (!address && ownerPkh && lockEndBlock > 0) {
+      // Validate owner PKH format if provided
+      if (ownerPkh && !/^[0-9a-f]{40}$/i.test(ownerPkh)) {
+        setExternalError('Owner PKH must be 40 hex characters');
+        return;
+      }
+
+      // Compute expected address from owner PKH + lock end block
+      if (ownerPkh && lockEndBlock > 0) {
         if (!/^[0-9a-f]{40}$/i.test(ownerPkh)) {
           setExternalError('Owner PKH must be 40 hex characters');
           return;
         }
-        address = computeSafeDelayAddress(ownerPkh, lockEndBlock, toLibNetwork(network));
+        computedAddress = computeSafeDelayAddress(ownerPkh, lockEndBlock, toLibNetwork(network));
+
+        // If address was also provided, verify they match (confirms lock params are correct)
+        if (address) {
+          const normalizedProvided = address.replace(/^(bitcoincash:|bchtest:|bchreg:)/i, '');
+          const normalizedComputed = computedAddress.replace(/^(bitcoincash:|bchtest:|bchreg:)/i, '');
+          verified = normalizedProvided.toLowerCase() === normalizedComputed.toLowerCase();
+          if (!verified) {
+            setExternalError(
+              `⚠️ Mismatch: The provided address doesn't match the address computed from ` +
+              `owner PKH + lock end block. Either the lock end block is incorrect, ` +
+              `or you're tracking a different SafeDelay.\n\n` +
+              `Provided: ${address}\nComputed: ${computedAddress}`
+            );
+            return;
+          }
+        } else {
+          // No address provided, use the computed one
+          address = computedAddress;
+        }
       }
 
       if (!address) {
-        setExternalError('Enter an address or provide owner PKH + lock end block');
+        setExternalError('Enter a SafeDelay address or provide owner PKH + lock end block');
         return;
       }
 
@@ -336,7 +365,9 @@ export default function SafeDelayManagerDashboard() {
           locked: false,
           remaining: 0,
           days: 0,
-          balance
+          balance,
+          verified,
+          computedAddress,
         });
         return;
       }
@@ -350,7 +381,7 @@ export default function SafeDelayManagerDashboard() {
       const days = Math.floor(remaining / 144);
       const locked = effectiveLockEnd > bh;
 
-      setExternalResult({ address, locked, remaining, days, balance });
+      setExternalResult({ address, locked, remaining, days, balance, verified, computedAddress });
     } catch (err) {
       setExternalError(err instanceof Error ? err.message : 'Failed to fetch SafeDelay status');
     }
@@ -729,6 +760,16 @@ export default function SafeDelayManagerDashboard() {
                 {copied === externalResult.address ? '✓' : '📋 Copy'}
               </CopyBtn>
             </AddressBox>
+          )}
+          {externalResult && externalResult.verified === true && (
+            <MessageBox $type="success" style={{ marginTop: '8px', fontSize: '13px' }}>
+              ✅ <strong>On-chain verified</strong> — lock parameters match the contract address
+              {externalResult.computedAddress && externalResult.computedAddress !== externalResult.address && (
+                <span style={{ display: 'block', marginTop: '2px', opacity: 0.8 }}>
+                  (computed from owner PKH + lock end block)
+                </span>
+              )}
+            </MessageBox>
           )}
           {externalResult && (
             <WalletMeta style={{ marginTop: '8px' }}>
