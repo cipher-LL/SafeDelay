@@ -381,6 +381,132 @@ Each registry entry is **28 bytes**:
 The commitment is a flat concatenation of all entries. Maximum entries depend on the UTXO value (each entry adds 28 bytes to the commitment; with typical 546 sat dust limit, thousands of entries are possible).
 
 
+## Deploying on Mainnet
+
+SafeDelay contracts support both **chipnet/testnet** (for testing) and **mainnet** (for production). The deploy scripts accept `--network chipnet|mainnet`.
+
+> ⚠️ **Always test on chipnet first** with small amounts before deploying on mainnet with real funds.
+
+### Prerequisites
+
+- **paytaca CLI** installed and configured: `npm install -g paytaca-cli`
+- **BCH in your paytaca wallet** for gas fees
+- **Service Provider PKH** — your service's public key hash (40 hex chars / 20 bytes)
+- **Node.js 18+**
+
+### Step 1: Deploy the SafeDelayManager (Registry)
+
+The SafeDelayManager tracks all SafeDelay wallets. You need this deployed before users can register.
+
+```bash
+# Clone and build SafeDelay
+git clone https://github.com/LifestoneLabs/SafeDelay.git
+cd SafeDelay
+npm install
+npm run build
+
+# Deploy the manager on mainnet
+node scripts/deploy-manager.mjs --sp-pkh <your_sp_pkh_hex> --network mainnet
+```
+
+The script outputs your manager address. **Save it** — you'll need it for the SafeDelay dashboard and frontends.
+
+```
+📦 Computing SafeDelayManager deployment address...
+   Service Provider PKH: 1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b...
+   Manager address: bitcoincash:q...  ← SAVE THIS
+```
+
+### Step 2: Fund the Manager
+
+The manager needs a small amount of BCH (546+ sats) to be a valid UTXO:
+
+```bash
+paytaca send <manager_address> 0.00000546
+```
+
+Re-run the deploy script after funding to confirm:
+```bash
+node scripts/deploy-manager.mjs --sp-pkh <your_sp_pkh_hex> --network mainnet
+```
+
+### Step 3: Deploy a SafeDelay Contract (Optional — Most Users Do This Via Dashboard)
+
+For users deploying via CLI or programmatically:
+
+```bash
+# Deploy a SafeDelay wallet on mainnet
+node scripts/deploy-contract.mjs \
+  --owner <owner_pkh_hex> \
+  --blocks 52560 \
+  --network mainnet
+```
+
+- `--blocks` is the lock duration (~10 min/block, so 52560 ≈ 1 year)
+- The computed SafeDelay address is **deterministic** — anyone can compute it from the owner's PKH and lock end block
+- Fund the SafeDelay address to add BCH
+
+### Step 4: Register with the Manager
+
+After deploying and funding a SafeDelay, call `createDelay()` to register it:
+
+```typescript
+const manager = await Contract.fromArtifact(
+  SafeDelayManagerArtifact,
+  { serviceProviderPkh: '<your_sp_pkh>' },
+  { provider: electrumProvider }
+);
+
+await manager.createDelay(
+  '<owner_pkh>',
+  BigInt(lockEndBlock),  // must match the deployed contract
+  1000n                  // fee in sats to service provider
+).send();
+```
+
+### Mainnet vs Chipnet
+
+| | Chipnet/Testnet | Mainnet |
+|---|---|---|
+| Network prefix | `bchtest:` | `bitcoincash:` |
+| RPC | `https://api.blacktown.io/rpc` | `https://api.blacktown.io/rpc` |
+| Script flag | `--network chipnet` | `--network mainnet` |
+| WIF key prefix | `9`, `c`, `p` | `5`, `K`, `L` |
+
+### Getting Your Service Provider PKH
+
+Your PKH is the hash160 of your P2PKH public key (20 bytes = 40 hex chars). From a BCH address:
+
+```typescript
+import { cashAddressToLockingBytecode } from '@bitauth/libauth';
+
+const result = cashAddressToLockingBytecode('bitcoincash:q...');
+const bytecode = result.bytecode;
+// bytes 3-22 = pubkeyhash (20 bytes = 40 hex chars)
+const pkh = bytecode.slice(3, 23).toString('hex');
+```
+
+Or from a WIF key:
+
+```typescript
+import { decodePrivateKeyWif } from '@bitauth/libauth';
+
+const decoded = decodePrivateKeyWif('K...');
+const pkh = decoded.privateKey.slice(1).toString('hex'); // hash160 of pubkey
+```
+
+### Contract Addresses (Update Your Frontend)
+
+After deploying on mainnet, update the manager address in your frontend config:
+
+```typescript
+// Your mainnet SafeDelayManager address
+const MANAGER_ADDRESS_MAINNET = 'bitcoincash:q...'; // ← update this
+```
+
+The SafeDelayManager is referenced by the `SafeDelayManagerLibrary` when initializing the registry.
+
+
 ## Environment Variables
 
 SafeDelay uses environment variables for wallet and network configuration:
