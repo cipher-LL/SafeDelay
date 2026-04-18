@@ -271,6 +271,91 @@ export default function SafeDelayManagerDashboard() {
   const [copied, setCopied] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'mine' | 'all'>('mine');
 
+  // External SafeDelay tracking (e.g. from BadgerSurvivors prize claims)
+  const [externalAddressInput, setExternalAddressInput] = useState('');
+  const [externalOwnerPkh, setExternalOwnerPkh] = useState('');
+  const [externalLockEnd, setExternalLockEnd] = useState<number>(0);
+  const [externalError, setExternalError] = useState<string | null>(null);
+  const [externalResult, setExternalResult] = useState<{
+    address: string;
+    locked: boolean;
+    remaining: number;
+    days: number;
+    balance: number;
+  } | null>(null);
+
+  // ─── Track external SafeDelay address ────────────────────────────────────
+  const handleTrackExternal = useCallback(async () => {
+    setExternalError(null);
+    setExternalResult(null);
+
+    if (!externalAddressInput && !externalOwnerPkh) {
+      setExternalError('Enter a SafeDelay address or owner PKH');
+      return;
+    }
+
+    try {
+      const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+      const blockHeight = await provider.getBlockHeight();
+      const bh = Number(blockHeight);
+
+      let address = externalAddressInput.trim();
+      let ownerPkh = externalOwnerPkh.trim();
+      let lockEndBlock = externalLockEnd;
+
+      // If only owner PKH is provided, compute address from bytecode + params
+      if (!address && ownerPkh && lockEndBlock > 0) {
+        if (!/^[0-9a-f]{40}$/i.test(ownerPkh)) {
+          setExternalError('Owner PKH must be 40 hex characters');
+          return;
+        }
+        address = computeSafeDelayAddress(ownerPkh, lockEndBlock, toLibNetwork(network));
+      }
+
+      if (!address) {
+        setExternalError('Enter an address or provide owner PKH + lock end block');
+        return;
+      }
+
+      // Fetch UTXOs to get balance and current lock status
+      const utxos = await provider.getUtxos(address);
+      const balance = utxos.reduce((sum: number, u: any) => sum + Number(u.value), 0) / 1e8;
+
+      // Determine effective lock end block
+      // If we don't have it from form input, try from UTXO data
+      let effectiveLockEnd = lockEndBlock;
+      if (effectiveLockEnd === 0 && utxos.length > 0) {
+        // We can't derive lockEndBlock from UTXO alone without the contract
+        // Ask user to provide it
+        setExternalError(
+          `Found ${utxos.length} UTXO(s) with ${balance.toFixed(4)} BCH. ` +
+          `Provide the lock end block (from your prize claim) to check unlock status.`
+        );
+        setExternalResult({
+          address,
+          locked: false,
+          remaining: 0,
+          days: 0,
+          balance
+        });
+        return;
+      }
+
+      if (effectiveLockEnd === 0) {
+        setExternalError('Could not determine lock end block. Provide it manually.');
+        return;
+      }
+
+      const remaining = Math.max(0, effectiveLockEnd - bh);
+      const days = Math.floor(remaining / 144);
+      const locked = effectiveLockEnd > bh;
+
+      setExternalResult({ address, locked, remaining, days, balance });
+    } catch (err) {
+      setExternalError(err instanceof Error ? err.message : 'Failed to fetch SafeDelay status');
+    }
+  }, [externalAddressInput, externalOwnerPkh, externalLockEnd, network]);
+
   // ─── Initialize SafeDelay bytecode ─────────────────────────────────────────
   useEffect(() => {
     const bytecode = (SafeDelayArtifact as any).debug?.bytecode;
@@ -588,6 +673,77 @@ export default function SafeDelayManagerDashboard() {
 
       {loadingEntries && <MessageBox $type="info">Scanning blockchain for registry entries...</MessageBox>}
       {entriesError && !managerAddress && <MessageBox $type="error">{entriesError}</MessageBox>}
+
+      {/* ── Track External SafeDelay (e.g. from BadgerSurvivors prizes) ── */}
+      {wallet.connected && (
+        <Section>
+          <SectionTitle>Track External SafeDelay</SectionTitle>
+          <Description style={{ fontSize: '14px', marginBottom: '12px' }}>
+            Track a SafeDelay created outside this dashboard — e.g. tournament prize deposits
+            from BadgerSurvivors. Enter the address from your prize claim to view its status.
+          </Description>
+
+          <FormRow>
+            <FormGroup style={{ flex: 1 }}>
+              <Label>SafeDelay Address (P2SH32)</Label>
+              <Input
+                placeholder="bchtest:pz... or bitcoincash:q..."
+                value={externalAddressInput}
+                onChange={e => setExternalAddressInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleTrackExternal()}
+                style={{ fontFamily: 'monospace', fontSize: '13px' }}
+              />
+            </FormGroup>
+            <FormGroup style={{ minWidth: '160px' }}>
+              <Label>Owner PKH (40 hex)</Label>
+              <Input
+                placeholder="a1b2c3d4e5..."
+                value={externalOwnerPkh}
+                onChange={e => setExternalOwnerPkh(e.target.value.toLowerCase())}
+                style={{ fontFamily: 'monospace', fontSize: '13px' }}
+              />
+            </FormGroup>
+            <FormGroup style={{ minWidth: '160px' }}>
+              <Label>Lock End Block</Label>
+              <Input
+                type="number"
+                placeholder="850000"
+                value={externalLockEnd || ''}
+                onChange={e => setExternalLockEnd(parseInt(e.target.value) || 0)}
+              />
+            </FormGroup>
+            <SecondaryBtn onClick={handleTrackExternal} disabled={!externalAddressInput && !externalOwnerPkh}>
+              Track
+            </SecondaryBtn>
+          </FormRow>
+
+          {externalError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{externalError}</MessageBox>}
+
+          {externalResult && (
+            <AddressBox style={{ marginTop: '12px', borderColor: 'rgba(16,185,129,0.4)' }}>
+              <span>
+                <strong>SafeDelay Address:</strong><br />
+                {externalResult.address}
+              </span>
+              <CopyBtn onClick={() => handleCopy(externalResult.address)}>
+                {copied === externalResult.address ? '✓' : '📋 Copy'}
+              </CopyBtn>
+            </AddressBox>
+          )}
+          {externalResult && (
+            <WalletMeta style={{ marginTop: '8px' }}>
+              {externalResult.locked
+                ? `🔒 Locked — ${externalResult.remaining.toLocaleString()} blocks remaining (~${externalResult.days} days)`
+                : '✅ Fully unlocked — ready to withdraw'}
+              {externalResult.balance > 0 && (
+                <span style={{ color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 700 }}>
+                  {externalResult.balance.toFixed(4)} BCH
+                </span>
+              )}
+            </WalletMeta>
+          )}
+        </Section>
+      )}
 
       {/* ── Registered Wallets ── */}
       {myEntries.length > 0 && (
