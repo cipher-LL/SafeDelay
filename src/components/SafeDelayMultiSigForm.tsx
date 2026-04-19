@@ -4,6 +4,7 @@ import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
 import { deploySafeDelayMultiSig, addressToPubkeyHash } from '../utils/deployContract';
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
+import HASHES from '../../artifacts/HASHES.json';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -151,6 +152,16 @@ const ContractAddress = styled.div`
   color: #a855f7;
 `;
 
+const BytecodeErrorBox = styled.div`
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #ef4444;
+  margin-bottom: 4px;
+`;
+
 const ErrorText = styled.span`
   font-size: 12px;
   color: #ef4444;
@@ -168,6 +179,7 @@ export default function SafeDelayMultiSigForm() {
   const [owner3Address, setOwner3Address] = useState('');
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Count how many unique owners are provided (owner1 is always required)
@@ -201,9 +213,28 @@ export default function SafeDelayMultiSigForm() {
 
     setError(null);
     setContractAddress(null);
+    setBytecodeError(null);
     setLoading(true);
 
     try {
+      // Verify embedded artifact bytecode against known-good hash before deployment
+      const SafeDelayMultiSigArtifact = (await import('../../artifacts/SafeDelayMultiSig.artifact.json')).default;
+      const bytecodeHex = SafeDelayMultiSigArtifact.debug?.bytecode;
+      if (bytecodeHex) {
+        const buf = Buffer.from(bytecodeHex, 'hex');
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buf);
+        const actualHash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+        const knownHash = HASHES.SafeDelayMultiSig?.bytecodeHash;
+        if (knownHash && actualHash !== knownHash) {
+          const msg = 'Contract bytecode verification failed — embedded artifact does not match the expected deployed bytecode. Please ensure you are using the correct compiled artifact.';
+          setBytecodeError(msg);
+          console.error('[SafeDelayMultiSigForm] Bytecode mismatch:', actualHash, '!=', knownHash);
+          setLoading(false);
+          return;
+        }
+      }
+
       // Validate at least owner 1 is set
       if (!owner1Address.trim()) {
         throw new Error('Owner 1 address is required');
@@ -371,9 +402,10 @@ export default function SafeDelayMultiSigForm() {
           <HelpText>~{getDurationInBlocks()} blocks</HelpText>
         </FormGroup>
 
+        {bytecodeError && <BytecodeErrorBox>{bytecodeError}</BytecodeErrorBox>}
         {error && <ErrorText>{error}</ErrorText>}
 
-        <SubmitButton type="submit" disabled={loading || !wallet.connected}>
+        <SubmitButton type="submit" disabled={loading || !wallet.connected || !!bytecodeError}>
           {loading ? 'Creating...' : 'Create MultiSig'}
         </SubmitButton>
       </Form>
