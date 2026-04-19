@@ -144,6 +144,39 @@ node scripts/deploy-contract.mjs --multi-sig --owner1 <pkh> --owner2 <pkh> --own
 **Get your PKH from a BCH address:**
 Use `@bitauth/libauth` or any BCH utility to derive the hash160 of a P2PKH address.
 
+### Deploy SafeDelayManager Registry (mainnet)
+
+SafeDelayManager is a singleton registry contract that tracks all SafeDelay wallets deployed by a service provider. The Manager Registry tab in the frontend uses it to browse and register SafeDelay wallets.
+
+**⚠️ Mainnet deployment requires your service provider PKH.** Kyle: run this once with your SP key.
+
+```bash
+# 1. Compile contracts first
+npm run compile:contracts
+
+# 2. Deploy SafeDelayManager to mainnet
+node scripts/deploy-manager.mjs --sp-pkh <your_20_byte_pkh_hex> --network mainnet
+```
+
+Example:
+```bash
+node scripts/deploy-manager.mjs --sp-pkh 1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b --network mainnet
+```
+
+The script will:
+1. Compute the P2SH32 SafeDelayManager address from your SP PKH
+2. Show the address — fund it with 546+ sats via `paytaca send <address> 0.00000546`
+3. Wait for confirmation and report success
+
+**After deployment:** Save the manager address. Enter it in the Manager Registry tab's address field to browse your SafeDelay wallets on-chain.
+
+**Compute a child's SafeDelay address off-chain** (no on-chain deployment needed for the child):
+```bash
+node scripts/deploy-manager.mjs --compute-child --owner <owner_pkh_hex> --blocks <end_block> --network mainnet
+```
+
+**Manager Registry tab empty state:** If no manager is deployed, the tab shows an empty list with a prompt to enter the manager address. There is no default mainnet manager — each service provider deploys their own.
+
 ## Support
 
 For issues or questions, open a GitHub issue at https://github.com/LifestoneLabs/SafeDelay
