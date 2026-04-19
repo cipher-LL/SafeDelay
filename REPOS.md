@@ -40,3 +40,4 @@ npm run compile   # outputs to dist/
 - ✅ Bytecode hashes tracked in `artifacts/HASHES.json`
 - ✅ REPOS.md created documenting bytecode hashes (issue #83)
 - ✅ README "Compiling Contracts" section updated with correct `dist/` paths (issue #82)
+- ✅ React/Vite dashboard migrated from single HTML — `src/App.tsx` powers the app; `index.html.legacy` removed (issue #84)
