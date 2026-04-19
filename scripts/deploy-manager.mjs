@@ -247,13 +247,15 @@ async function main() {
     return;
   }
 
-  const { spPkh } = args;
+  const { spPkh: argSpPkh } = args;
+  const spPkh = argSpPkh || process.env.SAFE_DELAY_SP_PKH;
   if (!spPkh) {
     console.error(`
 ❌ Missing required arguments.
 
 Usage:
   node scripts/deploy-manager.mjs --sp-pkh <pkh_hex> [--network chipnet|mainnet]
+  Or set SAFE_DELAY_SP_PKH environment variable.
 
 Options:
   --sp-pkh   Service provider public key hash (40 hex chars = 20 bytes)
@@ -261,6 +263,9 @@ Options:
 
 Example (chipnet):
   node scripts/deploy-manager.mjs --sp-pkh 1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b --network chipnet
+
+Or use environment variable:
+  SAFE_DELAY_SP_PKH=1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b npm run deploy:chipnet
 
 To get your PKH from a BCH address:
   Use @bitauth/libauth or any BCH utility to derive the hash160 of a P2PKH address.

@@ -407,6 +407,9 @@ npm run build
 
 # Deploy the manager on mainnet
 node scripts/deploy-manager.mjs --sp-pkh <your_sp_pkh_hex> --network mainnet
+
+# Or use npm scripts with SAFE_DELAY_SP_PKH env var:
+SAFE_DELAY_SP_PKH=<your_sp_pkh_hex> npm run deploy:mainnet
 ```
 
 The script outputs your manager address. **Save it** — you'll need it for the SafeDelay dashboard and frontends.
@@ -428,6 +431,7 @@ paytaca send <manager_address> 0.00000546
 Re-run the deploy script after funding to confirm:
 ```bash
 node scripts/deploy-manager.mjs --sp-pkh <your_sp_pkh_hex> --network mainnet
+# Or: SAFE_DELAY_SP_PKH=<your_sp_pkh_hex> npm run deploy:mainnet
 ```
 
 ### Step 3: Deploy a SafeDelay Contract (Optional — Most Users Do This Via Dashboard)
