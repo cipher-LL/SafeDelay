@@ -403,6 +403,10 @@ The SafeDelayManager tracks all SafeDelay wallets. You need this deployed before
 git clone https://github.com/LifestoneLabs/SafeDelay.git
 cd SafeDelay
 npm install
+
+# Compile CashScript contracts (generates dist/*.artifact.json)
+npm run compile
+
 npm run build
 
 # Deploy the manager on mainnet
