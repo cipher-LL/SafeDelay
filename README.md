@@ -172,20 +172,82 @@ await newSafeDelay.deposit().send(ownerAddress, fullBalance);
 - **No emergency override** - This is by design for the "commitment" use case
 - **Dust limit** - Minimum 1000 sats must remain in contract for it to persist
 
+## Compiling Contracts
+
+SafeDelay uses CashScript 0.12.x. All contracts are compiled and the artifacts are committed to the repository, so you typically don't need to recompile. But if you modify a contract or need to verify bytecode, here's how:
+
+### Prerequisites
+
+```bash
+npm install
+```
+
+### Compile All Contracts
+
+```bash
+npm run compile
+```
+
+This runs CashScript on all `.cash` files and outputs hex artifacts to `artifacts/`:
+
+- `artifacts/SafeDelay.artifact.json`
+- `artifacts/SafeDelayMultiSig.artifact.json`
+- `artifacts/SafeDelayManager.artifact.json`
+- `artifacts/HASHES.json` — bytecode hashes for all contracts
+
+### Compile a Single Contract
+
+```bash
+npx cashc SafeDelay.cash --hex
+# or with output file:
+npx cashc SafeDelay.cash --output artifacts/SafeDelay.artifact.json
+```
+
+### Verify Bytecode Hash
+
+After compiling, verify the bytecode hash matches HASHES.json:
+
+```bash
+# Check SafeDelay
+node -e "
+const fs = require('fs');
+const { createHash } = require('crypto');
+const artifact = JSON.parse(fs.readFileSync('artifacts/SafeDelay.artifact.json'));
+const hash = createHash('sha256').update(artifact.debug.bytecode, 'hex').digest('hex');
+console.log('Computed:', hash);
+const expected = JSON.parse(fs.readFileSync('artifacts/HASHES.json')).SafeDelay.bytecodeHash;
+console.log('Expected:', expected);
+console.log('Match:', hash === expected);
+"
+```
+
+If hashes don't match, the artifact is stale — run `npm run compile` to regenerate.
+
+### Individual Contract Compilation
+
+```bash
+# SafeDelay
+npx cashc SafeDelay.cash --hex --output artifacts/SafeDelay.artifact.json
+
+# SafeDelayMultiSig
+npx cashc SafeDelayMultiSig.cash --hex --output artifacts/SafeDelayMultiSig.artifact.json
+
+# SafeDelayManager
+npx cashc SafeDelayManager.cash --hex --output artifacts/SafeDelayManager.artifact.json
+```
+
 ## Development
 
 ```bash
-# Install dependencies
-npm install cashscript
-
-# Compile contract
-npx cashc SafeDelay.cash --hex
-
-# Run tests (if added)
-npm test
+npm install      # Install dependencies (already done if using the repo)
+npm run compile  # Recompile contracts after making changes
+npm test         # Run unit tests
 ```
 
-## License
+When modifying contracts, always:
+1. Recompile with `npm run compile`
+2. Update `HASHES.json` with the new bytecode hashes (run `scripts/update-hashes.mjs` if available)
+3. Verify the hash is correct before deploying
 
 MIT
 
