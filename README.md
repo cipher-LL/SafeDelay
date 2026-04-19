@@ -188,19 +188,20 @@ npm install
 npm run compile
 ```
 
-This runs CashScript on all `.cash` files and outputs hex artifacts to `artifacts/`:
+This runs CashScript on all `.cash` files and outputs hex artifacts to `dist/`:
 
-- `artifacts/SafeDelay.artifact.json`
-- `artifacts/SafeDelayMultiSig.artifact.json`
-- `artifacts/SafeDelayManager.artifact.json`
-- `artifacts/HASHES.json` — bytecode hashes for all contracts
+- `dist/SafeDelay.artifact.json`
+- `dist/SafeDelayMultiSig.artifact.json`
+- `dist/SafeDelayManager.artifact.json`
+
+The canonical bytecode hashes for all contracts are committed to `artifacts/HASHES.json`.
 
 ### Compile a Single Contract
 
 ```bash
 npx cashc SafeDelay.cash --hex
 # or with output file:
-npx cashc SafeDelay.cash --output artifacts/SafeDelay.artifact.json
+npx cashc SafeDelay.cash --output dist/SafeDelay.artifact.json
 ```
 
 ### Verify Bytecode Hash
@@ -212,7 +213,7 @@ After compiling, verify the bytecode hash matches HASHES.json:
 node -e "
 const fs = require('fs');
 const { createHash } = require('crypto');
-const artifact = JSON.parse(fs.readFileSync('artifacts/SafeDelay.artifact.json'));
+const artifact = JSON.parse(fs.readFileSync('dist/SafeDelay.artifact.json'));
 const hash = createHash('sha256').update(artifact.debug.bytecode, 'hex').digest('hex');
 console.log('Computed:', hash);
 const expected = JSON.parse(fs.readFileSync('artifacts/HASHES.json')).SafeDelay.bytecodeHash;
@@ -227,13 +228,13 @@ If hashes don't match, the artifact is stale — run `npm run compile` to regene
 
 ```bash
 # SafeDelay
-npx cashc SafeDelay.cash --hex --output artifacts/SafeDelay.artifact.json
+npx cashc SafeDelay.cash --hex --output dist/SafeDelay.artifact.json
 
 # SafeDelayMultiSig
-npx cashc SafeDelayMultiSig.cash --hex --output artifacts/SafeDelayMultiSig.artifact.json
+npx cashc SafeDelayMultiSig.cash --hex --output dist/SafeDelayMultiSig.artifact.json
 
 # SafeDelayManager
-npx cashc SafeDelayManager.cash --hex --output artifacts/SafeDelayManager.artifact.json
+npx cashc SafeDelayManager.cash --hex --output dist/SafeDelayManager.artifact.json
 ```
 
 ## Development
