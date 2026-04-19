@@ -507,6 +507,33 @@ const MANAGER_ADDRESS_MAINNET = 'bitcoincash:q...'; // ← update this
 The SafeDelayManager is referenced by the `SafeDelayManagerLibrary` when initializing the registry.
 
 
+## Track External SafeDelay
+
+The dashboard supports **tracking SafeDelay wallets created externally** — for example, tournament prize deposits from BadgerSurvivors. You don't need to have deployed the contract through this dashboard to track it.
+
+### How to Track an External SafeDelay
+
+1. Go to the **SafeDelayManager** tab in the dashboard
+2. Click **"Track External SafeDelay"**
+3. Enter the **SafeDelay address** (P2SH32 from your prize claim)
+4. Optionally enter the **Owner PKH** (40 hex chars) and **Lock End Block** for on-chain verification
+5. Click **Track** to view the balance and unlock status
+
+### On-Chain Verification
+
+When you provide all three fields (address + owner PKH + lock end block), the dashboard will:
+
+1. Compute the expected SafeDelay address from your parameters using `hash256(ownerPKH_le || lockEndBlock_le || SafeDelayBytecode)`
+2. Compare it to the provided address
+3. Show **"✅ On-chain verified"** if they match, or a clear error with both addresses if there's a mismatch
+
+This prevents accidentally tracking the wrong SafeDelay — useful when multiple wallets share the same owner but have different lock times.
+
+### Use Cases
+
+- **BadgerSurvivors tournament prizes** — After claiming a prize, you receive a SafeDelay P2SH address with a ~2-week lock. Track it here to see when it unlocks.
+- **Third-party SafeDelay tools** — Any SafeDelay wallet created with compatible bytecode can be tracked.
+
 ## Environment Variables
 
 SafeDelay uses environment variables for wallet and network configuration:
