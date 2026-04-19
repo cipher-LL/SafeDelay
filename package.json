@@ -10,7 +10,11 @@
     "preview": "vite preview --outDir dist-frontend",
     "compile": "cashc src/SafeDelay.cash --hex --output dist/",
     "compile:contracts": "cashc src/*.cash --hex --output dist/",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.json"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.json",
+    "deploy:chipnet": "node scripts/deploy-manager.mjs --network chipnet",
+    "deploy:mainnet": "node scripts/deploy-manager.mjs --network mainnet",
+    "deploy:contract:chipnet": "node scripts/deploy-contract.mjs --network chipnet",
+    "deploy:contract:mainnet": "node scripts/deploy-contract.mjs --network mainnet"
   },
   "dependencies": {
     "@bitauth/libauth": "^3.0.0",

@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
+import { getManagerAddress, getServiceProviderPkh, isManagerDeployed } from '../config/contracts';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
 import SafeDelayManagerArtifact from '../../dist/SafeDelayManager.artifact.json';
 import {
@@ -395,6 +396,23 @@ export default function SafeDelayManagerDashboard() {
     }
   }, []);
 
+  // ─── Auto-populate manager address from config on network change ──────────
+  useEffect(() => {
+    const net = network as 'mainnet' | 'chipnet' | 'testnet';
+    const configAddr = getManagerAddress(net);
+    const configSpPkh = getServiceProviderPkh(net);
+    if (configAddr) {
+      setManagerAddressInput(configAddr);
+      setManagerAddress(configAddr);
+    } else {
+      setManagerAddressInput('');
+      setManagerAddress('');
+    }
+    if (configSpPkh) {
+      setServiceProviderPkh(configSpPkh);
+    }
+  }, [network]);
+
   // ─── Load registry ─────────────────────────────────────────────────────────
   const loadRegistry = useCallback(async (address: string) => {
     if (!address) return;
@@ -665,7 +683,18 @@ export default function SafeDelayManagerDashboard() {
         </SecondaryBtn>
       </FormRow>
 
-      {!managerAddress && (
+      {!managerAddress && !isManagerDeployed(network as 'mainnet' | 'chipnet' | 'testnet') && (
+        <MessageBox $type="info">
+          <strong>SafeDelayManager not deployed on {network}.</strong>{' '}
+          To set up the registry, run:{' '}
+          <code style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+            node scripts/deploy-manager.mjs --sp-pkh &lt;your_pkh&gt; --network {network}
+          </code>
+          {' '}Then update <code style={{ fontFamily: 'monospace', fontSize: '12px' }}>src/config/contracts.ts</code> with the deployed address.
+        </MessageBox>
+      )}
+
+      {!managerAddress && isManagerDeployed(network as 'mainnet' | 'chipnet' | 'testnet') && (
         <MessageBox $type="info">
           Enter the SafeDelayManager contract address to browse the registry.
           The service provider PKH is required to register new entries.
