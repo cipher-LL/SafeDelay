@@ -78,10 +78,8 @@ const CloseScannerBtn = styled.button`
 
 const ScannerRegion = styled.div`
   width: 100%;
-  min-width: 200px;
+  max-width: 280px;
   min-height: 200px;
-  max-width: 320px;
-  margin: 0 auto;
 
   video {
     width: 100% !important;
@@ -90,8 +88,8 @@ const ScannerRegion = styled.div`
 
   @media (max-width: 400px) {
     max-width: 100%;
-    min-width: 150px;
-    min-height: 150px;
+    min-width: 160px;
+    min-height: 160px;
   }
 `;
 
