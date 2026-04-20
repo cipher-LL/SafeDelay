@@ -78,12 +78,20 @@ const CloseScannerBtn = styled.button`
 
 const ScannerRegion = styled.div`
   width: 100%;
-  max-width: 300px;
+  min-width: 200px;
+  min-height: 200px;
+  max-width: 320px;
   margin: 0 auto;
 
   video {
     width: 100% !important;
     border-radius: 4px;
+  }
+
+  @media (max-width: 400px) {
+    max-width: 100%;
+    min-width: 150px;
+    min-height: 150px;
   }
 `;
 
@@ -183,6 +191,10 @@ export default function QrScanner({ onScan, disabled }: QrScannerProps) {
 
     const containerId = containerIdRef.current;
 
+    // Responsive qrbox based on screen width
+    const screenWidth = window.innerWidth;
+    const qrboxSize = screenWidth < 400 ? 180 : screenWidth < 500 ? 220 : 250;
+
     try {
       const scanner = new Html5Qrcode(containerId);
       scannerRef.current = scanner;
@@ -191,7 +203,7 @@ export default function QrScanner({ onScan, disabled }: QrScannerProps) {
         { facingMode: 'environment' },
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 },
+          qrbox: { width: qrboxSize, height: qrboxSize },
           aspectRatio: 1.0,
         },
         (decodedText) => {
