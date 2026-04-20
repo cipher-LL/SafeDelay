@@ -50,8 +50,8 @@ const NETWORK = args.network || 'chipnet';
 const IS_MAINNET = NETWORK === 'mainnet';
 const NETWORK_PREFIX = IS_MAINNET ? 'bitcoincash' : 'bchtest';
 const RPC_URL = IS_MAINNET
-  ? 'https://api.blacktown.io/rpc'
-  : 'https://api.blacktown.io/rpc';
+  ? 'https://bchd.electroncash.net:8335/rpc'
+  : 'https://tbchd.electroncash.dk:8335/rpc';
 
 const DUST_SATS = 546;
 

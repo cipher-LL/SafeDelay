@@ -6,7 +6,7 @@
  */
 
 import { Contract, ElectrumNetworkProvider, Network, SignatureTemplate } from 'cashscript';
-import { decodePrivateKeyWif, hash160, publicKeyToP2pkhCashAddress } from '@bitauth/libauth';
+import { decodePrivateKeyWif, hash160, publicKeyToP2pkhCashAddress, encodeCashAddress } from '@bitauth/libauth';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 
 // ============ Types ============
@@ -39,9 +39,9 @@ export interface InsufficientBalanceError extends Error {
 // ============ Network Config ============
 
 const DEFAULT_ELECTRUM_URLS = {
-  mainnet: 'https://api.blacktown.io/rpc',
-  testnet: 'https://api.blacktown.io/rpc',
-  chipnet: 'https://api.blacktown.io/rpc',
+  mainnet: 'https://bchd.electroncash.net:8335/rpc',
+  testnet: 'https://tbchd.electroncash.dk:8335/rpc',
+  chipnet: 'https://bchd.electroncash.dk:8335/rpcpc',
 };
 
 function toCashScriptNetwork(network: NetworkConfig['network']): Network {
