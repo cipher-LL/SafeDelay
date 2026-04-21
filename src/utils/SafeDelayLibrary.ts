@@ -6,7 +6,7 @@
  */
 
 import { Contract, ElectrumNetworkProvider, Network, SignatureTemplate } from 'cashscript';
-import { decodePrivateKeyWif, hash160, publicKeyToP2pkhCashAddress, encodeCashAddress } from '@bitauth/libauth';
+import { decodePrivateKeyWif, hash160, publicKeyToP2pkhCashAddress, encodeLockingBytecodeP2sh32, lockingBytecodeToCashAddress } from '@bitauth/libauth';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 
 // ============ Types ============
@@ -338,14 +338,11 @@ export function computeAddress(ownerPkh: string, lockEndBlock: number, network: 
   // Build P2SH32 locking bytecode and convert to address
   const prefix = networkPrefixForAddress(network);
   // @ts-ignore
-  const lockingBytecode = encodeCashAddress({
-    prefix,
-    bytecode: { type: 'p2sh32', hash },
-  });
-
-  if (typeof lockingBytecode === 'string') {
-    throw new Error(`Failed to encode address: ${lockingBytecode}`);
+  const lb = encodeLockingBytecodeP2sh32(hash);
+  // @ts-ignore
+  const result = lockingBytecodeToCashAddress({ prefix, bytecode: lb });
+  if (typeof result === 'string') {
+    return result; // already an address string
   }
-
-  return lockingBytecode;
+  return result.address;
 }
