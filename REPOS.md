@@ -8,7 +8,7 @@
 
 | Contract | Source | Bytecode Hash (SHA256) | Bytes |
 |----------|--------|------------------------|-------|
-| `SafeDelay` | `SafeDelay.cash` | `f68fd15f33a19b50fdbd2e6aa0001d48e40f1f1e094d3a8a883cfea4318d01e6` | 185 |
+| `SafeDelay` | `SafeDelay.cash` | `f68fd15f33a19b50fdbd2e6aa0001d48e40f1f1e094d3a8a883cfea4318d01e6` | 179 |
 | `SafeDelayMultiSig` | `SafeDelayMultiSig.cash` | `a13fb855218f3fc0af4bd2af187f5831dbe7b11a04e43585587799000a1dc1d5` | 286 |
 | `SafeDelayManager` | `SafeDelayManager.cash` | `afec3c01444e2ecd922601ea6f0b0a87364f2d360ea347447b39042fd9577a2a` | 90 |
 
