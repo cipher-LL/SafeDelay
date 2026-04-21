@@ -201,14 +201,7 @@ export default function SafeDelayForm() {
       // In production, fetch current block height from network
       const estimatedLockEnd = blocks; // Relative blocks from now
       
-      // Log creation details for debugging
-      // eslint-disable-next-line no-console
-      console.log('Creating SafeDelay with:', {
-        owner: wallet.address,
-        lockEndBlock: estimatedLockEnd,
-        depositAmount,
-        network
-      });
+      
 
       // Convert wallet address to pubkey hash for the contract
       const ownerPkh = await addressToPubkeyHash(wallet.address!);

@@ -286,16 +286,7 @@ export default function SafeDelayMultiSigForm() {
         );
       }
 
-      // Log creation details for debugging
-      // eslint-disable-next-line no-console
-      console.log('Creating SafeDelayMultiSig with:', {
-        owner1Pkh,
-        owner2Pkh: finalOwner2Pkh,
-        owner3Pkh: finalOwner3Pkh,
-        threshold: parseInt(threshold),
-        lockEndBlock: getDurationInBlocks(),
-        network,
-      });
+      
 
       const result = await deploySafeDelayMultiSig({
         owner1Pkh,
