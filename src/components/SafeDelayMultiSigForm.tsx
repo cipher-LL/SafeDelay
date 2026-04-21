@@ -286,6 +286,8 @@ export default function SafeDelayMultiSigForm() {
         );
       }
 
+      // Log creation details for debugging
+      // eslint-disable-next-line no-console
       console.log('Creating SafeDelayMultiSig with:', {
         owner1Pkh,
         owner2Pkh: finalOwner2Pkh,
