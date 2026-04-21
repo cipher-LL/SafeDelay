@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface DepositMilestone {
   address: string;
@@ -18,21 +18,39 @@ export interface MilestoneNotification {
 const STORAGE_KEY = 'safedelay_milestone_notifications';
 const DEFAULT_MILESTONES = [25, 50, 75, 100];
 
+// Track per-milestone notification block numbers to handle re-visits properly
+interface UnlockTracking {
+  notifiedMilestones: number[];
+  notifiedAtBlock: Record<number, number>; // milestone → block when notified
+}
+
 interface StoredData {
   milestones: DepositMilestone[];
-  lastNotified: Record<string, number[]>;
+  unlockTracking: Record<string, UnlockTracking>;
 }
 
 function loadFromStorage(): StoredData {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Migrate old format if needed
+      if (parsed.lastNotified && !parsed.unlockTracking) {
+        const unlockTracking: Record<string, UnlockTracking> = {};
+        for (const [addr, notifiedList] of Object.entries(parsed.lastNotified as Record<string, number[]>)) {
+          unlockTracking[addr] = {
+            notifiedMilestones: notifiedList as number[],
+            notifiedAtBlock: {}
+          };
+        }
+        return { milestones: parsed.milestones || [], unlockTracking };
+      }
+      return parsed;
     }
   } catch (e) {
     console.error('[useDepositMilestones] Failed to load from storage:', e);
   }
-  return { milestones: [], lastNotified: {} };
+  return { milestones: [], unlockTracking: {} };
 }
 
 function saveToStorage(data: StoredData): void {
@@ -48,11 +66,13 @@ export function useDepositMilestones(enabled: boolean = true) {
   const [milestones, setMilestones] = useState<number[]>(DEFAULT_MILESTONES);
   const [notifications, setNotifications] = useState<MilestoneNotification[]>([]);
   const [permission, setPermission] = useState<NotificationPermission>('default');
+  const unlockTrackingRef = useRef<Record<string, UnlockTracking>>({});
 
   // Load saved state on mount
   useEffect(() => {
     const stored = loadFromStorage();
     setDeposits(stored.milestones);
+    unlockTrackingRef.current = stored.unlockTracking || {};
   }, []);
 
   // Check notification permission
@@ -76,7 +96,7 @@ export function useDepositMilestones(enabled: boolean = true) {
   const addDeposit = useCallback((address: string, lockEndBlock: number, currentBlock: number) => {
     const initialBlock = currentBlock;
     const totalBlocks = lockEndBlock - initialBlock;
-    
+
     // Skip if no lock period
     if (totalBlocks <= 0) return;
 
@@ -84,9 +104,9 @@ export function useDepositMilestones(enabled: boolean = true) {
       // Check if already tracking this address
       const existing = prev.find(d => d.address === address);
       if (existing) {
-        // Update existing deposit
-        return prev.map(d => 
-          d.address === address 
+        // Update existing deposit (reset notified milestones on re-deposit)
+        return prev.map(d =>
+          d.address === address
             ? { ...d, currentBlock, lockEndBlock, notifiedMilestones: [] }
             : d
         );
@@ -102,10 +122,13 @@ export function useDepositMilestones(enabled: boolean = true) {
       };
 
       const updated = [...prev, newDeposit];
-      
+
+      // Initialize unlock tracking
+      unlockTrackingRef.current[address] = { notifiedMilestones: [], notifiedAtBlock: {} };
+
       // Save to storage
-      saveToStorage({ milestones: updated, lastNotified: {} });
-      
+      saveToStorage({ milestones: updated, unlockTracking: unlockTrackingRef.current });
+
       return updated;
     });
   }, []);
@@ -114,21 +137,37 @@ export function useDepositMilestones(enabled: boolean = true) {
   const updateBlockHeight = useCallback((currentBlock: number) => {
     setDeposits(prev => {
       let newNotifications: MilestoneNotification[] = [];
-      
+
       const updated = prev.map(deposit => {
         const totalBlocks = deposit.lockEndBlock - deposit.initialBlock;
         const elapsedBlocks = currentBlock - deposit.initialBlock;
-        const percentComplete = Math.floor((elapsedBlocks / totalBlocks) * 100);
-        
-        // Find which milestones have been reached
-        const reachedMilestones = milestones.filter(m => 
-          percentComplete >= m && 
-          !deposit.notifiedMilestones.includes(m)
-        );
+        const percentComplete = totalBlocks > 0
+          ? Math.floor((elapsedBlocks / totalBlocks) * 100)
+          : 100;
 
-        if (reachedMilestones.length > 0) {
-          // Create notifications
-          reachedMilestones.forEach(m => {
+        const tracking = unlockTrackingRef.current[deposit.address] || { notifiedMilestones: [], notifiedAtBlock: {} };
+
+        // Find milestones that should fire — either newly reached, or reached but never notified
+        const shouldNotify: number[] = [];
+
+        for (const m of milestones) {
+          if (percentComplete >= m) {
+            const alreadyNotifiedAtBlock = tracking.notifiedAtBlock[m];
+            // Notify if: never notified (no block record), OR already unlocked (currentBlock >= lockEndBlock) but we haven't notified since unlocking
+            const neverNotified = alreadyNotifiedAtBlock === undefined;
+            const wasUnlockedWhenNotified = alreadyNotifiedAtBlock !== undefined && alreadyNotifiedAtBlock < deposit.lockEndBlock;
+            const stillUnlockedAndNotRecent = alreadyNotifiedAtBlock !== undefined
+              && alreadyNotifiedAtBlock >= deposit.lockEndBlock
+              && currentBlock >= deposit.lockEndBlock;
+
+            if (neverNotified || wasUnlockedWhenNotified || stillUnlockedAndNotRecent) {
+              shouldNotify.push(m);
+            }
+          }
+        }
+
+        if (shouldNotify.length > 0) {
+          shouldNotify.forEach(m => {
             newNotifications.push({
               address: deposit.address,
               percent: m,
@@ -138,37 +177,57 @@ export function useDepositMilestones(enabled: boolean = true) {
           });
         }
 
-        // If fully unlocked (100%), mark all milestones as notified
-        const newNotified = percentComplete >= 100 
-          ? [...new Set([...deposit.notifiedMilestones, ...milestones])]
-          : [...deposit.notifiedMilestones, ...reachedMilestones];
+        // Update notified milestones and block records
+        const newNotifiedMilestones = [...tracking.notifiedMilestones];
+        const newNotifiedAtBlock = { ...tracking.notifiedAtBlock };
+
+        for (const m of shouldNotify) {
+          if (!newNotifiedMilestones.includes(m)) {
+            newNotifiedMilestones.push(m);
+          }
+          newNotifiedAtBlock[m] = currentBlock;
+        }
+
+        // If fully unlocked, mark all milestones
+        if (percentComplete >= 100) {
+          for (const m of milestones) {
+            if (!newNotifiedMilestones.includes(m)) {
+              newNotifiedMilestones.push(m);
+              newNotifiedAtBlock[m] = currentBlock;
+            }
+          }
+        }
+
+        // Update tracking ref
+        unlockTrackingRef.current[deposit.address] = {
+          notifiedMilestones: newNotifiedMilestones,
+          notifiedAtBlock: newNotifiedAtBlock
+        };
 
         return {
           ...deposit,
           currentBlock,
-          notifiedMilestones: newNotified,
+          notifiedMilestones: newNotifiedMilestones,
         };
       });
 
-      // Save to storage
-      saveToStorage({ 
-        milestones: updated, 
-        lastNotified: Object.fromEntries(
-          updated.map(d => [d.address, d.notifiedMilestones])
-        )
+      // Save updated tracking to storage
+      saveToStorage({
+        milestones: updated,
+        unlockTracking: unlockTrackingRef.current
       });
 
       // Add new notifications to state
       if (newNotifications.length > 0) {
         setNotifications(prev => [...prev, ...newNotifications]);
-        
+
         // Send browser notification if permitted
         if (enabled && permission === 'granted') {
           newNotifications.forEach(n => {
-            const body = n.percent === 100 
+            const body = n.percent === 100
               ? 'Your deposit is now fully unlocked! You can withdraw.'
               : `Your deposit has reached ${n.percent}% of lock duration (${n.remainingBlocks} blocks remaining)`;
-            
+
             new Notification('SafeDelay Milestone', {
               body,
               icon: '/favicon.ico',
@@ -193,7 +252,10 @@ export function useDepositMilestones(enabled: boolean = true) {
   const removeDeposit = useCallback((address: string) => {
     setDeposits(prev => {
       const updated = prev.filter(d => d.address !== address);
-      saveToStorage({ milestones: updated, lastNotified: {} });
+      const newTracking = { ...unlockTrackingRef.current };
+      delete newTracking[address];
+      unlockTrackingRef.current = newTracking;
+      saveToStorage({ milestones: updated, unlockTracking: newTracking });
       return updated;
     });
   }, []);
@@ -212,10 +274,10 @@ export function useDepositMilestones(enabled: boolean = true) {
   const getProgress = useCallback((address: string): number => {
     const deposit = deposits.find(d => d.address === address);
     if (!deposit) return 0;
-    
+
     const totalBlocks = deposit.lockEndBlock - deposit.initialBlock;
     if (totalBlocks <= 0) return 100;
-    
+
     const elapsedBlocks = deposit.currentBlock - deposit.initialBlock;
     return Math.min(100, Math.floor((elapsedBlocks / totalBlocks) * 100));
   }, [deposits]);
