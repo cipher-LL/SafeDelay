@@ -912,6 +912,12 @@ export default function SafeDelayManagerDashboard() {
             </AddressBox>
           )}
 
+          {computedAddress && (
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '6px', display: 'block' }}>
+              Estimated deployment fee: ~350–450 sats (includes 1 input + 2 outputs)
+            </span>
+          )}
+
           {/* ── Registration ── */}
           {fundedAddress && (
             <>
@@ -935,6 +941,9 @@ export default function SafeDelayManagerDashboard() {
                     onChange={e => setRegisterFee(e.target.value)}
                     style={{ width: '130px' }}
                   />
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '4px' }}>
+                    Fee to register with manager · typical range: 500–2000 sats
+                  </span>
                 </FormGroup>
                 <SuccessBtn
                   onClick={handleRegister}
