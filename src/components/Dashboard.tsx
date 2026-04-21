@@ -667,7 +667,9 @@ export default function Dashboard() {
   const [contracts, setContracts] = useState<TimeLock[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'cancel' | 'create'>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('date');
+  const [sortBy, setSortBy] = useState<SortOption>(() => {
+    try { return (localStorage.getItem('safedelay-sort') as SortOption) || 'date'; } catch { return 'date'; }
+  });
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [importPassword, setImportPassword] = useState('');
@@ -1523,7 +1525,7 @@ export default function Dashboard() {
         {wallet.connected && contracts.length > 0 && (
           <SortBar>
             <SortLabel>Sort by:</SortLabel>
-            <SortSelect value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}>
+            <SortSelect value={sortBy} onChange={(e) => { const val = e.target.value as SortOption; setSortBy(val); try { localStorage.setItem('safedelay-sort', val); } catch {} }}>
               <option value="date">Unlock Date</option>
               <option value="amount">Amount</option>
               <option value="unlock">Time Remaining</option>
