@@ -41,3 +41,4 @@ npm run compile   # outputs to dist/
 - ✅ REPOS.md created documenting bytecode hashes (issue #83)
 - ✅ README "Compiling Contracts" section updated with correct `dist/` paths (issue #82)
 - ✅ React/Vite dashboard migrated from single HTML — `src/App.tsx` powers the app; `index.html.legacy` removed (issue #84)
+- ✅ `useFormNavigationWarning` hook warns users before losing unsaved form data on tab-close and in-app navigation (issue #89)
