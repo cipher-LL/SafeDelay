@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
 import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
+import { useFormNavigationWarning } from '../hooks/useFormNavigationWarning';
 import HASHES from '../../artifacts/HASHES.json';
 
 const FormContainer = styled.div`
@@ -163,6 +164,12 @@ export default function SafeDelayForm() {
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
+
+  // Track dirty state: form is "dirty" if user changed lock duration or deposit from defaults
+  const initialLockDuration = useRef('30');
+  const initialDepositAmount = useRef('');
+  const isFormDirty = lockDuration !== initialLockDuration.current || depositAmount !== initialDepositAmount.current;
+  useFormNavigationWarning(isFormDirty);
 
   const getDurationInBlocks = () => {
     const days = durationUnit === 'days' 

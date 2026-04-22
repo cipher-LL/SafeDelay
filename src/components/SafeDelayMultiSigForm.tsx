@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
 import { deploySafeDelayMultiSig, addressToPubkeyHash } from '../utils/deployContract';
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
+import { useFormNavigationWarning } from '../hooks/useFormNavigationWarning';
 import HASHES from '../../artifacts/HASHES.json';
 
 const FormContainer = styled.div`
@@ -188,6 +189,18 @@ export default function SafeDelayMultiSigForm() {
   const [error, setError] = useState<string | null>(null);
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Track dirty state: form is dirty if user changed any field from defaults
+  const initialThreshold = useRef('2');
+  const initialLockDuration = useRef('30');
+  const initialOwner2 = useRef('');
+  const initialOwner3 = useRef('');
+  const isFormDirty =
+    threshold !== initialThreshold.current ||
+    lockDuration !== initialLockDuration.current ||
+    owner2Address !== initialOwner2.current ||
+    owner3Address !== initialOwner3.current;
+  useFormNavigationWarning(isFormDirty);
 
   // Count how many unique owners are provided (owner1 is always required)
   const uniqueOwnerCount = (() => {
