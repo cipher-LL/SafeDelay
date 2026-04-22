@@ -26,6 +26,7 @@ import {
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 import type { SafeDelayManagerEntry } from '../types/index';
+import QrScanner from './QrScanner';
 
 // Map our network strings to CashScript Network type
 function toCashScriptNetwork(n: 'mainnet' | 'testnet' | 'chipnet'): Network {
@@ -754,6 +755,7 @@ export default function SafeDelayManagerDashboard() {
                 style={{ fontFamily: 'monospace', fontSize: '13px' }}
               />
             </FormGroup>
+            <QrScanner onScan={setExternalAddressInput} addressMode />
             <FormGroup style={{ minWidth: '160px' }}>
               <Label>Owner PKH (40 hex)</Label>
               <Input
@@ -856,7 +858,7 @@ export default function SafeDelayManagerDashboard() {
         </Section>
       )}
 
-      {allEntries.length > 0 && myEntries.length === 0 && viewMode === 'mine' && (
+      {allEntries.length > 0 && myEntries.length === 0 && viewMode === 'mine' && !loadingEntries && (
         <EmptyState>No SafeDelay wallets found for your wallet in this registry.</EmptyState>
       )}
 

@@ -110,8 +110,10 @@ const ErrorText = styled.div`
 `;
 
 interface QrScannerProps {
-  onScan: (wifKey: string) => void;
+  onScan: (data: string) => void;
   disabled?: boolean;
+  /** When true, accept any non-empty string (e.g. BCH address). When false, validate as WIF. */
+  addressMode?: boolean;
 }
 
 /**
@@ -143,7 +145,28 @@ function validateWifKey(data: string): string {
   return trimmed;
 }
 
-export default function QrScanner({ onScan, disabled }: QrScannerProps) {
+/**
+ * Validate a string as a BCH address (P2PKH, P2SH32, or Slip77 alias).
+ * Accepts plain or cashaddr format.
+ */
+function validateBchAddress(data: string): string {
+  const trimmed = data.trim();
+  // Accept if it looks like a BCH address (basic length + prefix check)
+  if (trimmed.length < 25 || trimmed.length > 70) {
+    throw new Error(`Invalid BCH address length: ${trimmed.length} chars`);
+  }
+  // Accept plain format (q/p...) or cashaddr format (bitcoincash:...)
+  const isPlainFormat = /^[qp][a-z0-9]{25,62}$/i.test(trimmed);
+  const isCashAddr = /^bitcoincash:q[a-z0-9]{25,62}$/i.test(trimmed);
+  const isTestAddr = /^bchtest:q[a-z0-9]{25,62}$/i.test(trimmed);
+  const isRegAddr = /^bchreg:q[a-z0-9]{25,62}$/i.test(trimmed);
+  if (!isPlainFormat && !isCashAddr && !isTestAddr && !isRegAddr) {
+    throw new Error(`Unrecognized address format: "${trimmed.slice(0, 20)}..."`);
+  }
+  return trimmed;
+}
+
+export default function QrScanner({ onScan, disabled, addressMode }: QrScannerProps) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -205,19 +228,20 @@ export default function QrScanner({ onScan, disabled }: QrScannerProps) {
           aspectRatio: 1.0,
         },
         (decodedText) => {
-          // QR code detected — validate as WIF
+          // QR code detected — validate as WIF or address depending on mode
           try {
-            const wifKey = validateWifKey(decodedText);
-            // Success — stop scanner and pass key up
+            const data = addressMode ? validateBchAddress(decodedText) : validateWifKey(decodedText);
+            // Success — stop scanner and pass data up
             scanner.stop().catch(() => {});
             scannerRef.current = null;
             setScanning(false);
             setError(null);
             setCameraError(null);
-            onScan(wifKey);
+            onScan(data);
           } catch (e) {
-            // Not a valid WIF QR — show error and continue scanning
-            setError(e instanceof Error ? e.message : 'Not a valid WIF key');
+            // Not a valid QR — show error and continue scanning
+            const modeLabel = addressMode ? 'BCH address' : 'WIF key';
+            setError(e instanceof Error ? e.message : `Not a valid ${modeLabel}`);
           }
         },
         () => {
@@ -257,12 +281,12 @@ export default function QrScanner({ onScan, disabled }: QrScannerProps) {
       ) : (
         <ScannerBox>
           <ScannerHeader>
-            <ScannerTitle>📷 Scanning WIF QR...</ScannerTitle>
+            <ScannerTitle>📷 {addressMode ? 'Scanning Address QR...' : 'Scanning WIF QR...'}</ScannerTitle>
             <CloseScannerBtn onClick={stopScanner}>✕ Stop</CloseScannerBtn>
           </ScannerHeader>
           <ScannerRegion id={containerIdRef.current} />
           <ScannerHelp>
-            Point camera at a QR code containing your WIF private key
+            Point camera at a QR code containing your {addressMode ? 'BCH address' : 'WIF private key'}
           </ScannerHelp>
           {error && (
             <ErrorText style={{ margin: '0 12px 8px' }}>
