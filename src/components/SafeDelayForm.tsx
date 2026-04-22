@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
@@ -151,7 +151,14 @@ export default function SafeDelayForm() {
   const { network } = useNetwork();
   const { addContract } = useStoredContracts();
   const [lockDuration, setLockDuration] = useState('30'); // days
-  const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
+  const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>(() => {
+    const saved = localStorage.getItem('safeDelay_durationUnit');
+    return (saved === 'days' || saved === 'weeks' || saved === 'months' ? saved : 'days');
+  });
+
+  useEffect(() => {
+    localStorage.setItem('safeDelay_durationUnit', durationUnit);
+  }, [durationUnit]);
   const [depositAmount, setDepositAmount] = useState('');
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

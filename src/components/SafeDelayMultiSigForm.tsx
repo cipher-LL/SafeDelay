@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
@@ -173,7 +173,14 @@ export default function SafeDelayMultiSigForm() {
   const { addContract } = useStoredContracts();
   const [threshold, setThreshold] = useState('2');
   const [lockDuration, setLockDuration] = useState('30');
-  const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
+  const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>(() => {
+    const saved = localStorage.getItem('safeDelay_durationUnit');
+    return (saved === 'days' || saved === 'weeks' || saved === 'months' ? saved : 'days');
+  });
+
+  useEffect(() => {
+    localStorage.setItem('safeDelay_durationUnit', durationUnit);
+  }, [durationUnit]);
   const [owner1Address, setOwner1Address] = useState('');
   const [owner2Address, setOwner2Address] = useState('');
   const [owner3Address, setOwner3Address] = useState('');
