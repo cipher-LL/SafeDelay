@@ -666,7 +666,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const { signWithdraw, signCancel, getAddressFromWif } = useWifSigner();
   const [contracts, setContracts] = useState<TimeLock[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'cancel' | 'create'>('all');
+  const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'cancel' | 'create'>(() => {
+    try { return (localStorage.getItem('safedelay-tx-filter') as any) || 'all'; } catch { return 'all'; }
+  });
   const [sortBy, setSortBy] = useState<SortOption>(() => {
     try { return (localStorage.getItem('safedelay-sort') as SortOption) || 'date'; } catch { return 'date'; }
   });
@@ -1462,19 +1464,19 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       <TransactionSection>
         <SectionTitle>Transaction History</SectionTitle>
         <FilterBar>
-          <FilterButton $active={txFilter === 'all'} onClick={() => setTxFilter('all')}>
+          <FilterButton $active={txFilter === 'all'} onClick={() => { setTxFilter('all'); try { localStorage.setItem('safedelay-tx-filter', 'all'); } catch {} }}>
             All
           </FilterButton>
-          <FilterButton $active={txFilter === 'deposit'} onClick={() => setTxFilter('deposit')}>
+          <FilterButton $active={txFilter === 'deposit'} onClick={() => { setTxFilter('deposit'); try { localStorage.setItem('safedelay-tx-filter', 'deposit'); } catch {} }}>
             Deposits
           </FilterButton>
-          <FilterButton $active={txFilter === 'withdraw'} onClick={() => setTxFilter('withdraw')}>
+          <FilterButton $active={txFilter === 'withdraw'} onClick={() => { setTxFilter('withdraw'); try { localStorage.setItem('safedelay-tx-filter', 'withdraw'); } catch {} }}>
             Withdrawals
           </FilterButton>
-          <FilterButton $active={txFilter === 'cancel'} onClick={() => setTxFilter('cancel')}>
+          <FilterButton $active={txFilter === 'cancel'} onClick={() => { setTxFilter('cancel'); try { localStorage.setItem('safedelay-tx-filter', 'cancel'); } catch {} }}>
             Cancels
           </FilterButton>
-          <FilterButton $active={txFilter === 'create'} onClick={() => setTxFilter('create')}>
+          <FilterButton $active={txFilter === 'create'} onClick={() => { setTxFilter('create'); try { localStorage.setItem('safedelay-tx-filter', 'create'); } catch {} }}>
             Created
           </FilterButton>
         </FilterBar>
