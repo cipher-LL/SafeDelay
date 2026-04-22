@@ -657,7 +657,7 @@ function getExplorerUrl(network: 'mainnet' | 'testnet' | 'chipnet', txHash: stri
   return `https://chipnet.blockchair.com/bitcoin-cash/transaction/${txHash}`;
 }
 
-export default function Dashboard() {
+export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'create' | 'multisig' | 'dashboard' | 'manager') => void }) {
   const { network } = useNetwork();
   const { wallet, hasSigner } = useWallet();
   const { getLabel, setLabel, removeLabel } = useWalletLabels();
@@ -1876,7 +1876,7 @@ export default function Dashboard() {
 
             {pendingTx.status === 'success' && (
               <ModalActions>
-                <ModalConfirmBtn onClick={closePendingTx}>Done</ModalConfirmBtn>
+                <ModalConfirmBtn onClick={() => { closePendingTx(); onNavigateTab?.('dashboard'); }}>Done → Dashboard</ModalConfirmBtn>
               </ModalActions>
             )}
           </ModalBox>

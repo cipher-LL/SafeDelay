@@ -76,7 +76,7 @@ function AppContent() {
           
           {activeTab === 'create' && <SafeDelayForm />}
           {activeTab === 'multisig' && <SafeDelayMultiSigForm />}
-          {activeTab === 'dashboard' && <Dashboard />}
+          {activeTab === 'dashboard' && <Dashboard onNavigateTab={setActiveTab} />}
           {activeTab === 'manager' && <SafeDelayManagerDashboard />}
         </Container>
       </WalletProvider>
