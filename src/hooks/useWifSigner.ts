@@ -8,6 +8,7 @@
  */
 
 import { useCallback } from 'react';
+import { debugLog } from '../utils/debug';
 import {
   ElectrumNetworkProvider,
   Network,
@@ -134,18 +135,18 @@ async function getUtxos(address: string, network: NetworkConfig['network'] = 'ch
       try {
         const utxos = await electrumRpc<ElectrumUtxo[]>(url, 'blockchain.scripthash.listunspent', [scripthashHex]);
         lastServer[network] = hostname;
-        console.log(`[useWifSigner] ✅ UTXOs fetched from ${hostname}`);
+        debugLog('useWifSigner', '✅ UTXOs fetched from', hostname);
         return utxos;
       } catch (e) {
         lastError = e as Error;
-        console.warn(`[useWifSigner] ⚠️ Failed ${hostname}: ${lastError.message}, trying next server...`);
+        debugLog('useWifSigner', '⚠️ Failed', hostname + ':', lastError.message, '- trying next server...');
       }
     }
 
-    console.error('[useWifSigner] ❌ All Electrum servers failed:', lastError?.message);
+    debugLog('useWifSigner', '❌ All Electrum servers failed:', lastError?.message);
     return [];
   } catch (e) {
-    console.error('[useWifSigner] Error fetching UTXOs:', e);
+    debugLog('useWifSigner', 'Error fetching UTXOs:', e);
     return [];
   }
 }

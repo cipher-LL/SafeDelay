@@ -6,6 +6,7 @@ import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 import { useFormNavigationWarning } from '../hooks/useFormNavigationWarning';
 import HASHES from '../../artifacts/HASHES.json';
+import { debug } from '../utils/debug';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -203,7 +204,7 @@ export default function SafeDelayForm() {
         if (knownHash && actualHash !== knownHash) {
           const msg = 'Contract bytecode verification failed — embedded artifact does not match the expected deployed bytecode. Please ensure you are using the correct compiled artifact. See docs/troubleshooting.md for how to fix this.';
           setBytecodeError(msg);
-          console.error('[SafeDelayForm] Bytecode mismatch:', actualHash, '!=', knownHash);
+          debug.error('[SafeDelayForm] Bytecode mismatch:', actualHash, '!=', knownHash);
           setLoading(false);
           return;
         }
@@ -238,7 +239,7 @@ export default function SafeDelayForm() {
         createdAt: Date.now(),
       });
     } catch (error) {
-      console.error('Error creating SafeDelay:', error);
+      debug.error('Error creating SafeDelay:', error);
       alert('Failed to create SafeDelay: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setLoading(false);

@@ -27,6 +27,7 @@ import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 import type { SafeDelayManagerEntry } from '../types/index';
 import QrScanner from './QrScanner';
+import { debug } from '../utils/debug';
 
 // Map our network strings to CashScript Network type
 function toCashScriptNetwork(n: 'mainnet' | 'testnet' | 'chipnet'): Network {
@@ -636,7 +637,7 @@ export default function SafeDelayManagerDashboard() {
       setRegisterSuccess(`✅ Registered! Tx: ${txHash.slice(0, 20)}...`);
       await loadRegistry(managerAddress);
     } catch (err) {
-      console.error('Registration error:', err);
+      debug.error('Registration error:', err);
       setRegisterError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setRegistering(false);

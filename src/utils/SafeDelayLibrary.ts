@@ -8,6 +8,7 @@
 import { Contract, ElectrumNetworkProvider, Network, SignatureTemplate } from 'cashscript';
 import { decodePrivateKeyWif, hash160, publicKeyToP2pkhCashAddress, encodeLockingBytecodeP2sh32, lockingBytecodeToCashAddress } from '@bitauth/libauth';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
+import { debugLog } from './debug';
 
 // ============ Types ============
 
@@ -90,7 +91,7 @@ async function getAddressUtxos(url: string, address: string): Promise<ElectrumUt
     const scripthashHex = Array.from(scriptHash).map(b => b.toString(16).padStart(2, '0')).join('');
     return await electrumRpc<ElectrumUtxo[]>(url, 'blockchain.scripthash.listunspent', [scripthashHex]);
   } catch (e) {
-    console.error(`[SafeDelayLibrary] Error fetching UTXOs: ${e}`);
+    debugLog('SafeDelayLibrary', 'Error fetching UTXOs:', e);
     return [];
   }
 }

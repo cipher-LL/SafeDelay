@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { debug } from '../utils/debug';
 
 interface WalletBackup {
   version: string;
@@ -141,7 +142,7 @@ export function useWalletBackup(getWalletData: () => WalletBackup) {
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Export failed';
       setError(errorMsg);
-      console.error('Export error:', e);
+      debug.error('Export error:', e);
       return null;
     } finally {
       setExporting(false);
@@ -224,7 +225,7 @@ export function useWalletBackup(getWalletData: () => WalletBackup) {
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Import failed';
       setError(errorMsg);
-      console.error('Import error:', e);
+      debug.error('Import error:', e);
       return null;
     } finally {
       setImporting(false);

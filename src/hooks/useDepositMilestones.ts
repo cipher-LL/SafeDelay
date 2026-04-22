@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { debug } from '../utils/debug';
 
 export interface DepositMilestone {
   address: string;
@@ -48,7 +49,7 @@ function loadFromStorage(): StoredData {
       return parsed;
     }
   } catch (e) {
-    console.error('[useDepositMilestones] Failed to load from storage:', e);
+    debug.error('[useDepositMilestones] Failed to load from storage:', e);
   }
   return { milestones: [], unlockTracking: {} };
 }
@@ -57,7 +58,7 @@ function saveToStorage(data: StoredData): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {
-    console.error('[useDepositMilestones] Failed to save to storage:', e);
+    debug.error('[useDepositMilestones] Failed to save to storage:', e);
   }
 }
 

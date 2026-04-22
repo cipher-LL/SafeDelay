@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { debug } from '../utils/debug';
 
 interface WalletLabel {
   address: string;
@@ -19,7 +20,7 @@ export function useWalletLabels() {
         setLabels(JSON.parse(stored));
       }
     } catch (e) {
-      console.error('Failed to load wallet labels:', e);
+      debug.error('Failed to load wallet labels:', e);
     }
   }, []);
 
@@ -29,7 +30,7 @@ export function useWalletLabels() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newLabels));
       setLabels(newLabels);
     } catch (e) {
-      console.error('Failed to save wallet labels:', e);
+      debug.error('Failed to save wallet labels:', e);
     }
   }, []);
 

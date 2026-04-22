@@ -6,6 +6,7 @@ import { deploySafeDelayMultiSig, addressToPubkeyHash } from '../utils/deployCon
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 import { useFormNavigationWarning } from '../hooks/useFormNavigationWarning';
 import HASHES from '../../artifacts/HASHES.json';
+import { debug } from '../utils/debug';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -249,7 +250,7 @@ export default function SafeDelayMultiSigForm() {
         if (knownHash && actualHash !== knownHash) {
           const msg = 'Contract bytecode verification failed — embedded artifact does not match the expected deployed bytecode. Please ensure you are using the correct compiled artifact.';
           setBytecodeError(msg);
-          console.error('[SafeDelayMultiSigForm] Bytecode mismatch:', actualHash, '!=', knownHash);
+          debug.error('[SafeDelayMultiSigForm] Bytecode mismatch:', actualHash, '!=', knownHash);
           setLoading(false);
           return;
         }
@@ -329,7 +330,7 @@ export default function SafeDelayMultiSigForm() {
         createdAt: Date.now(),
       });
     } catch (err) {
-      console.error('Error creating SafeDelayMultiSig:', err);
+      debug.error('Error creating SafeDelayMultiSig:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);

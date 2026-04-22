@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { useWalletLabels } from '../hooks/useWalletLabels';
+import { debug, debugLog } from '../utils/debug';
 import { useWalletBackup } from '../hooks/useWalletBackup';
 import { useDepositMilestones } from '../hooks/useDepositMilestones';
 import { useStoredContracts, useElectrumContractData } from '../hooks/useSafeDelayContracts';
@@ -701,7 +702,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         setTransactions(JSON.parse(stored));
       }
     } catch (e) {
-      console.error('Error loading transactions:', e);
+      debug.error('Error loading transactions:', e);
     }
   }, []);
 
@@ -850,7 +851,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             });
           }
         } catch (e) {
-          console.warn(`Error scanning on-chain history for ${contract.address}:`, e);
+          debugLog('Dashboard', 'Error scanning on-chain history for', contract.address + ':', e);
         }
       }
 
@@ -958,7 +959,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         { provider } as any
       );
     } catch (e) {
-      console.error('Error creating contract instance:', e);
+      debug.error('Error creating contract instance:', e);
       return null;
     }
   }, [network, wallet.pubkeyHash, storedContracts]);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ElectrumNetworkProvider, Network } from 'cashscript';
+import { debug } from '../utils/debug';
 
 const STORAGE_KEY = 'safedelay_contracts';
 
@@ -32,7 +33,7 @@ export function useStoredContracts() {
         setContracts(JSON.parse(stored));
       }
     } catch (e) {
-      console.error('Error loading stored contracts:', e);
+      debug.error('Error loading stored contracts:', e);
     }
     setLoading(false);
   }, []);
@@ -131,7 +132,7 @@ export function useElectrumContractData(
           } catch (utxoError) {
             // If we can't fetch UTXOs for a contract (e.g., it doesn't exist yet),
             // still include it with 0 balance
-            console.warn(`Could not fetch UTXOs for ${contract.address}:`, utxoError);
+            debug.warn(`Could not fetch UTXOs for ${contract.address}:`, utxoError);
             contractsData.push({
               ...contract,
               balance: 0,
@@ -146,7 +147,7 @@ export function useElectrumContractData(
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('Error fetching contract data from Electrum:', err);
+          debug.error('Error fetching contract data from Electrum:', err);
           setError(err instanceof Error ? err.message : 'Failed to fetch from Electrum');
           setLoading(false);
         }

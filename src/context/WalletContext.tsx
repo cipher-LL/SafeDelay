@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { debug } from '../utils/debug';
 
 // CashScript browser wallet provider interface
 // Compatible with CashScript wallet browser extensions (Paytaca, Electron Cash SLP, etc.)
@@ -125,7 +126,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const signer = await window.cashscript.getSigner();
       return signer.signTransaction(tx);
     } catch (err) {
-      console.error('Transaction signing failed:', err);
+      debug.error('Transaction signing failed:', err);
       return null;
     }
   }, [wallet.provider]);
@@ -136,7 +137,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const signer = await window.cashscript.getSigner();
       return signer.sendTransaction(tx);
     } catch (err) {
-      console.error('Transaction send failed:', err);
+      debug.error('Transaction send failed:', err);
       return null;
     }
   }, [wallet.provider]);
