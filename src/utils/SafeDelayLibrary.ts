@@ -310,7 +310,7 @@ export async function getBalance(
 /**
  * Compute the deployment address for a SafeDelay contract.
  */
-export function computeAddress(ownerPkh: string, lockEndBlock: number, network: NetworkConfig['network']): string {
+export async function computeAddress(ownerPkh: string, lockEndBlock: number, network: NetworkConfig['network']): Promise<string> {
   const artifact = SafeDelayArtifact as any;
   const bytecodeHex = artifact.debug?.bytecode;
   if (!bytecodeHex) throw new Error('No bytecode in artifact');
@@ -332,8 +332,7 @@ export function computeAddress(ownerPkh: string, lockEndBlock: number, network: 
   );
 
   // Compute hash256 (double SHA256)
-  // @ts-ignore
-  const hashBuffer = crypto.subtle.digestSync('SHA-256', redeemScript);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', redeemScript);
   const hash = new Uint8Array(hashBuffer);
 
   // Build P2SH32 locking bytecode and convert to address
