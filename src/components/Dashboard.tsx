@@ -14,7 +14,7 @@ import QrScanner from './QrScanner';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
-import { deposit } from '../utils/SafeDelayLibrary';
+import { deposit, waitForTxConfirmation } from '../utils/SafeDelayLibrary';
 
 const STORAGE_KEY = 'safedelay_transactions';
 
@@ -630,7 +630,7 @@ interface PendingTx {
   contractAddress: string;
   type: 'withdraw' | 'cancel' | 'deposit';
   amount?: number;
-  status: 'confirm' | 'broadcasting' | 'success' | 'error';
+  status: 'confirm' | 'broadcasting' | 'confirming' | 'confirmed' | 'success' | 'error';
   txHash?: string;
   error?: string;
 }
@@ -1099,13 +1099,23 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       setPendingTx(prev => prev ? { ...prev, status: 'success', txHash } : null);
       setTxStatus({
         type: 'success',
-        message: `${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} transaction broadcast! TxHash: ${txHash.slice(0, 16)}...`,
+        message: `${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} transaction submitted! Waiting for confirmation...`,
       });
 
-      setTimeout(() => {
-        setPendingTx(null);
-        setDepositAmount('');
-      }, 4000);
+      // Start confirmation polling in background
+      waitForTxConfirmation(txHash, network, { maxWaitMs: 600000 }).then(result => {
+        if (result.confirmed) {
+          setPendingTx(prev => prev ? { ...prev, status: 'confirmed' } : null);
+          setTxStatus({
+            type: 'success',
+            message: `✅ ${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} confirmed! (${result.confirmations} confirmation${result.confirmations !== 1 ? 's' : ''})`,
+          });
+        } else {
+          setTxStatus(prev => prev ? { ...prev, message: prev.message + ' (polling timed out - tx may still confirm)' } : null);
+        }
+      }).catch(() => {
+        // Polling error - tx may still confirm
+      });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Transaction failed.';
       let userMsg = errorMsg;
@@ -1214,18 +1224,27 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       setPendingTx(prev => prev ? { ...prev, status: 'success', txHash } : null);
       setTxStatus({
         type: 'success',
-        message: `${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} transaction broadcast! TxHash: ${txHash.slice(0, 16)}...`,
+        message: `${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} transaction submitted! Waiting for confirmation...`,
       });
 
       // Clear WIF key from memory
       setWifKey('');
       setWifAddress('');
 
-      setTimeout(() => {
-        setPendingTx(null);
-        setDepositAmount('');
-        setWifMode(false);
-      }, 4000);
+      // Start confirmation polling in background
+      waitForTxConfirmation(txHash, network, { maxWaitMs: 600000 }).then(result => {
+        if (result.confirmed) {
+          setPendingTx(prev => prev ? { ...prev, status: 'confirmed' } : null);
+          setTxStatus({
+            type: 'success',
+            message: `✅ ${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} confirmed! (${result.confirmations} confirmation${result.confirmations !== 1 ? 's' : ''})`,
+          });
+        } else {
+          setTxStatus(prev => prev ? { ...prev, message: prev.message + ' (polling timed out - tx may still confirm)' } : null);
+        }
+      }).catch(() => {
+        // Polling error - tx may still confirm
+      });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Transaction failed.';
       let userMsg = errorMsg;
@@ -1740,11 +1759,26 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             )}
 
             {pendingTx.status === 'success' && pendingTx.txHash && (
-              <MessageBox $type="success" style={{ marginBottom: '16px' }}>
-                ✅ Transaction broadcast!<br />
+              <MessageBox $type="info" style={{ marginBottom: '16px' }}>
+                ⏳ Transaction submitted! Waiting for confirmation...<br />
                 <TxHashLink href={getExplorerUrl(network, pendingTx.txHash)} target="_blank" rel="noopener noreferrer">
                   {pendingTx.txHash.slice(0, 24)}... ↗
                 </TxHashLink>
+              </MessageBox>
+            )}
+
+            {pendingTx.status === 'confirmed' && pendingTx.txHash && (
+              <MessageBox $type="success" style={{ marginBottom: '16px' }}>
+                ✅ Transaction confirmed!<br />
+                <TxHashLink href={getExplorerUrl(network, pendingTx.txHash)} target="_blank" rel="noopener noreferrer">
+                  {pendingTx.txHash.slice(0, 24)}... ↗
+                </TxHashLink>
+              </MessageBox>
+            )}
+
+            {pendingTx.status === 'broadcasting' && (
+              <MessageBox $type="info" style={{ marginBottom: '16px' }}>
+                ⏳ Signing & broadcasting transaction...
               </MessageBox>
             )}
 
@@ -1877,7 +1911,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               </ModalActions>
             )}
 
-            {pendingTx.status === 'success' && (
+            {(pendingTx.status === 'success' || pendingTx.status === 'confirmed') && (
               <ModalActions>
                 <ModalConfirmBtn onClick={() => { closePendingTx(); onNavigateTab?.('dashboard'); }}>Done → Dashboard</ModalConfirmBtn>
               </ModalActions>

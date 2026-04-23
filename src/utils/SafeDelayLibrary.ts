@@ -347,3 +347,55 @@ export function computeAddress(ownerPkh: string, lockEndBlock: number, network: 
   }
   return result.address;
 }
+
+// ============ Transaction Confirmation Polling ============
+
+export interface TxConfirmationResult {
+  txHash: string;
+  confirmations: number;
+  confirmed: boolean;
+  error?: string;
+}
+
+/**
+ * Wait for a transaction to be confirmed on the BCH network.
+ * Polls Electrum every 5 seconds for up to maxWaitMs milliseconds.
+ * @param txHash - The transaction hash to monitor
+ * @param network - The network (mainnet, testnet, chipnet)
+ * @param options.pollIntervalMs - How often to poll (default 5000ms)
+ * @param options.maxWaitMs - Maximum time to wait (default 10 minutes)
+ * @returns TxConfirmationResult with confirmations count
+ */
+export async function waitForTxConfirmation(
+  txHash: string,
+  network: 'mainnet' | 'testnet' | 'chipnet',
+  options: {
+    pollIntervalMs?: number;
+    maxWaitMs?: number;
+  } = {}
+): Promise<TxConfirmationResult> {
+  const { pollIntervalMs = 5000, maxWaitMs = 600000 } = options;
+  const startTime = Date.now();
+  const rpcUrl = DEFAULT_ELECTRUM_URLS[network];
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      const result = await electrumRpc<{ confirmations: number }>(
+        rpcUrl,
+        'blockchain.transaction.get',
+        [txHash]
+      );
+
+      if (result && result.confirmations !== undefined && result.confirmations > 0) {
+        return { txHash, confirmations: result.confirmations, confirmed: true };
+      }
+    } catch (err) {
+      // Transaction not found yet or network error — keep polling
+      debugLog('waitForTxConfirmation poll error:', err);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+  }
+
+  return { txHash, confirmations: 0, confirmed: false, error: 'Confirmation timeout' };
+}
