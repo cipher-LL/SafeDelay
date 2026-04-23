@@ -194,6 +194,13 @@ const CopyBtn = styled.button`
   color: #a5b4fc;
   cursor: pointer;
   &:hover { background: rgba(79,70,229,0.4); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+const RefreshBtn = styled(CopyBtn)`
+  background: rgba(16,185,129,0.15);
+  color: #10b981;
+  &:hover:not(:disabled) { background: rgba(16,185,129,0.3); }
 `;
 
 const EmptyState = styled.div`
@@ -254,6 +261,7 @@ export default function SafeDelayManagerDashboard() {
   const [currentBlock, setCurrentBlock] = useState(0);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [entriesError, setEntriesError] = useState<string | null>(null);
+  const [refreshingEntries, setRefreshingEntries] = useState<Set<string>>(new Set());
 
   // Compute address form
   const [lockBlocks, setLockBlocks] = useState('144'); // ~1 day
@@ -644,6 +652,29 @@ export default function SafeDelayManagerDashboard() {
     }
   }, [fundedAddress, fundedLockEnd, serviceProviderPkh, registerFee, wallet, managerAddress, network, loadRegistry]);
 
+  // ─── Refresh single entry balance + lock status ──────────────────────────
+  const handleRefreshEntry = useCallback(async (address: string) => {
+    setRefreshingEntries(prev => new Set(prev).add(address));
+    try {
+      const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+      const bh = Number(await provider.getBlockHeight());
+      setCurrentBlock(bh);
+      const utxos = await provider.getUtxos(address);
+      const balance = utxos.reduce((sum, u) => sum + Number(u.satoshis) / 1e8, 0);
+      setMyEntries(prev => prev.map(e =>
+        e.address === address ? { ...e, balance, currentBlock: bh } : e
+      ));
+    } catch {
+      // silent — entry stays as-is
+    } finally {
+      setRefreshingEntries(prev => {
+        const next = new Set(prev);
+        next.delete(address);
+        return next;
+      });
+    }
+  }, [network]);
+
   // ─── Copy helper ───────────────────────────────────────────────────────────
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text.replace(/^(bitcoincash:|bchtest:|bchreg:)/, ''));
@@ -848,9 +879,18 @@ export default function SafeDelayManagerDashboard() {
                   <WalletBalance>{entry.balance.toFixed(4)} BCH</WalletBalance>
                   <WalletStatus $locked={locked}>{locked ? '🔒 Locked' : '✅ Unlocked'}</WalletStatus>
                   {entry.address && (
-                    <CopyBtn onClick={() => handleCopy(entry.address!)}>
-                      {copied === entry.address ? '✓ Copied' : '📋 Copy'}
-                    </CopyBtn>
+                    <>
+                      <CopyBtn onClick={() => handleCopy(entry.address!)}>
+                        {copied === entry.address ? '✓ Copied' : '📋 Copy'}
+                      </CopyBtn>
+                      <RefreshBtn
+                        onClick={() => entry.address && handleRefreshEntry(entry.address)}
+                        disabled={refreshingEntries.has(entry.address)}
+                        title="Refresh balance & lock status"
+                      >
+                        {refreshingEntries.has(entry.address) ? '⏳' : '🔄'} Refresh
+                      </RefreshBtn>
+                    </>
                   )}
                 </WalletCard>
               );
