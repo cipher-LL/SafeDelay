@@ -10,6 +10,7 @@ import { useStoredContracts, useElectrumContractData, StoredContract } from '../
 import { useOnChainTxHistory } from '../hooks/useOnChainTxHistory';
 import { useWifSigner } from '../hooks/useWifSigner';
 import { useOnChainContractDiscovery, DiscoveredContract } from '../hooks/useOnChainContractDiscovery';
+import { useAutoContractVerification } from '../hooks/useAutoContractVerification';
 import { QRCodeSVG } from 'qrcode.react';
 import QrScanner from './QrScanner';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
@@ -698,6 +699,14 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [discoveredContracts, setDiscoveredContracts] = useState<DiscoveredContract[]>([]);
   const [recoveryScanDone, setRecoveryScanDone] = useState(false);
 
+  // Auto-verify stored contracts against on-chain state on app load
+  const { verificationResult, isVerifying, verifyProgress } = useAutoContractVerification(
+    storedContracts,
+    wallet.address,
+    wallet.pubkeyHash,
+    network
+  );
+
   // Load saved transactions from localStorage
   useEffect(() => {
     try {
@@ -1356,6 +1365,27 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       {txStatus && (
         <MessageBox $type={txStatus.type} style={{ marginBottom: '20px' }}>
           {txStatus.message}
+        </MessageBox>
+      )}
+
+      {/* Auto-verification progress */}
+      {isVerifying && (
+        <MessageBox $type="info" style={{ marginBottom: '20px' }}>
+          🔍 {verifyProgress || 'Verifying contracts on-chain...'}
+        </MessageBox>
+      )}
+
+      {/* Auto-verification results: orphaned contracts found */}
+      {verificationResult && verificationResult.orphaned.length > 0 && (
+        <MessageBox $type="error" style={{ marginBottom: '20px' }}>
+          ⚠️ {verificationResult.orphaned.length} stored contract(s) not found on-chain. They may have been created on a different network or are invalid. Scroll down to the "On-Chain Contract Recovery" section to review.
+        </MessageBox>
+      )}
+
+      {/* Auto-verification results: recoverable contracts found (localStorage was empty) */}
+      {verificationResult && verificationResult.recoverable.length > 0 && (
+        <MessageBox $type="success" style={{ marginBottom: '20px' }}>
+          🎉 Found {verificationResult.recoverable.length} SafeDelay contract{verificationResult.recoverable.length !== 1 ? 's' : ''} on-chain that aren&apos;t in your local storage! Scroll down to &quot;On-Chain Contract Recovery&quot; to recover them.
         </MessageBox>
       )}
 
