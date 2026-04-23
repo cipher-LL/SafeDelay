@@ -326,10 +326,6 @@ export default function SafeDelayManagerDashboard() {
 
       // Compute expected address from owner PKH + lock end block
       if (ownerPkh && lockEndBlock > 0) {
-        if (!/^[0-9a-f]{40}$/i.test(ownerPkh)) {
-          setExternalError('Owner PKH must be 40 hex characters');
-          return;
-        }
         computedAddress = computeSafeDelayAddress(ownerPkh, lockEndBlock, toLibNetwork(network));
 
         // If address was also provided, verify they match (confirms lock params are correct)
@@ -365,21 +361,12 @@ export default function SafeDelayManagerDashboard() {
       // If we don't have it from form input, try from UTXO data
       let effectiveLockEnd = lockEndBlock;
       if (effectiveLockEnd === 0 && utxos.length > 0) {
-        // We can't derive lockEndBlock from UTXO alone without the contract
-        // Ask user to provide it
+        // We can't derive lockEndBlock from UTXO alone without the contract.
+        // Ask user to provide it — don't set a result with unknown lock status.
         setExternalError(
           `Found ${utxos.length} UTXO(s) with ${balance.toFixed(4)} BCH. ` +
           `Provide the lock end block (from your prize claim) to check unlock status.`
         );
-        setExternalResult({
-          address,
-          locked: false,
-          remaining: 0,
-          days: 0,
-          balance,
-          verified,
-          computedAddress,
-        });
         return;
       }
 
