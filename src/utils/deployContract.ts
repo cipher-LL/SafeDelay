@@ -53,7 +53,7 @@ function getHardcodedBlockHeight(network: string): number {
  * Fetch current block height from Electrum network.
  * Falls back to hardcoded estimate if Electrum is unavailable.
  */
-async function fetchCurrentBlockHeight(network: 'mainnet' | 'testnet' | 'chipnet'): Promise<number> {
+export async function fetchCurrentBlockHeight(network: 'mainnet' | 'testnet' | 'chipnet'): Promise<number> {
   try {
     const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
     const blockHeight = await provider.getBlockHeight();

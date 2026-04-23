@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
-import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
+import { deploySafeDelay, addressToPubkeyHash, fetchCurrentBlockHeight } from '../utils/deployContract';
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 import { useFormNavigationWarning } from '../hooks/useFormNavigationWarning';
 import HASHES from '../../artifacts/HASHES.json';
@@ -165,6 +165,23 @@ export default function SafeDelayForm() {
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
+  const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null);
+  const [estimatedUnlockBlock, setEstimatedUnlockBlock] = useState<number | null>(null);
+
+  // Fetch current block height on mount and when duration changes
+  useEffect(() => {
+    async function fetchBlockHeight() {
+      try {
+        const h = await fetchCurrentBlockHeight(network as 'mainnet' | 'testnet' | 'chipnet');
+        setCurrentBlockHeight(h);
+        const blocks = getDurationInBlocks();
+        setEstimatedUnlockBlock(h + blocks);
+      } catch {
+        // silently ignore — preview is best-effort
+      }
+    }
+    fetchBlockHeight();
+  }, [lockDuration, durationUnit, network]);
 
   // Track dirty state: form is "dirty" if user changed lock duration or deposit from defaults
   const initialLockDuration = useRef('30');
@@ -274,7 +291,7 @@ export default function SafeDelayForm() {
               <option value="months">Months</option>
             </Select>
           </div>
-          <HelpText>~{getDurationInBlocks()} blocks (approximately {lockDuration} {durationUnit})</HelpText>
+          <HelpText>~{getDurationInBlocks()} blocks (approximately {lockDuration} {durationUnit}){currentBlockHeight != null && estimatedUnlockBlock != null ? ` · unlocks at block ~${estimatedUnlockBlock}` : ''}</HelpText>
         </FormGroup>
 
         <FormGroup>
