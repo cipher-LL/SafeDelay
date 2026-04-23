@@ -271,7 +271,13 @@ export default function SafeDelayManagerDashboard() {
 
   // UI
   const [copied, setCopied] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'mine' | 'all'>('mine');
+  const [viewMode, setViewMode] = useState<'mine' | 'all'>(() => {
+    try {
+      const saved = localStorage.getItem('safedelay-view-mode');
+      if (saved === 'mine' || saved === 'all') return saved;
+    } catch {}
+    return 'mine';
+  });
 
   // External SafeDelay tracking (e.g. from BadgerSurvivors prize claims)
   const [externalAddressInput, setExternalAddressInput] = useState('');
@@ -722,11 +728,11 @@ export default function SafeDelayManagerDashboard() {
       {allEntries.length > 0 && (
         <ViewToggle>
           <SecondaryBtn
-            onClick={() => setViewMode('mine')}
+            onClick={() => { setViewMode('mine'); try { localStorage.setItem('safedelay-view-mode', 'mine'); } catch {} }}
             style={{ background: viewMode === 'mine' ? 'rgba(79,70,229,0.2)' : undefined, borderColor: viewMode === 'mine' ? '#4f46e5' : undefined, color: viewMode === 'mine' ? '#a5b4fc' : undefined }}
           >My Wallets</SecondaryBtn>
           <SecondaryBtn
-            onClick={() => setViewMode('all')}
+            onClick={() => { setViewMode('all'); try { localStorage.setItem('safedelay-view-mode', 'all'); } catch {} }}
             style={{ background: viewMode === 'all' ? 'rgba(79,70,229,0.2)' : undefined, borderColor: viewMode === 'all' ? '#4f46e5' : undefined, color: viewMode === 'all' ? '#a5b4fc' : undefined }}
           >All Wallets</SecondaryBtn>
         </ViewToggle>
