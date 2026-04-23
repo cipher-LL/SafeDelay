@@ -6,9 +6,10 @@ import { useWalletLabels } from '../hooks/useWalletLabels';
 import { debug, debugLog } from '../utils/debug';
 import { useWalletBackup } from '../hooks/useWalletBackup';
 import { useDepositMilestones } from '../hooks/useDepositMilestones';
-import { useStoredContracts, useElectrumContractData } from '../hooks/useSafeDelayContracts';
+import { useStoredContracts, useElectrumContractData, StoredContract } from '../hooks/useSafeDelayContracts';
 import { useOnChainTxHistory } from '../hooks/useOnChainTxHistory';
 import { useWifSigner } from '../hooks/useWifSigner';
+import { useOnChainContractDiscovery, DiscoveredContract } from '../hooks/useOnChainContractDiscovery';
 import { QRCodeSVG } from 'qrcode.react';
 import QrScanner from './QrScanner';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
@@ -693,6 +694,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [wifError, setWifError] = useState('');
 
   const { fetchHistory } = useOnChainTxHistory();
+  const { discoverContracts, scanning: recoveryScanning, scanProgress: recoveryScanProgress, lastScanResult } = useOnChainContractDiscovery();
+  const [discoveredContracts, setDiscoveredContracts] = useState<DiscoveredContract[]>([]);
+  const [recoveryScanDone, setRecoveryScanDone] = useState(false);
 
   // Load saved transactions from localStorage
   useEffect(() => {
@@ -779,6 +783,46 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       setImportFile(file);
       e.target.value = '';
     }
+  };
+
+  // ─── On-chain contract recovery ───────────────────────────────────────────
+  const handleRecoveryScan = async () => {
+    if (!wallet.connected || !wallet.pubkeyHash || !wallet.address) {
+      setTxStatus({ type: 'error', message: 'Please connect your wallet first.' });
+      return;
+    }
+    setDiscoveredContracts([]);
+    setRecoveryScanDone(false);
+    const result = await discoverContracts(wallet.address, wallet.pubkeyHash, network);
+    setDiscoveredContracts(result.discovered);
+    setRecoveryScanDone(true);
+  };
+
+  const handleRecoverContract = (contract: DiscoveredContract) => {
+    if (!wallet.pubkeyHash) return;
+    const newContract: StoredContract = {
+      address: contract.address,
+      ownerPkh: wallet.pubkeyHash,
+      lockEndBlock: contract.lockEndBlock,
+      type: contract.type,
+      owners: contract.owners,
+      createdAt: Date.now(),
+    };
+    // Merge with existing contracts (avoid duplicates by address)
+    const existing = storedContracts.find(c => c.address === contract.address);
+    if (!existing) {
+      const merged = [...storedContracts, newContract];
+      localStorage.setItem('safedelay_contracts', JSON.stringify(merged));
+      // Trigger reload via page refresh (simple approach)
+      setTxStatus({ type: 'success', message: `✅ Contract ${contract.address.slice(0, 16)}... recovered! Refreshing page...` });
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      setTxStatus({ type: 'info', message: `ℹ️ Contract ${contract.address.slice(0, 16)}... is already in your list.` });
+    }
+  };
+
+  const handleRecoverAll = () => {
+    discoveredContracts.forEach(c => handleRecoverContract(c));
   };
 
   // Sync contracts from Electrum hook to local state
@@ -1734,6 +1778,128 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           >
             {backupError || backupSuccess} (click to dismiss)
           </MessageBox>
+        )}
+      </BackupSection>
+
+      {/* ─── On-Chain Contract Recovery Section ─────────────────────────────── */}
+      <BackupSection>
+        <SectionTitle>🔍 On-Chain Contract Recovery</SectionTitle>
+        <Description>
+          Lost your contracts due to browser data clearing? Scan the blockchain to recover them using your wallet address.
+        </Description>
+
+        {recoveryScanning && (
+          <MessageBox $type="info" style={{ marginBottom: '16px' }}>
+            {recoveryScanProgress || 'Scanning blockchain...'}
+          </MessageBox>
+        )}
+
+        {recoveryScanDone && discoveredContracts.length === 0 && (
+          <MessageBox $type="info" style={{ marginBottom: '16px' }}>
+            No SafeDelay contracts found on-chain for this wallet. If you recently created contracts, they may not have been indexed yet.
+          </MessageBox>
+        )}
+
+        {recoveryScanDone && discoveredContracts.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            <MessageBox $type="success" style={{ marginBottom: '12px' }}>
+              Found {discoveredContracts.length} SafeDelay contract{discoveredContracts.length !== 1 ? 's' : ''} on-chain!
+            </MessageBox>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+              {discoveredContracts.map(c => (
+                <div key={c.address} style={{
+                  padding: '12px',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontFamily: 'monospace', color: 'rgba(255,255,255,0.9)' }}>
+                      {c.address.slice(0, 20)}...{c.address.slice(-8)}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+                      Unlocks at block {c.lockEndBlock.toLocaleString()}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleRecoverContract(c)}
+                    style={{
+                      padding: '6px 16px',
+                      background: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Recover
+                  </button>
+                </div>
+              ))}
+            </div>
+            {discoveredContracts.length > 1 && (
+              <button
+                onClick={handleRecoverAll}
+                style={{
+                  padding: '8px 20px',
+                  background: 'rgba(16, 185, 129, 0.3)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.5)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Recover All ({discoveredContracts.length})
+              </button>
+            )}
+          </div>
+        )}
+
+        <BackupActions>
+          <button
+            onClick={handleRecoveryScan}
+            disabled={recoveryScanning || !wallet.connected}
+            style={{
+              padding: '10px 20px',
+              background: recoveryScanning ? 'rgba(79, 70, 229, 0.3)' : '#4f46e5',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: recoveryScanning ? 'not-allowed' : 'pointer',
+              opacity: recoveryScanning ? 0.7 : 1,
+            }}
+          >
+            {recoveryScanning ? '🔄 Scanning...' : '🔍 Scan for Contracts'}
+          </button>
+        </BackupActions>
+
+        {!wallet.connected && (
+          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '8px' }}>
+            Connect your wallet to scan for contracts
+          </div>
+        )}
+
+        {lastScanResult && lastScanResult.errors.length > 0 && (
+          <div style={{ marginTop: '12px' }}>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>
+              Scan warnings:
+            </div>
+            {lastScanResult.errors.slice(0, 3).map((err, i) => (
+              <div key={i} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                • {err}
+              </div>
+            ))}
+          </div>
         )}
       </BackupSection>
 
