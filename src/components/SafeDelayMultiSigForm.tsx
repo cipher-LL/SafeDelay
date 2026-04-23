@@ -169,6 +169,22 @@ const ErrorText = styled.span`
   color: #ef4444;
 `;
 
+const CopyButton = styled.button`
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(79, 70, 229, 0.2);
+  color: #a5b4fc;
+
+  &:hover {
+    background: rgba(79, 70, 229, 0.4);
+  }
+`;
+
 export default function SafeDelayMultiSigForm() {
   const { wallet } = useWallet();
   const { network } = useNetwork();
@@ -190,6 +206,15 @@ export default function SafeDelayMultiSigForm() {
   const [error, setError] = useState<string | null>(null);
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+
+  const handleCopyAddress = async (address: string) => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopiedAddress(address);
+      setTimeout(() => setCopiedAddress(null), 2000);
+    } catch {}
+  };
 
   // Track dirty state: form is dirty if user changed any field from defaults
   const initialThreshold = useRef('2');
@@ -248,7 +273,7 @@ export default function SafeDelayMultiSigForm() {
           .map(b => b.toString(16).padStart(2, '0')).join('');
         const knownHash = HASHES.SafeDelayMultiSig?.bytecodeHash;
         if (knownHash && actualHash !== knownHash) {
-          const msg = 'Contract bytecode verification failed — embedded artifact does not match the expected deployed bytecode. Please ensure you are using the correct compiled artifact.';
+          const msg = `Bytecode mismatch — got ${actualHash.slice(0, 16)}..., expected ${knownHash.slice(0, 16)}... Check your artifact file and network settings.`;
           setBytecodeError(msg);
           debug.error('[SafeDelayMultiSigForm] Bytecode mismatch:', actualHash, '!=', knownHash);
           setLoading(false);
@@ -427,7 +452,12 @@ export default function SafeDelayMultiSigForm() {
       {contractAddress && (
         <ContractAddressBox>
           <ContractAddressLabel>Contract Address:</ContractAddressLabel>
-          <ContractAddress>{contractAddress}</ContractAddress>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <ContractAddress>{contractAddress}</ContractAddress>
+            <CopyButton onClick={() => handleCopyAddress(contractAddress!)}>
+              {copiedAddress === contractAddress ? '✓ Copied!' : '📋 Copy'}
+            </CopyButton>
+          </div>
           <HelpText style={{ marginTop: '8px' }}>
             Fund this address to activate the time-lock. Funds can be withdrawn after the lock period with {threshold} of 3 signatures.
           </HelpText>
