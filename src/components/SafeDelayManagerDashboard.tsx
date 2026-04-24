@@ -29,6 +29,12 @@ import type { SafeDelayManagerEntry } from '../types/index';
 import QrScanner from './QrScanner';
 import { debug } from '../utils/debug';
 
+function getExplorerAddressUrl(n: 'mainnet' | 'testnet' | 'chipnet', addr: string): string {
+  const clean = addr.replace(/^(bitcoincash:|bchtest:|bchreg:)/, '');
+  if (n === 'mainnet') return `https://blockchair.com/bitcoin-cash/address/${clean}`;
+  return `https://chipnet.blockchair.com/bitcoin-cash/address/${clean}`;
+}
+
 // Map our network strings to CashScript Network type
 function toCashScriptNetwork(n: 'mainnet' | 'testnet' | 'chipnet'): Network {
   switch (n) {
@@ -201,6 +207,18 @@ const RefreshBtn = styled(CopyBtn)`
   background: rgba(16,185,129,0.15);
   color: #10b981;
   &:hover:not(:disabled) { background: rgba(16,185,129,0.3); }
+`;
+
+const ExternalLinkBtn = styled.a`
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  background: rgba(99,102,241,0.2);
+  color: #a5b4fc;
+  cursor: pointer;
+  text-decoration: none;
+  &:hover { background: rgba(99,102,241,0.4); }
 `;
 
 const EmptyState = styled.div`
@@ -806,9 +824,14 @@ export default function SafeDelayManagerDashboard() {
                 <strong>SafeDelay Address:</strong><br />
                 {externalResult.address}
               </span>
-              <CopyBtn onClick={() => handleCopy(externalResult.address)}>
-                {copied === externalResult.address ? '✓' : '📋 Copy'}
-              </CopyBtn>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <CopyBtn onClick={() => handleCopy(externalResult.address)}>
+                  {copied === externalResult.address ? '✓' : '📋 Copy'}
+                </CopyBtn>
+                <ExternalLinkBtn href={getExplorerAddressUrl(network as 'mainnet' | 'testnet' | 'chipnet', externalResult.address)} target="_blank" rel="noopener noreferrer">
+                  🔗 View
+                </ExternalLinkBtn>
+              </div>
             </AddressBox>
           )}
           {externalResult && externalResult.verified === true && (
