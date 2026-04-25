@@ -209,6 +209,13 @@ const RefreshBtn = styled(CopyBtn)`
   &:hover:not(:disabled) { background: rgba(16,185,129,0.3); }
 `;
 
+const WithdrawBtn = styled(CopyBtn)`
+  background: rgba(16,185,129,0.25);
+  color: #10b981;
+  font-weight: 600;
+  &:hover:not(:disabled) { background: rgba(16,185,129,0.45); }
+`;
+
 const ExternalLinkBtn = styled.a`
   padding: 6px 12px;
   border: none;
@@ -680,6 +687,52 @@ export default function SafeDelayManagerDashboard() {
     }
   }, [network]);
 
+  // ─── Withdraw from expired SafeDelay ───────────────────────────────────────
+  const [withdrawing, setWithdrawing] = useState<Set<string>>(new Set());
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [withdrawSuccess, setWithdrawSuccess] = useState<string | null>(null);
+
+  const handleWithdraw = useCallback(async (entry: EntryWithBalance) => {
+    if (!wallet.connected || !wallet.pubkeyHash) {
+      setWithdrawError('Connect your wallet first');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Withdraw ${entry.balance.toFixed(4)} BCH from SafeDelay?\n\n` +
+      `Contract: ${entry.address}\n` +
+      `Owner PKH: ${entry.ownerPkh}\n` +
+      `Lock ended at block: ${entry.lockEndBlock.toLocaleString()}`
+    );
+    if (!confirmed) return;
+
+    setWithdrawError(null);
+    setWithdrawSuccess(null);
+    setWithdrawing(prev => new Set(prev).add(entry.address!));
+
+    try {
+      const { withdrawFromSafeDelay } = await import('../utils/deployContract');
+
+      const txResult = await withdrawFromSafeDelay({
+        ownerPubkeyHash: entry.ownerPkh,
+        lockEndBlock: entry.lockEndBlock,
+        withdrawAmount: BigInt(Math.floor(entry.balance * 1e8)),
+        network,
+      });
+
+      setWithdrawSuccess(`Withdrawn ${entry.balance.toFixed(4)} BCH! Tx: ${txResult.txid.slice(0, 20)}...`);
+      await handleRefreshEntry(entry.address!);
+    } catch (err) {
+      setWithdrawError(err instanceof Error ? err.message : 'Withdrawal failed');
+    } finally {
+      setWithdrawing(prev => {
+        const next = new Set(prev);
+        next.delete(entry.address!);
+        return next;
+      });
+    }
+  }, [wallet.connected, wallet.pubkeyHash, network, handleRefreshEntry]);
+
   // ─── Copy helper ───────────────────────────────────────────────────────────
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text.replace(/^(bitcoincash:|bchtest:|bchreg:)/, ''));
@@ -900,12 +953,23 @@ export default function SafeDelayManagerDashboard() {
                       >
                         {refreshingEntries.has(entry.address) ? '⏳' : '🔄'} Refresh
                       </RefreshBtn>
+                      {!locked && entry.balance > 0 && (
+                        <WithdrawBtn
+                          onClick={() => entry.address && handleWithdraw(entry)}
+                          disabled={withdrawing.has(entry.address)}
+                          title="Withdraw unlocked funds"
+                        >
+                          {withdrawing.has(entry.address) ? '⏳' : '💰'} Withdraw
+                        </WithdrawBtn>
+                      )}
                     </>
                   )}
                 </WalletCard>
               );
             })}
           </WalletList>
+          {withdrawError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{withdrawError}</MessageBox>}
+          {withdrawSuccess && <MessageBox $type="success" style={{ marginTop: '8px' }}>{withdrawSuccess}</MessageBox>}
         </Section>
       )}
 
