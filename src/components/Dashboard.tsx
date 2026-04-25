@@ -1439,7 +1439,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       </AnalyticsGrid>
 
       {/* Milestone Notifications Section */}
-      <TransactionSection>
+      <TransactionSection id="milestone-notifications">
         <SectionTitle>📲 Deposit Milestone Notifications</SectionTitle>
         <Description>
           Get notified when your deposits reach certain lock percentages

@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { useTheme } from '../context/ThemeContext';
+
+const NOTIFICATIONS_KEY = 'safedelay_milestone_notifications';
 
 const HeaderContainer = styled.header`
   display: flex;
@@ -129,12 +131,67 @@ const ErrorText = styled.span`
   max-width: 200px;
 `;
 
+const BellButton = styled.button`
+  position: relative;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 18px;
+  transition: all 0.2s;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+`;
+
+const NotificationBadge = styled.span`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
 export default function Header() {
   const { network, setNetwork } = useNetwork();
   const { wallet, connect, connectManual, disconnect, hasSigner } = useWallet();
   const { theme, toggleTheme } = useTheme();
   const [inputAddress, setInputAddress] = useState('');
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // Load notification count from milestone notifications localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(NOTIFICATIONS_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+        // notifications is stored inside the milestone data
+        if (data.milestones) {
+          // Count total unread-like: use notifications array length if present
+          // Fall back to counting deposits with unnotified milestones
+          const count = (data.milestones as Array<{notifiedMilestones?: number[]}>)
+            .filter(m => m.notifiedMilestones && m.notifiedMilestones.length > 0)
+            .length;
+          setNotificationCount(count);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const toggleNetwork = () => {
     setNetwork(network === 'mainnet' ? 'testnet' : 'mainnet');
@@ -166,6 +223,19 @@ export default function Header() {
         <ThemeToggle onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           {theme === 'dark' ? '☀️' : '🌙'}
         </ThemeToggle>
+        {notificationCount > 0 && (
+          <BellButton
+            onClick={() => {
+              // Scroll to milestone section in Dashboard
+              const el = document.getElementById('milestone-notifications');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            title={`${notificationCount} active deposit${notificationCount !== 1 ? 's' : ''} with milestone tracking`}
+          >
+            🔔
+            <NotificationBadge>{notificationCount > 9 ? '9+' : notificationCount}</NotificationBadge>
+          </BellButton>
+        )}
         <NetworkToggle $isTestnet={network === 'testnet'} onClick={toggleNetwork}>
           {network === 'testnet' ? '🧪 Testnet' : '💰 Mainnet'}
         </NetworkToggle>
