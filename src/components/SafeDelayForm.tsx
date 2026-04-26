@@ -240,25 +240,20 @@ export default function SafeDelayForm() {
           return;
         }
       }
-      // Calculate lock end block relative to current block height
+      // Calculate lock duration in blocks (~10 min/block, ~144 blocks/day)
       const blocks = getDurationInBlocks();
-      
-      // For now, we calculate an estimated lock end block
-      // In production, fetch current block height from network
-      const estimatedLockEnd = blocks; // Relative blocks from now
-      
-      
 
-      // Convert wallet address to pubkey hash for the contract
+      // Derive PKH from wallet address
       const ownerPkh = await addressToPubkeyHash(wallet.address!);
 
-      // Deploy contract
+      // Deploy contract — deploySafeDelay internally fetches current block height
+      // and computes actualLockEndBlock = currentBlock + blocks (absolute height)
       const result = await deploySafeDelay({
         ownerPubkeyHash: ownerPkh,
-        lockEndBlock: estimatedLockEnd,
+        lockEndBlock: blocks, // relative — deploySafeDelay converts to absolute
         network: network as 'mainnet' | 'testnet' | 'chipnet',
       });
-      
+
       setContractAddress(result.contractAddress);
 
       // Save contract to localStorage for dashboard
