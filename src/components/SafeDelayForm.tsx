@@ -167,6 +167,18 @@ export default function SafeDelayForm() {
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null);
   const [estimatedUnlockBlock, setEstimatedUnlockBlock] = useState<number | null>(null);
+  const [estimatedUnlockDate, setEstimatedUnlockDate] = useState<string | null>(null);
+
+  // Compute estimated unlock date from block number
+  const computeUnlockDate = (blockHeight: number) => {
+    // ~10 minutes per block, 144 blocks per day
+    const blocksPerDay = 144;
+    const msPerBlock = 10 * 60 * 1000; // 10 minutes in ms
+    const daysToUnlock = Math.ceil((blockHeight - (currentBlockHeight || 0)) / blocksPerDay);
+    const unlockMs = Date.now() + (daysToUnlock * blocksPerDay * msPerBlock);
+    const date = new Date(unlockMs);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
 
   // Fetch current block height on mount and when duration changes
   useEffect(() => {
@@ -175,7 +187,9 @@ export default function SafeDelayForm() {
         const h = await fetchCurrentBlockHeight(network as 'mainnet' | 'testnet' | 'chipnet');
         setCurrentBlockHeight(h);
         const blocks = getDurationInBlocks();
-        setEstimatedUnlockBlock(h + blocks);
+        const unlockBlock = h + blocks;
+        setEstimatedUnlockBlock(unlockBlock);
+        setEstimatedUnlockDate(computeUnlockDate(unlockBlock));
       } catch {
         // silently ignore — preview is best-effort
       }
@@ -291,7 +305,7 @@ export default function SafeDelayForm() {
               <option value="months">Months</option>
             </Select>
           </div>
-          <HelpText>~{getDurationInBlocks()} blocks (approximately {lockDuration} {durationUnit}){currentBlockHeight != null && estimatedUnlockBlock != null ? ` · unlocks at block ~${estimatedUnlockBlock}` : ''}</HelpText>
+          <HelpText>~{getDurationInBlocks()} blocks (approximately {lockDuration} {durationUnit}){currentBlockHeight != null && estimatedUnlockBlock != null ? ` · unlocks at block ~${estimatedUnlockBlock}` : ''}{currentBlockHeight != null && estimatedUnlockDate != null ? ` (est. ~${estimatedUnlockDate})` : ''}</HelpText>
         </FormGroup>
 
         <FormGroup>
