@@ -287,6 +287,7 @@ export default function SafeDelayManagerDashboard() {
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [entriesError, setEntriesError] = useState<string | null>(null);
   const [refreshingEntries, setRefreshingEntries] = useState<Set<string>>(new Set());
+  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
 
   // Compute address form
   const [lockBlocks, setLockBlocks] = useState('144'); // ~1 day
@@ -516,6 +517,21 @@ export default function SafeDelayManagerDashboard() {
     fetchBalances();
     return () => { cancelled = true; };
   }, [allEntries, wallet.pubkeyHash, viewMode, network, currentBlock]);
+
+  // ─── Auto-refresh registry every 60s ──────────────────────────────────────
+  useEffect(() => {
+    if (!managerAddress) return;
+    const interval = setInterval(async () => {
+      if (loadingEntries) return;
+      try {
+        await loadRegistry(managerAddress);
+        setLastRefreshed(Date.now());
+      } catch {
+        // silent — non-blocking
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [managerAddress, loadingEntries, loadRegistry]);
 
   // ─── Compute new SafeDelay address ─────────────────────────────────────────
   const handleComputeAddress = useCallback(async () => {
@@ -805,6 +821,9 @@ export default function SafeDelayManagerDashboard() {
             <StatLabel>My Wallets</StatLabel>
           </StatCard>
           <StatCard><StatValue>{currentBlock > 0 ? currentBlock.toLocaleString() : '—'}</StatValue><StatLabel>Current Block</StatLabel></StatCard>
+          {lastRefreshed && (
+            <StatCard><StatValue style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>↻ {new Date(lastRefreshed).toLocaleTimeString()}</StatValue><StatLabel>Last Refresh</StatLabel></StatCard>
+          )}
         </Grid3>
       )}
 
