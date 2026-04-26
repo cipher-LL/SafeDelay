@@ -138,18 +138,20 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
+      const change = 20000n - BigInt(feeSats) - 1000n; // 14000
       const builder = new TransactionBuilder({ provider });
       builder
         .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats)))
         .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
-        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }, { to: owner1.address, amount: change }]);
 
       const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
     it('should append to existing NFT commitment when registering second wallet', async () => {
-      // First entry already committed
+      // BCH NFT commitment is limited to 40 bytes. Each entry is 28 bytes,
+      // so 2 entries (56 bytes) exceed the limit — this must fail.
       const existingCommitment = concatBytes(owner1.pkh, encodeLockEndBlock(1000));
       const managerUtxoWithEntry = createNftUtxo(100000n, existingCommitment, tokenCategory);
       provider.addUtxo(manager.address, managerUtxoWithEntry);
@@ -160,7 +162,7 @@ describe('SafeDelayManager Contract', () => {
       const feeSats = 5000n;
       const lockEndBlock2 = encodeLockEndBlock(2000);
 
-      // New commitment = existing + new entry
+      // New commitment = existing (28 bytes) + new entry (28 bytes) = 56 bytes > 40 bytes limit
       const expectedCommitment = concatBytes(existingCommitment, owner2.pkh, lockEndBlock2);
 
       const builder = new TransactionBuilder({ provider });
@@ -169,8 +171,8 @@ describe('SafeDelayManager Contract', () => {
         .addInput(creatorUtxo, owner2.signer.unlockP2PKH())
         .addOutputs([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
 
-      const tx = await builder.send();
-      expect(tx).toBeDefined();
+      // Commitment exceeds 40-byte consensus limit — must fail
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should return change to creator when change >= 1000 sats', async () => {
@@ -218,12 +220,13 @@ describe('SafeDelayManager Contract', () => {
       const feeSats = 1000n; // minimum fee
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
+      const change = 20000n - feeSats - 1000n; // 18000
 
       const builder = new TransactionBuilder({ provider });
       builder
         .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
         .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
-        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }]);
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }, { to: owner1.address, amount: change }]);
 
       const tx = await builder.send();
       expect(tx).toBeDefined();
@@ -236,13 +239,14 @@ describe('SafeDelayManager Contract', () => {
       const feeSats = 5000n;
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
+      const change = 20000n - BigInt(feeSats) - 1000n; // 14000
 
       // Manager UTXO must preserve its value (100000n) in output 0
       const builder = new TransactionBuilder({ provider });
       builder
         .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats)))
         .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
-        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }, { to: owner1.address, amount: change }]);
 
       const tx = await builder.send();
       expect(tx).toBeDefined();
@@ -256,12 +260,13 @@ describe('SafeDelayManager Contract', () => {
       // Very high block height
       const lockEndBlock = encodeLockEndBlock(800000000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
+      const change = 20000n - BigInt(feeSats) - 1000n; // 14000
 
       const builder = new TransactionBuilder({ provider });
       builder
         .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats)))
         .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
-        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }, { to: owner1.address, amount: change }]);
 
       const tx = await builder.send();
       expect(tx).toBeDefined();
@@ -405,19 +410,21 @@ describe('SafeDelayManager Contract', () => {
       const feeSats = 5000n;
       const lockEndBlock = encodeLockEndBlock(1000);
       const expectedCommitment = concatBytes(owner1.pkh, lockEndBlock);
+      const change = 20000n - feeSats - 1000n; // 14000
 
       const builder = new TransactionBuilder({ provider });
       builder
         .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
         .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
-        .addOutputs([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: feeSats }]);
+        .addOutputs([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: feeSats }, { to: owner1.address, amount: change }]);
 
       const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
     it('should handle maximum-size commitment (many entries)', async () => {
-      // Build a commitment with many entries
+      // BCH NFT commitment is limited to 40 bytes. Each entry is 28 bytes,
+      // so this test verifies the contract correctly rejects oversized commitments.
       const entryParts = [];
       for (let i = 0; i < 10; i++) {
         const kp = generateKeyPair();
@@ -443,8 +450,8 @@ describe('SafeDelayManager Contract', () => {
         .addInput(creatorUtxo, newOwner.signer.unlockP2PKH())
         .addOutputs([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: feeSats }]);
 
-      const tx = await builder.send();
-      expect(tx).toBeDefined();
+      // Oversized commitment (308 bytes) exceeds 40-byte consensus limit — must fail
+      await expect(builder.send()).rejects.toThrow();
     });
   });
 });
