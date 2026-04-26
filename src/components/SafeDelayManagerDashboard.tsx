@@ -493,13 +493,13 @@ export default function SafeDelayManagerDashboard() {
       ? allEntries.filter(e => e.ownerPkh.toLowerCase() === walletPkh)
       : allEntries;
 
-    const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+    // Track cancellation at the effect level so cleanup always refers to the right flag
     let cancelled = false;
 
-    async function fetchBalances() {
+    async function fetchBalances(provider: InstanceType<typeof ElectrumNetworkProvider>) {
       const results: EntryWithBalance[] = [];
       for (const entry of filtered) {
-        if (!entry.address) continue;
+        if (!entry.address || cancelled) continue;
         try {
           const utxos = await provider.getUtxos(entry.address);
           const balance = utxos.reduce((sum, u) => sum + Number(u.satoshis) / 1e8, 0);
@@ -514,7 +514,8 @@ export default function SafeDelayManagerDashboard() {
       }
     }
 
-    fetchBalances();
+    const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+    fetchBalances(provider);
     return () => { cancelled = true; };
   }, [allEntries, wallet.pubkeyHash, viewMode, network, currentBlock]);
 
