@@ -1,4 +1,4 @@
-import { Contract, MockNetworkProvider, randomUtxo, SignatureTemplate } from 'cashscript';
+import { Contract, MockNetworkProvider, randomUtxo, SignatureTemplate, TransactionBuilder } from 'cashscript';
 import { secp256k1, encodeCashAddress } from '@bitauth/libauth';
 import { hash160 } from '@cashscript/utils';
 import { createHash } from 'crypto';
@@ -138,13 +138,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      const tx = await manager.functions.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats))
-        .from(managerNftUtxo)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats)))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -163,13 +163,13 @@ describe('SafeDelayManager Contract', () => {
       // New commitment = existing + new entry
       const expectedCommitment = concatBytes(existingCommitment, owner2.pkh, lockEndBlock2);
 
-      const tx = await manager.functions.createDelay(owner2.pkh, lockEndBlock2, BigInt(feeSats))
-        .from(managerUtxoWithEntry)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: BigInt(feeSats) }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerUtxoWithEntry, manager.unlock.createDelay(owner2.pkh, lockEndBlock2, BigInt(feeSats)))
+        .addInput(creatorUtxo, owner2.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -182,13 +182,13 @@ describe('SafeDelayManager Contract', () => {
       const expectedChange = 100000n - BigInt(feeSats) - 1000n; // 94000n
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      const tx = await manager.functions.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats))
-        .from(managerNftUtxo)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }, { to: owner1.address, amount: expectedChange }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats)))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }, { to: owner1.address, amount: expectedChange }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -201,13 +201,13 @@ describe('SafeDelayManager Contract', () => {
       // change = 6000 - 5000 - 1000 = 0, no change output needed
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      const tx = await manager.functions.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats))
-        .from(managerNftUtxo)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats)))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -219,13 +219,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      const tx = await manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-        .from(managerNftUtxo)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -238,13 +238,13 @@ describe('SafeDelayManager Contract', () => {
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
       // Manager UTXO must preserve its value (100000n) in output 0
-      const tx = await manager.functions.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats))
-        .from(managerNftUtxo)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats)))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -257,13 +257,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(800000000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      const tx = await manager.functions.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats))
-        .from(managerNftUtxo)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, BigInt(feeSats)))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: BigInt(feeSats) }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -271,7 +271,7 @@ describe('SafeDelayManager Contract', () => {
       // Create a fake token UTXO (not BCH)
       const tokenUtxo = randomUtxo({ satoshis: 20000n });
       Object.defineProperty(tokenUtxo, 'token', {
-        value: { category: new Uint8Array(32).fill(1), commitment: new Uint8Array(0) },
+        value: { category: new Uint8Array(32).fill(1), amount: 1n, nft: { capability: 'none', commitment: '00' } },
         writable: true,
         enumerable: true,
         configurable: true
@@ -282,13 +282,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      await expect(
-        manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-          .from(managerNftUtxo)
-          .from(tokenUtxo)
-          .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }])
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addInput(tokenUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }]);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if fee output is not to service provider', async () => {
@@ -299,13 +299,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      await expect(
-        manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-          .from(managerNftUtxo)
-          .from(creatorUtxo)
-          .to([nftOutput(100000n, commitment), { to: owner1.address, amount: feeSats }])
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: owner1.address, amount: feeSats }]);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if fee amount is incorrect', async () => {
@@ -316,13 +316,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      await expect(
-        manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-          .from(managerNftUtxo)
-          .from(creatorUtxo)
-          .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: 4000n }])
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: 4000n }]);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if creator BCH input is missing (only 1 input)', async () => {
@@ -331,12 +331,12 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      await expect(
-        manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-          .from(managerNftUtxo)
-          .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }])
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }]);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if manager NFT commitment is not correctly updated', async () => {
@@ -348,13 +348,13 @@ describe('SafeDelayManager Contract', () => {
       // Wrong commitment - doesn't include the new entry (empty instead)
       const wrongCommitment = new Uint8Array(0);
 
-      await expect(
-        manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-          .from(managerNftUtxo)
-          .from(creatorUtxo)
-          .to([nftOutput(100000n, wrongCommitment), { to: serviceProvider.address, amount: feeSats }])
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, wrongCommitment), { to: serviceProvider.address, amount: feeSats }]);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if manager output value is changed', async () => {
@@ -365,19 +365,19 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      await expect(
-        manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-          .from(managerNftUtxo)
-          .from(creatorUtxo)
-          .to([nftOutput(99999n, commitment), { to: serviceProvider.address, amount: feeSats }])
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(99999n, commitment), { to: serviceProvider.address, amount: feeSats }]);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if fee output has token category (not pure BCH)', async () => {
       const tokenUtxo = randomUtxo({ satoshis: 20000n });
       Object.defineProperty(tokenUtxo, 'token', {
-        value: { category: new Uint8Array(32).fill(1), commitment: new Uint8Array(0) },
+        value: { category: new Uint8Array(32).fill(1), amount: 1n, nft: { capability: 'none', commitment: '00' } },
         writable: true,
         enumerable: true,
         configurable: true
@@ -388,13 +388,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const commitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      await expect(
-        manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-          .from(managerNftUtxo)
-          .from(tokenUtxo)
-          .to([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }])
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addInput(tokenUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, commitment), { to: serviceProvider.address, amount: feeSats }]);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should allow zero-length initial commitment', async () => {
@@ -406,13 +406,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(1000);
       const expectedCommitment = concatBytes(owner1.pkh, lockEndBlock);
 
-      const tx = await manager.functions.createDelay(owner1.pkh, lockEndBlock, feeSats)
-        .from(managerNftUtxo)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: feeSats }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(managerNftUtxo, manager.unlock.createDelay(owner1.pkh, lockEndBlock, feeSats))
+        .addInput(creatorUtxo, owner1.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: feeSats }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -437,13 +437,13 @@ describe('SafeDelayManager Contract', () => {
       const lockEndBlock = encodeLockEndBlock(5000);
       const expectedCommitment = concatBytes(largeCommitment, newOwner.pkh, lockEndBlock);
 
-      const tx = await manager.functions.createDelay(newOwner.pkh, lockEndBlock, feeSats)
-        .from(largeNftUtxo)
-        .from(creatorUtxo)
-        .to([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: feeSats }])
-        .withoutTokenChange()
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(largeNftUtxo, manager.unlock.createDelay(newOwner.pkh, lockEndBlock, feeSats))
+        .addInput(creatorUtxo, newOwner.signer.unlockP2PKH())
+        .addOutputs([nftOutput(100000n, expectedCommitment), { to: serviceProvider.address, amount: feeSats }]);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
   });

@@ -1,4 +1,4 @@
-import { Contract, MockNetworkProvider, randomUtxo, SignatureTemplate } from 'cashscript';
+import { Contract, MockNetworkProvider, randomUtxo, SignatureTemplate, TransactionBuilder } from 'cashscript';
 import { secp256k1, encodeCashAddress } from '@bitauth/libauth';
 import { hash160 } from '@cashscript/utils';
 import artifact from '../artifacts/SafeDelay.artifact.json' with { type: 'json' };
@@ -68,15 +68,14 @@ describe('SafeDelay Contract', () => {
       const depositorUtxo = createUtxo(50000n);
       provider.addUtxo(depositorKeyPair.address, depositorUtxo);
 
-      // Should succeed - deposit adds funds to the contract
-      const tx = await contract.functions.deposit(depositorKeyPair.publicKey, depositorKeyPair.signer)
-        .from(contractUtxo)
-        .from(depositorUtxo)
-        .to(contract.address, 149000n)
-        .withTime(500)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.deposit(depositorKeyPair.publicKey, depositorKeyPair.signer))
+        .addInput(depositorUtxo, depositorKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: contract.address, amount: 149000n })
+        .setLocktime(500);
 
-      // If we get here, the contract succeeded
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
   });
@@ -86,14 +85,15 @@ describe('SafeDelay Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
-      const tx = await contract.functions.withdraw(ownerKeyPair.publicKey, ownerKeyPair.signer, 50000n)
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(ownerKeyPair.address, 50000n)
-        .to(contract.address, 49000n)
-        .withTime(1100)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(ownerKeyPair.publicKey, ownerKeyPair.signer, 50000n))
+        .addInput(ownerUtxo, ownerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: ownerKeyPair.address, amount: 50000n })
+        .addOutput({ to: contract.address, amount: 49000n })
+        .setLocktime(1100);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -101,32 +101,30 @@ describe('SafeDelay Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
-      // Should fail because lock hasn't expired
-      await expect(
-        contract.functions.withdraw(ownerKeyPair.publicKey, ownerKeyPair.signer, 50000n)
-          .from(contractUtxo)
-          .from(ownerUtxo)
-          .to(ownerKeyPair.address, 50000n)
-          .to(contract.address, 49000n)
-          .withTime(500)
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(ownerKeyPair.publicKey, ownerKeyPair.signer, 50000n))
+        .addInput(ownerUtxo, ownerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: ownerKeyPair.address, amount: 50000n })
+        .addOutput({ to: contract.address, amount: 49000n })
+        .setLocktime(500);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if called by non-owner', async () => {
       const attackerUtxo = createUtxo(100000n);
       provider.addUtxo(attackerKeyPair.address, attackerUtxo);
 
-      // Should fail because attacker is not the owner
-      await expect(
-        contract.functions.withdraw(attackerKeyPair.publicKey, attackerKeyPair.signer, 50000n)
-          .from(contractUtxo)
-          .from(attackerUtxo)
-          .to(attackerKeyPair.address, 50000n)
-          .to(contract.address, 49000n)
-          .withTime(1100)
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(attackerKeyPair.publicKey, attackerKeyPair.signer, 50000n))
+        .addInput(attackerUtxo, attackerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: attackerKeyPair.address, amount: 50000n })
+        .addOutput({ to: contract.address, amount: 49000n })
+        .setLocktime(1100);
+
+      await expect(builder.send()).rejects.toThrow();
     });
   });
 
@@ -135,13 +133,14 @@ describe('SafeDelay Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
-      const tx = await contract.functions.cancel(ownerKeyPair.publicKey, ownerKeyPair.signer)
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(ownerKeyPair.address, 199000n)
-        .withTime(500)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.cancel(ownerKeyPair.publicKey, ownerKeyPair.signer))
+        .addInput(ownerUtxo, ownerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: ownerKeyPair.address, amount: 199000n })
+        .setLocktime(500);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -149,28 +148,28 @@ describe('SafeDelay Contract', () => {
       const attackerUtxo = createUtxo(100000n);
       provider.addUtxo(attackerKeyPair.address, attackerUtxo);
 
-      // Should fail because attacker is not the owner
-      await expect(
-        contract.functions.cancel(attackerKeyPair.publicKey, attackerKeyPair.signer)
-          .from(contractUtxo)
-          .from(attackerUtxo)
-          .to(attackerKeyPair.address, 199000n)
-          .withTime(500)
-          .send()
-      ).rejects.toThrow();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.cancel(attackerKeyPair.publicKey, attackerKeyPair.signer))
+        .addInput(attackerUtxo, attackerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: attackerKeyPair.address, amount: 199000n })
+        .setLocktime(500);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should allow cancel after lock has expired', async () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
-      const tx = await contract.functions.cancel(ownerKeyPair.publicKey, ownerKeyPair.signer)
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(ownerKeyPair.address, 199000n)
-        .withTime(2000)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.cancel(ownerKeyPair.publicKey, ownerKeyPair.signer))
+        .addInput(ownerUtxo, ownerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: ownerKeyPair.address, amount: 199000n })
+        .setLocktime(2000);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
   });

@@ -1,4 +1,4 @@
-import { Contract, MockNetworkProvider, randomUtxo, SignatureTemplate } from 'cashscript';
+import { Contract, MockNetworkProvider, randomUtxo, SignatureTemplate, TransactionBuilder } from 'cashscript';
 import { secp256k1, encodeCashAddress } from '@bitauth/libauth';
 import { hash160 } from '@cashscript/utils';
 import artifact from '../artifacts/SafeDelayMultiSig.artifact.json' with { type: 'json' };
@@ -71,14 +71,14 @@ describe('SafeDelayMultiSig Contract', () => {
       const depositorUtxo = createUtxo(200000n);
       provider.addUtxo(depositor.address, depositorUtxo);
 
-      // Contract: 200000 + Depositor: 200000 - 1000 = 399000 for contract
-      const tx = await contract.functions.deposit(depositor.publicKey, depositor.signer)
-        .from(contractUtxo)
-        .from(depositorUtxo)
-        .to(contract.address, 399000n)
-        .withTime(500)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.deposit(depositor.publicKey, depositor.signer))
+        .addInput(depositorUtxo, depositor.signer.unlockP2PKH())
+        .addOutput({ to: contract.address, amount: 399000n })
+        .setLocktime(500);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
   });
@@ -88,20 +88,21 @@ describe('SafeDelayMultiSig Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      const tx = await contract.functions.withdraw(
-        owner1.publicKey, owner1.signer,
-        owner2.publicKey, owner2.signer,
-        owner3.publicKey, owner3.signer,
-        owner1.pkh,
-        100000n
-      )
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(owner1.address, 100000n)
-        .to(contract.address, 90000n)
-        .withTime(1100)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(
+          owner1.publicKey, owner1.signer,
+          owner2.publicKey, owner2.signer,
+          owner3.publicKey, owner3.signer,
+          owner1.pkh,
+          100000n
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 100000n })
+        .addOutput({ to: contract.address, amount: 90000n })
+        .setLocktime(1100);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -113,20 +114,21 @@ describe('SafeDelayMultiSig Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      const tx = await contract3of3.functions.withdraw(
-        owner1.publicKey, owner1.signer,
-        owner2.publicKey, owner2.signer,
-        owner3.publicKey, owner3.signer,
-        owner1.pkh,
-        100000n
-      )
-        .from(utxo3of3)
-        .from(ownerUtxo)
-        .to(owner1.address, 100000n)
-        .to(contract3of3.address, 90000n)
-        .withTime(1100)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(utxo3of3, contract3of3.unlock.withdraw(
+          owner1.publicKey, owner1.signer,
+          owner2.publicKey, owner2.signer,
+          owner3.publicKey, owner3.signer,
+          owner1.pkh,
+          100000n
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 100000n })
+        .addOutput({ to: contract3of3.address, amount: 90000n })
+        .setLocktime(1100);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -134,63 +136,63 @@ describe('SafeDelayMultiSig Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      await expect(
-        contract.functions.withdraw(
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(
           owner1.publicKey, owner1.signer,
           owner2.publicKey, owner2.signer,
           owner3.publicKey, owner3.signer,
           owner1.pkh,
           100000n
-        )
-          .from(contractUtxo)
-          .from(ownerUtxo)
-          .to(owner1.address, 100000n)
-          .to(contract.address, 90000n)
-          .withTime(500)
-          .send()
-      ).rejects.toThrow();
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 100000n })
+        .addOutput({ to: contract.address, amount: 90000n })
+        .setLocktime(500);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if only 1 signature provided (below threshold)', async () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      await expect(
-        contract.functions.withdraw(
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(
           owner1.publicKey, owner1.signer,
           owner1.publicKey, owner1.signer,
           owner1.publicKey, owner1.signer,
           owner1.pkh,
           100000n
-        )
-          .from(contractUtxo)
-          .from(ownerUtxo)
-          .to(owner1.address, 100000n)
-          .to(contract.address, 90000n)
-          .withTime(1100)
-          .send()
-      ).rejects.toThrow();
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 100000n })
+        .addOutput({ to: contract.address, amount: 90000n })
+        .setLocktime(1100);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if called by non-owner', async () => {
       const attackerUtxo = createUtxo(100000n);
       provider.addUtxo(attacker.address, attackerUtxo);
 
-      await expect(
-        contract.functions.withdraw(
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
           owner1.pkh,
           100000n
-        )
-          .from(contractUtxo)
-          .from(attackerUtxo)
-          .to(attacker.address, 100000n)
-          .to(contract.address, 90000n)
-          .withTime(1100)
-          .send()
-      ).rejects.toThrow();
+        ))
+        .addInput(attackerUtxo, attacker.signer.unlockP2PKH())
+        .addOutput({ to: attacker.address, amount: 100000n })
+        .addOutput({ to: contract.address, amount: 90000n })
+        .setLocktime(1100);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should allow same owner signing twice in pk2 and pk3 positions', async () => {
@@ -199,20 +201,21 @@ describe('SafeDelayMultiSig Contract', () => {
 
       // owner1 + owner2 + owner2 (same owner twice) - counts as 2 signatures
       // This is valid contract behavior - same owner can sign in multiple positions
-      const tx = await contract.functions.withdraw(
-        owner1.publicKey, owner1.signer,
-        owner2.publicKey, owner2.signer,
-        owner2.publicKey, owner2.signer,
-        owner1.pkh,
-        100000n
-      )
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(owner1.address, 100000n)
-        .to(contract.address, 90000n)
-        .withTime(1100)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(
+          owner1.publicKey, owner1.signer,
+          owner2.publicKey, owner2.signer,
+          owner2.publicKey, owner2.signer,
+          owner1.pkh,
+          100000n
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 100000n })
+        .addOutput({ to: contract.address, amount: 90000n })
+        .setLocktime(1100);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -221,42 +224,42 @@ describe('SafeDelayMultiSig Contract', () => {
       provider.addUtxo(owner2.address, ownerUtxo);
 
       // pk1 must be owner1 - trying with owner2 should fail
-      await expect(
-        contract.functions.withdraw(
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(
           owner2.publicKey, owner2.signer,
           owner1.publicKey, owner1.signer,
           owner3.publicKey, owner3.signer,
           owner1.pkh,
           100000n
-        )
-          .from(contractUtxo)
-          .from(ownerUtxo)
-          .to(owner1.address, 100000n)
-          .to(contract.address, 90000n)
-          .withTime(1100)
-          .send()
-      ).rejects.toThrow();
+        ))
+        .addInput(ownerUtxo, owner2.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 100000n })
+        .addOutput({ to: contract.address, amount: 90000n })
+        .setLocktime(1100);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if recipient is not an owner', async () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      await expect(
-        contract.functions.withdraw(
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(
           owner1.publicKey, owner1.signer,
           owner2.publicKey, owner2.signer,
           owner3.publicKey, owner3.signer,
           attacker.pkh,
           100000n
-        )
-          .from(contractUtxo)
-          .from(ownerUtxo)
-          .to(attacker.address, 100000n)
-          .to(contract.address, 90000n)
-          .withTime(1100)
-          .send()
-      ).rejects.toThrow();
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: attacker.address, amount: 100000n })
+        .addOutput({ to: contract.address, amount: 90000n })
+        .setLocktime(1100);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should allow withdrawal with exact threshold (2-of-3)', async () => {
@@ -264,20 +267,21 @@ describe('SafeDelayMultiSig Contract', () => {
       provider.addUtxo(owner1.address, ownerUtxo);
 
       // Exactly 2 signatures: owner1 + owner2
-      const tx = await contract.functions.withdraw(
-        owner1.publicKey, owner1.signer,
-        owner2.publicKey, owner2.signer,
-        attacker.publicKey, attacker.signer, // attacker sig will be ignored
-        owner1.pkh,
-        100000n
-      )
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(owner1.address, 100000n)
-        .to(contract.address, 90000n)
-        .withTime(1100)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.withdraw(
+          owner1.publicKey, owner1.signer,
+          owner2.publicKey, owner2.signer,
+          attacker.publicKey, attacker.signer, // attacker sig will be ignored
+          owner1.pkh,
+          100000n
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 100000n })
+        .addOutput({ to: contract.address, amount: 90000n })
+        .setLocktime(1100);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
   });
@@ -287,18 +291,19 @@ describe('SafeDelayMultiSig Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      const tx = await contract.functions.cancel(
-        owner1.publicKey, owner1.signer,
-        owner2.publicKey, owner2.signer,
-        owner3.publicKey, owner3.signer,
-        owner1.pkh
-      )
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(owner1.address, 190000n)
-        .withTime(500)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.cancel(
+          owner1.publicKey, owner1.signer,
+          owner2.publicKey, owner2.signer,
+          owner3.publicKey, owner3.signer,
+          owner1.pkh
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 190000n })
+        .setLocktime(500);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -306,56 +311,57 @@ describe('SafeDelayMultiSig Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      await expect(
-        contract.functions.cancel(
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.cancel(
           owner1.publicKey, owner1.signer,
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
           owner1.pkh
-        )
-          .from(contractUtxo)
-          .from(ownerUtxo)
-          .to(owner1.address, 190000n)
-          .withTime(500)
-          .send()
-      ).rejects.toThrow();
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 190000n })
+        .setLocktime(500);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should fail if called by non-owner', async () => {
       const attackerUtxo = createUtxo(100000n);
       provider.addUtxo(attacker.address, attackerUtxo);
 
-      await expect(
-        contract.functions.cancel(
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.cancel(
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
           attacker.publicKey, attacker.signer,
           owner1.pkh
-        )
-          .from(contractUtxo)
-          .from(attackerUtxo)
-          .to(attacker.address, 190000n)
-          .withTime(500)
-          .send()
-      ).rejects.toThrow();
+        ))
+        .addInput(attackerUtxo, attacker.signer.unlockP2PKH())
+        .addOutput({ to: attacker.address, amount: 190000n })
+        .setLocktime(500);
+
+      await expect(builder.send()).rejects.toThrow();
     });
 
     it('should allow cancel with reordered signatures (owner3 then owner2)', async () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      const tx = await contract.functions.cancel(
-        owner1.publicKey, owner1.signer,
-        owner3.publicKey, owner3.signer,
-        owner2.publicKey, owner2.signer,
-        owner1.pkh
-      )
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(owner1.address, 190000n)
-        .withTime(500)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.cancel(
+          owner1.publicKey, owner1.signer,
+          owner3.publicKey, owner3.signer,
+          owner2.publicKey, owner2.signer,
+          owner1.pkh
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 190000n })
+        .setLocktime(500);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -363,18 +369,19 @@ describe('SafeDelayMultiSig Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      const tx = await contract.functions.cancel(
-        owner1.publicKey, owner1.signer,
-        owner2.publicKey, owner2.signer,
-        owner3.publicKey, owner3.signer,
-        owner2.pkh
-      )
-        .from(contractUtxo)
-        .from(ownerUtxo)
-        .to(owner2.address, 190000n)
-        .withTime(500)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.cancel(
+          owner1.publicKey, owner1.signer,
+          owner2.publicKey, owner2.signer,
+          owner3.publicKey, owner3.signer,
+          owner2.pkh
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner2.address, amount: 190000n })
+        .setLocktime(500);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
 
@@ -386,18 +393,19 @@ describe('SafeDelayMultiSig Contract', () => {
       const ownerUtxo = createUtxo(100000n);
       provider.addUtxo(owner1.address, ownerUtxo);
 
-      const tx = await contract3of3.functions.cancel(
-        owner1.publicKey, owner1.signer,
-        owner2.publicKey, owner2.signer,
-        owner3.publicKey, owner3.signer,
-        owner1.pkh
-      )
-        .from(utxo3of3)
-        .from(ownerUtxo)
-        .to(owner1.address, 190000n)
-        .withTime(500)
-        .send();
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(utxo3of3, contract3of3.unlock.cancel(
+          owner1.publicKey, owner1.signer,
+          owner2.publicKey, owner2.signer,
+          owner3.publicKey, owner3.signer,
+          owner1.pkh
+        ))
+        .addInput(ownerUtxo, owner1.signer.unlockP2PKH())
+        .addOutput({ to: owner1.address, amount: 190000n })
+        .setLocktime(500);
 
+      const tx = await builder.send();
       expect(tx).toBeDefined();
     });
   });
