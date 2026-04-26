@@ -48,7 +48,9 @@ describe('SafeDelay Integration Tests', () => {
       const utxo = createUtxo(100000n);
       provider.addUtxo(contract.address, utxo);
 
-      const ownerUtxo = createUtxo(100000n);
+      // Owner UTXO is for signature only (contract funds the tx)
+      // Use 0-value to avoid MockNetworkProvider auto-change placing at output[0]
+      const ownerUtxo = createUtxo(0n);
       provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
       const builder = new TransactionBuilder({ provider });
@@ -126,7 +128,9 @@ describe('SafeDelay Integration Tests', () => {
       const utxo = createUtxo(100000n);
       provider.addUtxo(contract.address, utxo);
 
-      const ownerUtxo = createUtxo(100000n);
+      // Owner UTXO is for signature only (contract funds the tx)
+      // Use 0-value to avoid MockNetworkProvider auto-change placing at output[0]
+      const ownerUtxo = createUtxo(0n);
       provider.addUtxo(ownerKeyPair.address, ownerUtxo);
 
       const builder = new TransactionBuilder({ provider });
