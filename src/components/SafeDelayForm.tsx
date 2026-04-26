@@ -293,11 +293,13 @@ export default function SafeDelayForm() {
               min="1"
               value={lockDuration}
               onChange={(e) => setLockDuration(e.target.value)}
+              disabled={loading}
               style={{ flex: 1 }}
             />
             <Select
               value={durationUnit}
               onChange={(e) => setDurationUnit(e.target.value as 'days' | 'weeks' | 'months')}
+              disabled={loading}
               style={{ width: '120px' }}
             >
               <option value="days">Days</option>
@@ -317,6 +319,7 @@ export default function SafeDelayForm() {
             placeholder="0.0"
             value={depositAmount}
             onChange={(e) => setDepositAmount(e.target.value)}
+            disabled={loading}
           />
           <HelpText>Leave empty to create contract without initial deposit</HelpText>
         </FormGroup>

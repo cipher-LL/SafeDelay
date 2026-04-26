@@ -389,6 +389,7 @@ export default function SafeDelayMultiSigForm() {
                 style={{ flex: 1 }}
                 value={owner1Address}
                 onChange={(e) => setOwner1Address(e.target.value)}
+                disabled={loading}
               />
             </OwnerField>
             <OwnerField>
@@ -398,6 +399,7 @@ export default function SafeDelayMultiSigForm() {
                 style={{ flex: 1 }}
                 value={owner2Address}
                 onChange={(e) => setOwner2Address(e.target.value)}
+                disabled={loading}
               />
             </OwnerField>
             <OwnerField>
@@ -407,6 +409,7 @@ export default function SafeDelayMultiSigForm() {
                 style={{ flex: 1 }}
                 value={owner3Address}
                 onChange={(e) => setOwner3Address(e.target.value)}
+                disabled={loading}
               />
             </OwnerField>
           </OwnerList>
@@ -426,11 +429,13 @@ export default function SafeDelayMultiSigForm() {
               min="1"
               value={lockDuration}
               onChange={(e) => setLockDuration(e.target.value)}
+              disabled={loading}
               style={{ flex: 1 }}
             />
             <Select
               value={durationUnit}
               onChange={(e) => setDurationUnit(e.target.value as 'days' | 'weeks' | 'months')}
+              disabled={loading}
               style={{ width: '120px' }}
             >
               <option value="days">Days</option>
