@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
-import { deploySafeDelayMultiSig, addressToPubkeyHash } from '../utils/deployContract';
+import { deploySafeDelayMultiSig, addressToPubkeyHash, fetchCurrentBlockHeight } from '../utils/deployContract';
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 import { useFormNavigationWarning } from '../hooks/useFormNavigationWarning';
 import HASHES from '../../artifacts/HASHES.json';
@@ -199,10 +199,39 @@ export default function SafeDelayMultiSigForm() {
   useEffect(() => {
     localStorage.setItem('safeDelay_durationUnit', durationUnit);
   }, [durationUnit]);
+
+  // Fetch current block height on mount and when network changes
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchHeight() {
+      try {
+        const h = await fetchCurrentBlockHeight(network as 'mainnet' | 'testnet' | 'chipnet');
+        if (!cancelled) setCurrentBlockHeight(h);
+      } catch {}
+    }
+    fetchHeight();
+    return () => { cancelled = true; };
+  }, [network]);
+
   const [owner1Address, setOwner1Address] = useState('');
   const [owner2Address, setOwner2Address] = useState('');
   const [owner3Address, setOwner3Address] = useState('');
   const [contractAddress, setContractAddress] = useState<string | null>(null);
+  const [savedLockEndBlock, setSavedLockEndBlock] = useState<number | null>(null);
+  const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null);
+
+  // Fetch current block height on mount and when network changes
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchHeight() {
+      try {
+        const h = await fetchCurrentBlockHeight(network as 'mainnet' | 'testnet' | 'chipnet');
+        if (!cancelled) setCurrentBlockHeight(h);
+      } catch {}
+    }
+    fetchHeight();
+    return () => { cancelled = true; };
+  }, [network]);
   const [error, setError] = useState<string | null>(null);
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -344,6 +373,7 @@ export default function SafeDelayMultiSigForm() {
       });
 
       setContractAddress(result.contractAddress);
+      setSavedLockEndBlock(result.actualLockEndBlock);
 
       // Save contract to localStorage for dashboard
       addContract({
@@ -456,7 +486,7 @@ export default function SafeDelayMultiSigForm() {
 
       {contractAddress && (
         <ContractAddressBox>
-          <ContractAddressLabel>Contract Address:</ContractAddressLabel>
+          <ContractAddressLabel>Contract Address</ContractAddressLabel>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <ContractAddress>{contractAddress}</ContractAddress>
             <CopyButton onClick={() => handleCopyAddress(contractAddress!)}>
@@ -466,6 +496,30 @@ export default function SafeDelayMultiSigForm() {
           <HelpText style={{ marginTop: '8px' }}>
             Fund this address to activate the time-lock. Funds can be withdrawn after the lock period with {threshold} of 3 signatures.
           </HelpText>
+          {savedLockEndBlock != null && (
+            <>
+              <ContractAddressLabel style={{ marginTop: '12px' }}>Lock Duration</ContractAddressLabel>
+              <HelpText>{getDurationInBlocks()} blocks (~{lockDuration} {durationUnit})</HelpText>
+              <ContractAddressLabel style={{ marginTop: '8px' }}>Unlocks at Block</ContractAddressLabel>
+              <HelpText>~{savedLockEndBlock.toLocaleString()}{currentBlockHeight != null ? ` (est. ${new Date(Date.now() + ((savedLockEndBlock - currentBlockHeight) * 10 * 60)).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}</HelpText>
+              {currentBlockHeight != null && (
+                <>
+                  <ContractAddressLabel style={{ marginTop: '8px' }}>Time Remaining</ContractAddressLabel>
+                  <HelpText>
+                    {(() => {
+                      const blocksLeft = savedLockEndBlock - currentBlockHeight;
+                      if (blocksLeft <= 0) return 'Unlocked — ready to withdraw';
+                      const hours = blocksLeft * 10 / 60;
+                      if (hours < 1) return `~${Math.round(blocksLeft * 10)} minutes (${blocksLeft.toLocaleString()} blocks)`;
+                      if (hours < 24) return `~${Math.round(hours)} hours (~${blocksLeft.toLocaleString()} blocks)`;
+                      const days = Math.round(hours / 24);
+                      return `~${days} day${days !== 1 ? 's' : ''} (~${blocksLeft.toLocaleString()} blocks)`;
+                    })()}
+                  </HelpText>
+                </>
+              )}
+            </>
+          )}
         </ContractAddressBox>
       )}
     </FormContainer>
