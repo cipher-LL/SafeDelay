@@ -34,10 +34,29 @@ SafeDelay/
 npm run compile   # outputs to dist/
 ```
 
+## Bytecode Verification
+
+To verify a deployed contract's bytecode against the canonical hash in `HASHES.json`:
+
+```bash
+# 1. Get the deployed contract's bytecode from the blockchain
+# Using bitkey-cli or paytaca:
+bitkey-cli get-contract bytecode <address>
+
+# 2. Compute the SHA256 hash
+sha256sum <bytecode_hex_file>
+
+# 3. Compare against HASHES.json:
+cat artifacts/HASHES.json
+```
+
+For SafeDelay/SafeDelayMultiSig (single-owner/multi-sig): the constructor args (ownerPKH, lockEndBlock) are data-pushed on spend, not part of the redeem script hash — so the P2SH32 address is deterministic and the bytecode hash is stable across all deployments.
+
 ## Status
 
 - ✅ All 3 contracts compile with CashScript 0.12.1
 - ✅ Bytecode hashes tracked in `artifacts/HASHES.json`
+- ✅ Bytecode verification guide above (issue #108)
 - ✅ REPOS.md created documenting bytecode hashes (issue #83)
 - ✅ README "Compiling Contracts" section updated with correct `dist/` paths (issue #82)
 - ✅ React/Vite dashboard migrated from single HTML — `src/App.tsx` powers the app; `index.html.legacy` removed (issue #84)
