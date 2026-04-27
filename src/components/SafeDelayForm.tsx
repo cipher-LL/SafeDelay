@@ -347,6 +347,22 @@ export default function SafeDelayForm() {
             <>
               <ResultLabel style={{ marginTop: '12px' }}>Unlocks at Block</ResultLabel>
               <ResultValue>~{estimatedUnlockBlock.toLocaleString()}{estimatedUnlockDate != null ? ` (est. ${estimatedUnlockDate})` : ''}</ResultValue>
+              {currentBlockHeight != null && estimatedUnlockBlock != null && (
+                <>
+                  <ResultLabel style={{ marginTop: '8px' }}>Time Remaining</ResultLabel>
+                  <ResultValue>
+                    {(() => {
+                      const blocksLeft = estimatedUnlockBlock - currentBlockHeight;
+                      if (blocksLeft <= 0) return 'Unlocked — ready to withdraw';
+                      const hours = blocksLeft * 10 / 60;
+                      if (hours < 1) return `~${Math.round(blocksLeft * 10)} minutes (${blocksLeft.toLocaleString()} blocks)`;
+                      if (hours < 24) return `~${Math.round(hours)} hours (~${blocksLeft.toLocaleString()} blocks)`;
+                      const days = Math.round(hours / 24);
+                      return `~${days} day${days !== 1 ? 's' : ''} (~${blocksLeft.toLocaleString()} blocks)`;
+                    })()}
+                  </ResultValue>
+                </>
+              )}
             </>
           )}
         </ResultBox>
