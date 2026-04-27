@@ -343,6 +343,12 @@ export default function SafeDelayForm() {
           <ResultValue>{contractAddress}</ResultValue>
           <ResultLabel style={{ marginTop: '12px' }}>Lock Duration</ResultLabel>
           <ResultValue>{getDurationInBlocks()} blocks (~{lockDuration} {durationUnit})</ResultValue>
+          {estimatedUnlockBlock != null && (
+            <>
+              <ResultLabel style={{ marginTop: '12px' }}>Unlocks at Block</ResultLabel>
+              <ResultValue>~{estimatedUnlockBlock.toLocaleString()}{estimatedUnlockDate != null ? ` (est. ${estimatedUnlockDate})` : ''}</ResultValue>
+            </>
+          )}
         </ResultBox>
       )}
     </FormContainer>
