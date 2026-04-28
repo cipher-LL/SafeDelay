@@ -148,6 +148,34 @@ const BytecodeErrorText = styled.div`
   line-height: 1.5;
 `;
 
+const NetworkStatusBadge = styled.div<{ $status: 'checking' | 'connected' | 'disconnected' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  ${({ $status }) => {
+    if ($status === 'connected') return `
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    `;
+    if ($status === 'checking') return `
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    `;
+    return `
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    `;
+  }}
+`;
+
 export default function SafeDelayForm() {
   const { wallet } = useWallet();
   const { network } = useNetwork();
@@ -166,6 +194,7 @@ export default function SafeDelayForm() {
   const [loading, setLoading] = useState(false);
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null);
+  const [networkStatus, setNetworkStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [estimatedUnlockBlock, setEstimatedUnlockBlock] = useState<number | null>(null);
   const [estimatedUnlockDate, setEstimatedUnlockDate] = useState<string | null>(null);
 
@@ -184,14 +213,16 @@ export default function SafeDelayForm() {
   useEffect(() => {
     async function fetchBlockHeight() {
       try {
+        setNetworkStatus('checking');
         const h = await fetchCurrentBlockHeight(network as 'mainnet' | 'testnet' | 'chipnet');
         setCurrentBlockHeight(h);
+        setNetworkStatus('connected');
         const blocks = getDurationInBlocks();
         const unlockBlock = h + blocks;
         setEstimatedUnlockBlock(unlockBlock);
         setEstimatedUnlockDate(computeUnlockDate(unlockBlock));
       } catch {
-        // silently ignore — preview is best-effort
+        setNetworkStatus('disconnected');
       }
     }
     fetchBlockHeight();
@@ -275,6 +306,11 @@ export default function SafeDelayForm() {
   return (
     <FormContainer>
       <Title>Create Time-Locked Wallet</Title>
+      <NetworkStatusBadge $status={networkStatus}>
+        {networkStatus === 'connected' && <>🟢 Connected to {network}</>}
+        {networkStatus === 'checking' && <>🟡 Connecting...</>}
+        {networkStatus === 'disconnected' && <>🔴 Disconnected</>}
+      </NetworkStatusBadge>
       <Description>
         Lock your BCH for a specified period. Funds can only be withdrawn after the lock expires.
       </Description>

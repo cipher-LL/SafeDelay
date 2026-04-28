@@ -185,6 +185,34 @@ const CopyButton = styled.button`
   }
 `;
 
+const NetworkStatusBadge = styled.div<{ $status: 'checking' | 'connected' | 'disconnected' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  ${({ $status }) => {
+    if ($status === 'connected') return `
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    `;
+    if ($status === 'checking') return `
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    `;
+    return `
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    `;
+  }}
+`;
+
 export default function SafeDelayMultiSigForm() {
   const { wallet } = useWallet();
   const { network } = useNetwork();
@@ -205,9 +233,15 @@ export default function SafeDelayMultiSigForm() {
     let cancelled = false;
     async function fetchHeight() {
       try {
+        setNetworkStatus('checking');
         const h = await fetchCurrentBlockHeight(network as 'mainnet' | 'testnet' | 'chipnet');
-        if (!cancelled) setCurrentBlockHeight(h);
-      } catch {}
+        if (!cancelled) {
+          setCurrentBlockHeight(h);
+          setNetworkStatus('connected');
+        }
+      } catch {
+        if (!cancelled) setNetworkStatus('disconnected');
+      }
     }
     fetchHeight();
     return () => { cancelled = true; };
@@ -219,23 +253,30 @@ export default function SafeDelayMultiSigForm() {
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [savedLockEndBlock, setSavedLockEndBlock] = useState<number | null>(null);
   const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null);
+  const [networkStatus, setNetworkStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [error, setError] = useState<string | null>(null);
+  const [bytecodeError, setBytecodeError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   // Fetch current block height on mount and when network changes
   useEffect(() => {
     let cancelled = false;
     async function fetchHeight() {
       try {
+        setNetworkStatus('checking');
         const h = await fetchCurrentBlockHeight(network as 'mainnet' | 'testnet' | 'chipnet');
-        if (!cancelled) setCurrentBlockHeight(h);
-      } catch {}
+        if (!cancelled) {
+          setCurrentBlockHeight(h);
+          setNetworkStatus('connected');
+        }
+      } catch {
+        if (!cancelled) setNetworkStatus('disconnected');
+      }
     }
     fetchHeight();
     return () => { cancelled = true; };
   }, [network]);
-  const [error, setError] = useState<string | null>(null);
-  const [bytecodeError, setBytecodeError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   const handleCopyAddress = async (address: string) => {
     try {
@@ -395,6 +436,11 @@ export default function SafeDelayMultiSigForm() {
   return (
     <FormContainer>
       <Title>Create MultiSig Time-Lock</Title>
+      <NetworkStatusBadge $status={networkStatus}>
+        {networkStatus === 'connected' && <>🟢 Connected to {network}</>}
+        {networkStatus === 'checking' && <>🟡 Connecting...</>}
+        {networkStatus === 'disconnected' && <>🔴 Disconnected</>}
+      </NetworkStatusBadge>
       <Description>
         Require 2-of-3 signatures to withdraw. Enhanced security for larger amounts.
       </Description>
