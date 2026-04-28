@@ -21,17 +21,23 @@ SafeDelay/
 ├── SafeDelay.cash           # Single-owner time-locked wallet
 ├── SafeDelayMultiSig.cash   # 2-of-3 / 3-of-3 multi-sig time-locked wallet
 ├── SafeDelayManager.cash    # Registry contract (tracks all SafeDelay wallets)
-├── dist/                    # Compiled artifact JSON (output of npm run compile)
-├── artifacts/               # Bytecode hashes (HASHES.json) — committed canonical hashes
-├── src/                     # TypeScript source
-├── dist-frontend/          # Built frontend dashboard
-└── scripts/                # Deployment scripts
+├── dist/                    # Compiled artifact JSON (SafeDelayManager uses this)
+├── artifacts/               # Compiled artifacts + HASHES.json (canonical bytecode hashes)
+├── src/                     # React/TypeScript dashboard source
+│   ├── App.tsx              # Root: tab-based layout (Create/MultiSig/Dashboard/Manager)
+│   ├── components/          # SafeDelayForm, Dashboard, SafeDelayManagerDashboard, etc.
+│   ├── context/             # NetworkContext, WalletContext, ThemeContext
+│   ├── hooks/               # useSafeDelayContracts, useOnChainContractDiscovery, etc.
+│   ├── utils/               # SafeDelayLibrary, deployContract, etc.
+│   └── styles/              # Global styles
+├── dist-frontend/           # Built frontend dashboard (static build)
+└── scripts/                # Deployment scripts (deploy-contract.mjs, deploy-manager.mjs)
 ```
 
 ## Compile
 
 ```bash
-npm run compile   # outputs to dist/
+npm run compile   # outputs to dist/ (SafeDelay.artifact.json, SafeDelayMultiSig.artifact.json, SafeDelayManager.artifact.json)
 ```
 
 ## Bytecode Verification
@@ -52,6 +58,46 @@ cat artifacts/HASHES.json
 
 For SafeDelay/SafeDelayMultiSig (single-owner/multi-sig): the constructor args (ownerPKH, lockEndBlock) are data-pushed on spend, not part of the redeem script hash — so the P2SH32 address is deterministic and the bytecode hash is stable across all deployments.
 
+## Frontend Dashboard
+
+The React dashboard (`src/App.tsx`) provides:
+
+- **Create tab** — Deploy a SafeDelay (single-owner) time-locked wallet
+- **MultiSig tab** — Deploy a SafeDelayMultiSig (2-of-3 or 3-of-3) wallet
+- **Dashboard tab** — Browse all your SafeDelay wallets, deposit, extend lock, withdraw
+- **Manager tab** — SafeDelayManager dashboard for registry operations
+
+### Key Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `useSafeDelayContracts` | Fetch + cache SafeDelay wallet UTXOs from Electrum |
+| `useOnChainContractDiscovery` | Scan address UTXOs to discover SafeDelay wallets on-chain |
+| `useAutoContractVerification` | Auto-verify bytecode of discovered contracts against HASHES.json |
+| `useDepositMilestones` | Track deposit history and savings milestones |
+| `useWalletBackup` | Warn users to back up their keys before first deposit |
+| `useWalletLabels` | Label wallets by creation date or custom names |
+| `useWifSigner` | Sign transactions with WIF key (no wallet extension needed) |
+
+### Wallet Support
+
+- WalletConnect (browser extension / MetaMask-style)
+- WIF key direct input (for power users / hardware wallets)
+-read-only mode (view balances without signing)
+
+## Deployments
+
+| Network | Status | Notes |
+|---------|--------|-------|
+| **Chipnet** | 🔄 Pending | Needs SP PKH from Kyle |
+| **Mainnet** | 🔄 Pending | Needs SP PKH + funding |
+
+SafeDelayManager (registry) deployment requires the Service Provider PKH from Kyle. Once provided, run:
+
+```bash
+node scripts/deploy-manager.mjs --sp-pkh <pkh_hex> --network chipnet
+```
+
 ## Status
 
 - ✅ All 3 contracts compile with CashScript 0.12.1
@@ -63,3 +109,6 @@ For SafeDelay/SafeDelayMultiSig (single-owner/multi-sig): the constructor args (
 - ✅ `useFormNavigationWarning` hook warns users before losing unsaved form data on tab-close and in-app navigation (issue #89)
 - ✅ Withdraw/reclaim button in SafeDelayManagerDashboard for expired wallets (issue #98)
 - ✅ SafeDelayManager.createDelay tests — explicit change outputs + ESM test runner fixed (issue #100)
+- ✅ Frontend dashboard complete with 4 tabs (Create, MultiSig, Dashboard, Manager)
+- ✅ On-chain contract discovery — scan addresses to find SafeDelay wallets automatically
+- ✅ Auto bytecode verification on discovered contracts
