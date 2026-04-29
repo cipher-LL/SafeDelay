@@ -28,6 +28,7 @@ import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 import type { SafeDelayManagerEntry } from '../types/index';
 import QrScanner from './QrScanner';
 import { debug } from '../utils/debug';
+import { useOnChainTxHistory, OnChainTx } from '../hooks/useOnChainTxHistory';
 
 function getExplorerAddressUrl(n: 'mainnet' | 'testnet' | 'chipnet', addr: string): string {
   const clean = addr.replace(/^(bitcoincash:|bchtest:|bchreg:)/, '');
@@ -255,6 +256,89 @@ const ViewToggle = styled.div`
   margin-bottom: 16px;
 `;
 
+const DashboardTabToggle = styled.div`
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  padding: 4px;
+`;
+
+const TabBtn = styled.button<{ $active: boolean }>`
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: ${({ $active }) => $active ? 'rgba(79, 70, 229, 0.35)' : 'transparent'};
+  color: ${({ $active }) => $active ? '#c7d2fe' : 'rgba(255, 255, 255, 0.5)'};
+  &:hover { background: ${({ $active }) => $active ? 'rgba(79, 70, 229, 0.45)' : 'rgba(255, 255, 255, 0.08)'}; }
+`;
+
+const TxList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+
+const TxCard = styled.div`
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+`;
+
+const TxInfo = styled.div`flex: 1;`;
+
+const TxType = styled.span<{ $type: OnChainTx['type'] }>`
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: ${({ $type }) => {
+    switch ($type) {
+      case 'deposit': return 'rgba(16, 185, 129, 0.25)';
+      case 'withdraw': return 'rgba(239, 68, 68, 0.25)';
+      case 'cancel': return 'rgba(245, 158, 11, 0.25)';
+      case 'receive': return 'rgba(59, 130, 246, 0.25)';
+      case 'send': return 'rgba(156, 163, 175, 0.25)';
+      default: return 'rgba(156, 163, 175, 0.15)';
+    }
+  }};
+  color: ${({ $type }) => {
+    switch ($type) {
+      case 'deposit': return '#10b981';
+      case 'withdraw': return '#ef4444';
+      case 'cancel': return '#f59e0b';
+      case 'receive': return '#3b82f6';
+      case 'send': return '#9ca3af';
+      default: return '#9ca3af';
+    }
+  }};
+`;
+
+const TxAmount = styled.span<{ $type: OnChainTx['type'] }>`
+  font-size: 16px;
+  font-weight: 700;
+  color: ${({ $type }) =>
+    $type === 'deposit' || $type === 'receive' ? '#10b981' :
+    $type === 'withdraw' || $type === 'cancel' || $type === 'send' ? '#ef4444' :
+    'rgba(255,255,255,0.7)'};
+`;
+
+const TxMeta = styled.div`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+`;
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface EntryWithBalance extends SafeDelayManagerEntry {
@@ -307,6 +391,13 @@ export default function SafeDelayManagerDashboard() {
   // UI
   const [copied, setCopied] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'mine' | 'all'>('mine');
+  const [dashboardTab, setDashboardTab] = useState<'wallets' | 'transactions'>('wallets');
+
+  // Transaction history
+  const [txHistory, setTxHistory] = useState<OnChainTx[]>([]);
+  const [txHistoryLoading, setTxHistoryLoading] = useState(false);
+  const [txHistoryError, setTxHistoryError] = useState<string | null>(null);
+  const [selectedEntryForTx, setSelectedEntryForTx] = useState<string | null>(null);
 
   // External SafeDelay tracking (e.g. from BadgerSurvivors prize claims)
   const [externalAddressInput, setExternalAddressInput] = useState('');
@@ -757,6 +848,32 @@ export default function SafeDelayManagerDashboard() {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  // ─── Transaction History ──────────────────────────────────────────────────
+  const { fetchHistory } = useOnChainTxHistory();
+
+  const handleFetchTxHistory = useCallback(async (address: string) => {
+    setSelectedEntryForTx(address);
+    setTxHistoryLoading(true);
+    setTxHistoryError(null);
+    setTxHistory([]);
+    try {
+      const txs = await fetchHistory(address, network as 'mainnet' | 'testnet' | 'chipnet');
+      setTxHistory(txs);
+    } catch (err) {
+      setTxHistoryError(err instanceof Error ? err.message : 'Failed to load transaction history');
+    } finally {
+      setTxHistoryLoading(false);
+    }
+  }, [network, fetchHistory]);
+
+  const getExplorerTxUrl = (txHash: string) => {
+    const clean = txHash.replace(/^0x/, '');
+    const n = network as 'mainnet' | 'testnet' | 'chipnet';
+    return n === 'mainnet'
+      ? `https://blockchair.com/bitcoin-cash/transaction/${clean}`
+      : `https://chipnet.blockchair.com/bitcoin-cash/transaction/${clean}`;
+  };
+
   return (
     <Container>
       <Title>SafeDelay Manager</Title>
@@ -828,173 +945,293 @@ export default function SafeDelayManagerDashboard() {
         </Grid3>
       )}
 
-      {/* ── View Toggle ── */}
+      {/* ── Dashboard Tabs (Wallets | Transactions) ── */}
       {allEntries.length > 0 && (
-        <ViewToggle>
-          <SecondaryBtn
-            onClick={() => setViewMode('mine')}
-            style={{ background: viewMode === 'mine' ? 'rgba(79,70,229,0.2)' : undefined, borderColor: viewMode === 'mine' ? '#4f46e5' : undefined, color: viewMode === 'mine' ? '#a5b4fc' : undefined }}
-          >My Wallets</SecondaryBtn>
-          <SecondaryBtn
-            onClick={() => setViewMode('all')}
-            style={{ background: viewMode === 'all' ? 'rgba(79,70,229,0.2)' : undefined, borderColor: viewMode === 'all' ? '#4f46e5' : undefined, color: viewMode === 'all' ? '#a5b4fc' : undefined }}
-          >All Wallets</SecondaryBtn>
-        </ViewToggle>
+        <DashboardTabToggle>
+          <TabBtn $active={dashboardTab === 'wallets'} onClick={() => setDashboardTab('wallets')}>
+            📋 Wallets ({myEntries.length})
+          </TabBtn>
+          <TabBtn $active={dashboardTab === 'transactions'} onClick={() => setDashboardTab('transactions')}>
+            📜 Transactions
+          </TabBtn>
+        </DashboardTabToggle>
       )}
 
-      {loadingEntries && <MessageBox $type="info">Scanning blockchain for registry entries...</MessageBox>}
-      {entriesError && !managerAddress && <MessageBox $type="error">{entriesError}</MessageBox>}
+      {/* ── Wallets Tab ── */}
+      {dashboardTab === 'wallets' && (
+        <>
+          {/* ── View Toggle ── */}
+          {allEntries.length > 0 && (
+            <ViewToggle>
+              <SecondaryBtn
+                onClick={() => setViewMode('mine')}
+                style={{ background: viewMode === 'mine' ? 'rgba(79,70,229,0.2)' : undefined, borderColor: viewMode === 'mine' ? '#4f46e5' : undefined, color: viewMode === 'mine' ? '#a5b4fc' : undefined }}
+              >My Wallets</SecondaryBtn>
+              <SecondaryBtn
+                onClick={() => setViewMode('all')}
+                style={{ background: viewMode === 'all' ? 'rgba(79,70,229,0.2)' : undefined, borderColor: viewMode === 'all' ? '#4f46e5' : undefined, color: viewMode === 'all' ? '#a5b4fc' : undefined }}
+              >All Wallets</SecondaryBtn>
+            </ViewToggle>
+          )}
 
-      {/* ── Track External SafeDelay (e.g. from BadgerSurvivors prizes) ── */}
-      {wallet.connected && (
+          {loadingEntries && <MessageBox $type="info">Scanning blockchain for registry entries...</MessageBox>}
+          {entriesError && !managerAddress && <MessageBox $type="error">{entriesError}</MessageBox>}
+
+          {/* ── Track External SafeDelay (e.g. from BadgerSurvivors prizes) ── */}
+          {wallet.connected && (
+            <Section>
+              <SectionTitle>Track External SafeDelay</SectionTitle>
+              <Description style={{ fontSize: '14px', marginBottom: '12px' }}>
+                Track a SafeDelay created outside this dashboard — e.g. tournament prize deposits
+                from BadgerSurvivors. Enter the address from your prize claim to view its status.
+              </Description>
+
+              <FormRow>
+                <FormGroup style={{ flex: 1 }}>
+                  <Label>SafeDelay Address (P2SH32)</Label>
+                  <Input
+                    placeholder="bchtest:pz... or bitcoincash:q..."
+                    value={externalAddressInput}
+                    onChange={e => setExternalAddressInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleTrackExternal()}
+                    style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                  />
+                </FormGroup>
+                <QrScanner onScan={setExternalAddressInput} addressMode />
+                <FormGroup style={{ minWidth: '160px' }}>
+                  <Label>Owner PKH (40 hex)</Label>
+                  <Input
+                    placeholder="a1b2c3d4e5..."
+                    value={externalOwnerPkh}
+                    onChange={e => setExternalOwnerPkh(e.target.value.toLowerCase())}
+                    style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                  />
+                </FormGroup>
+                <FormGroup style={{ minWidth: '160px' }}>
+                  <Label>Lock End Block</Label>
+                  <Input
+                    type="number"
+                    placeholder="850000"
+                    value={externalLockEnd || ''}
+                    onChange={e => setExternalLockEnd(parseInt(e.target.value) || 0)}
+                  />
+                </FormGroup>
+                <SecondaryBtn onClick={handleTrackExternal} disabled={!externalAddressInput && !externalOwnerPkh}>
+                  Track
+                </SecondaryBtn>
+              </FormRow>
+
+              {externalError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{externalError}</MessageBox>}
+
+              {externalResult && (
+                <AddressBox style={{ marginTop: '12px', borderColor: 'rgba(16,185,129,0.4)' }}>
+                  <span>
+                    <strong>SafeDelay Address:</strong><br />
+                    {externalResult.address}
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <CopyBtn onClick={() => handleCopy(externalResult.address)}>
+                      {copied === externalResult.address ? '✓' : '📋 Copy'}
+                    </CopyBtn>
+                    <ExternalLinkBtn href={getExplorerAddressUrl(network as 'mainnet' | 'testnet' | 'chipnet', externalResult.address)} target="_blank" rel="noopener noreferrer">
+                      🔗 View
+                    </ExternalLinkBtn>
+                  </div>
+                </AddressBox>
+              )}
+              {externalResult && externalResult.verified === true && (
+                <MessageBox $type="success" style={{ marginTop: '8px', fontSize: '13px' }}>
+                  ✅ <strong>On-chain verified</strong> — lock parameters match the contract address
+                  {externalResult.computedAddress && externalResult.computedAddress !== externalResult.address && (
+                    <span style={{ display: 'block', marginTop: '2px', opacity: 0.8 }}>
+                      (computed from owner PKH + lock end block)
+                    </span>
+                  )}
+                </MessageBox>
+              )}
+              {externalResult && (
+                <WalletMeta style={{ marginTop: '8px' }}>
+                  {externalResult.locked
+                    ? `🔒 Locked — ${externalResult.remaining.toLocaleString()} blocks remaining (~${externalResult.days} days)`
+                    : '✅ Fully unlocked — ready to withdraw'}
+                  {externalResult.balance > 0 && (
+                    <span style={{ color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 700 }}>
+                      {externalResult.balance.toFixed(4)} BCH
+                    </span>
+                  )}
+                </WalletMeta>
+              )}
+            </Section>
+          )}
+
+          {/* ── Registered Wallets ── */}
+          {myEntries.length > 0 && (
+            <Section>
+              <SectionTitle>
+                {viewMode === 'mine' ? 'My SafeDelay Wallets' : `Registry Entries`} ({myEntries.length})
+              </SectionTitle>
+              <WalletList>
+                {myEntries.map((entry, i) => {
+                  const locked = entry.lockEndBlock > entry.currentBlock;
+                  const remaining = entry.lockEndBlock - entry.currentBlock;
+                  const days = Math.floor(remaining / 144);
+                  return (
+                    <WalletCard key={entry.address || i}>
+                      <WalletInfo>
+                        <WalletAddress>{entry.address || '—'}</WalletAddress>
+                        <WalletMeta>
+                          Lock end: block {entry.lockEndBlock.toLocaleString()} •{' '}
+                          {locked
+                            ? `🔒 ${remaining.toLocaleString()} blocks (~${days} days)`
+                            : '✅ Unlocked'}
+                        </WalletMeta>
+                        {viewMode === 'all' && (
+                          <WalletMeta style={{ color: '#a5b4fc', marginTop: '2px' }}>
+                            Owner: {entry.ownerPkh.slice(0, 10)}...{entry.ownerPkh.slice(-8)}
+                          </WalletMeta>
+                        )}
+                      </WalletInfo>
+                      <WalletBalance>{entry.balance.toFixed(4)} BCH</WalletBalance>
+                      <WalletStatus $locked={locked}>{locked ? '🔒 Locked' : '✅ Unlocked'}</WalletStatus>
+                      {entry.address && (
+                        <>
+                          <CopyBtn onClick={() => handleCopy(entry.address!)}>
+                            {copied === entry.address ? '✓ Copied' : '📋 Copy'}
+                          </CopyBtn>
+                          <RefreshBtn
+                            onClick={() => entry.address && handleRefreshEntry(entry.address)}
+                            disabled={refreshingEntries.has(entry.address)}
+                            title="Refresh balance & lock status"
+                          >
+                            {refreshingEntries.has(entry.address) ? '⏳' : '🔄'} Refresh
+                          </RefreshBtn>
+                          {!locked && entry.balance > 0 && (
+                            <WithdrawBtn
+                              onClick={() => entry.address && handleWithdraw(entry)}
+                              disabled={withdrawing.has(entry.address)}
+                              title="Withdraw unlocked funds"
+                            >
+                              {withdrawing.has(entry.address) ? '⏳' : '💰'} Withdraw
+                            </WithdrawBtn>
+                          )}
+                        </>
+                      )}
+                    </WalletCard>
+                  );
+                })}
+              </WalletList>
+              {withdrawError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{withdrawError}</MessageBox>}
+              {withdrawSuccess && <MessageBox $type="success" style={{ marginTop: '8px' }}>{withdrawSuccess}</MessageBox>}
+            </Section>
+          )}
+
+          {allEntries.length > 0 && myEntries.length === 0 && viewMode === 'mine' && !loadingEntries && (
+            <EmptyState>No SafeDelay wallets found for your wallet in this registry.</EmptyState>
+          )}
+        </>
+      )}
+
+      {/* ── Transactions Tab ── */}
+      {dashboardTab === 'transactions' && (
         <Section>
-          <SectionTitle>Track External SafeDelay</SectionTitle>
-          <Description style={{ fontSize: '14px', marginBottom: '12px' }}>
-            Track a SafeDelay created outside this dashboard — e.g. tournament prize deposits
-            from BadgerSurvivors. Enter the address from your prize claim to view its status.
+          <SectionTitle>Transaction History</SectionTitle>
+          <Description style={{ fontSize: '14px', marginBottom: '16px' }}>
+            View on-chain transaction history for any registered SafeDelay wallet.
+            Select a wallet below to load its transaction history.
           </Description>
 
-          <FormRow>
-            <FormGroup style={{ flex: 1 }}>
-              <Label>SafeDelay Address (P2SH32)</Label>
-              <Input
-                placeholder="bchtest:pz... or bitcoincash:q..."
-                value={externalAddressInput}
-                onChange={e => setExternalAddressInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleTrackExternal()}
-                style={{ fontFamily: 'monospace', fontSize: '13px' }}
-              />
+          {/* Wallet Selector */}
+          {myEntries.length > 0 && (
+            <FormGroup style={{ marginBottom: '16px' }}>
+              <Label>Select Wallet</Label>
+              <FormRow>
+                <select
+                  value={selectedEntryForTx || ''}
+                  onChange={e => {
+                    const addr = e.target.value;
+                    if (addr) handleFetchTxHistory(addr);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: 'white',
+                    fontSize: '14px',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  <option value="">— Choose a wallet —</option>
+                  {myEntries.map(e => (
+                    <option key={e.address} value={e.address!}>
+                      {e.address?.slice(0, 20)}... ({e.balance.toFixed(4)} BCH)
+                    </option>
+                  ))}
+                </select>
+                <SecondaryBtn
+                  onClick={() => selectedEntryForTx && handleFetchTxHistory(selectedEntryForTx)}
+                  disabled={!selectedEntryForTx || txHistoryLoading}
+                >
+                  {txHistoryLoading ? '⏳ Loading...' : '🔄 Refresh'}
+                </SecondaryBtn>
+              </FormRow>
             </FormGroup>
-            <QrScanner onScan={setExternalAddressInput} addressMode />
-            <FormGroup style={{ minWidth: '160px' }}>
-              <Label>Owner PKH (40 hex)</Label>
-              <Input
-                placeholder="a1b2c3d4e5..."
-                value={externalOwnerPkh}
-                onChange={e => setExternalOwnerPkh(e.target.value.toLowerCase())}
-                style={{ fontFamily: 'monospace', fontSize: '13px' }}
-              />
-            </FormGroup>
-            <FormGroup style={{ minWidth: '160px' }}>
-              <Label>Lock End Block</Label>
-              <Input
-                type="number"
-                placeholder="850000"
-                value={externalLockEnd || ''}
-                onChange={e => setExternalLockEnd(parseInt(e.target.value) || 0)}
-              />
-            </FormGroup>
-            <SecondaryBtn onClick={handleTrackExternal} disabled={!externalAddressInput && !externalOwnerPkh}>
-              Track
-            </SecondaryBtn>
-          </FormRow>
-
-          {externalError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{externalError}</MessageBox>}
-
-          {externalResult && (
-            <AddressBox style={{ marginTop: '12px', borderColor: 'rgba(16,185,129,0.4)' }}>
-              <span>
-                <strong>SafeDelay Address:</strong><br />
-                {externalResult.address}
-              </span>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                <CopyBtn onClick={() => handleCopy(externalResult.address)}>
-                  {copied === externalResult.address ? '✓' : '📋 Copy'}
-                </CopyBtn>
-                <ExternalLinkBtn href={getExplorerAddressUrl(network as 'mainnet' | 'testnet' | 'chipnet', externalResult.address)} target="_blank" rel="noopener noreferrer">
-                  🔗 View
-                </ExternalLinkBtn>
-              </div>
-            </AddressBox>
           )}
-          {externalResult && externalResult.verified === true && (
-            <MessageBox $type="success" style={{ marginTop: '8px', fontSize: '13px' }}>
-              ✅ <strong>On-chain verified</strong> — lock parameters match the contract address
-              {externalResult.computedAddress && externalResult.computedAddress !== externalResult.address && (
-                <span style={{ display: 'block', marginTop: '2px', opacity: 0.8 }}>
-                  (computed from owner PKH + lock end block)
-                </span>
-              )}
-            </MessageBox>
+
+          {txHistoryError && <MessageBox $type="error">{txHistoryError}</MessageBox>}
+
+          {txHistoryLoading && (
+            <MessageBox $type="info">Fetching transaction history from Electrum...</MessageBox>
           )}
-          {externalResult && (
-            <WalletMeta style={{ marginTop: '8px' }}>
-              {externalResult.locked
-                ? `🔒 Locked — ${externalResult.remaining.toLocaleString()} blocks remaining (~${externalResult.days} days)`
-                : '✅ Fully unlocked — ready to withdraw'}
-              {externalResult.balance > 0 && (
-                <span style={{ color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 700 }}>
-                  {externalResult.balance.toFixed(4)} BCH
-                </span>
-              )}
-            </WalletMeta>
+
+          {!txHistoryLoading && txHistory.length === 0 && selectedEntryForTx && (
+            <EmptyState>No transactions found for this wallet.</EmptyState>
+          )}
+
+          {!txHistoryLoading && txHistory.length === 0 && !selectedEntryForTx && (
+            <EmptyState>Select a wallet above to view its transaction history.</EmptyState>
+          )}
+
+          {txHistory.length > 0 && (
+            <TxList>
+              {txHistory.map(tx => (
+                <TxCard key={tx.txHash}>
+                  <TxInfo>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <TxType $type={tx.type}>{tx.type}</TxType>
+                      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>
+                        #{tx.blockHeight.toLocaleString()}
+                      </span>
+                    </div>
+                    <TxMeta>
+                      <span>~{new Date(tx.timestamp).toLocaleString()}</span>
+                      <span>Tx: {tx.txHash.slice(0, 12)}...{tx.txHash.slice(-8)}</span>
+                    </TxMeta>
+                  </TxInfo>
+                  <div style={{ textAlign: 'right' }}>
+                    <TxAmount $type={tx.type}>
+                      {tx.amount > 0 ? (
+                        <>
+                          {tx.type === 'deposit' || tx.type === 'receive' ? '+' : ''}
+                          {tx.amount.toFixed(4)} BCH
+                        </>
+                      ) : '—'}
+                    </TxAmount>
+                    <ExternalLinkBtn
+                      href={getExplorerTxUrl(tx.txHash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ marginTop: '4px', display: 'inline-block' }}
+                    >
+                      🔗 Explorer
+                    </ExternalLinkBtn>
+                  </div>
+                </TxCard>
+              ))}
+            </TxList>
           )}
         </Section>
-      )}
-
-      {/* ── Registered Wallets ── */}
-      {myEntries.length > 0 && (
-        <Section>
-          <SectionTitle>
-            {viewMode === 'mine' ? 'My SafeDelay Wallets' : `Registry Entries`} ({myEntries.length})
-          </SectionTitle>
-          <WalletList>
-            {myEntries.map((entry, i) => {
-              const locked = entry.lockEndBlock > entry.currentBlock;
-              const remaining = entry.lockEndBlock - entry.currentBlock;
-              const days = Math.floor(remaining / 144);
-              return (
-                <WalletCard key={entry.address || i}>
-                  <WalletInfo>
-                    <WalletAddress>{entry.address || '—'}</WalletAddress>
-                    <WalletMeta>
-                      Lock end: block {entry.lockEndBlock.toLocaleString()} •{' '}
-                      {locked
-                        ? `🔒 ${remaining.toLocaleString()} blocks (~${days} days)`
-                        : '✅ Unlocked'}
-                    </WalletMeta>
-                    {viewMode === 'all' && (
-                      <WalletMeta style={{ color: '#a5b4fc', marginTop: '2px' }}>
-                        Owner: {entry.ownerPkh.slice(0, 10)}...{entry.ownerPkh.slice(-8)}
-                      </WalletMeta>
-                    )}
-                  </WalletInfo>
-                  <WalletBalance>{entry.balance.toFixed(4)} BCH</WalletBalance>
-                  <WalletStatus $locked={locked}>{locked ? '🔒 Locked' : '✅ Unlocked'}</WalletStatus>
-                  {entry.address && (
-                    <>
-                      <CopyBtn onClick={() => handleCopy(entry.address!)}>
-                        {copied === entry.address ? '✓ Copied' : '📋 Copy'}
-                      </CopyBtn>
-                      <RefreshBtn
-                        onClick={() => entry.address && handleRefreshEntry(entry.address)}
-                        disabled={refreshingEntries.has(entry.address)}
-                        title="Refresh balance & lock status"
-                      >
-                        {refreshingEntries.has(entry.address) ? '⏳' : '🔄'} Refresh
-                      </RefreshBtn>
-                      {!locked && entry.balance > 0 && (
-                        <WithdrawBtn
-                          onClick={() => entry.address && handleWithdraw(entry)}
-                          disabled={withdrawing.has(entry.address)}
-                          title="Withdraw unlocked funds"
-                        >
-                          {withdrawing.has(entry.address) ? '⏳' : '💰'} Withdraw
-                        </WithdrawBtn>
-                      )}
-                    </>
-                  )}
-                </WalletCard>
-              );
-            })}
-          </WalletList>
-          {withdrawError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{withdrawError}</MessageBox>}
-          {withdrawSuccess && <MessageBox $type="success" style={{ marginTop: '8px' }}>{withdrawSuccess}</MessageBox>}
-        </Section>
-      )}
-
-      {allEntries.length > 0 && myEntries.length === 0 && viewMode === 'mine' && !loadingEntries && (
-        <EmptyState>No SafeDelay wallets found for your wallet in this registry.</EmptyState>
       )}
 
       {/* ── Create + Register ── */}
