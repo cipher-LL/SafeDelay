@@ -665,7 +665,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const { wallet, hasSigner } = useWallet();
   const { getLabel, setLabel, removeLabel } = useWalletLabels();
   const { contracts: storedContracts } = useStoredContracts();
-  const { contracts: contractsWithData, currentBlock } = useElectrumContractData(storedContracts, network);
+  const { contracts: contractsWithData, currentBlock, refresh } = useElectrumContractData(storedContracts, network);
   const { signWithdraw, signCancel, getAddressFromWif } = useWifSigner();
   const [contracts, setContracts] = useState<TimeLock[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -1155,6 +1155,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         message: `${pendingTx.type.charAt(0).toUpperCase() + pendingTx.type.slice(1)} transaction submitted! Waiting for confirmation...`,
       });
 
+      // Trigger immediate balance refresh after tx broadcast
+      refresh();
+
       // Start confirmation polling in background
       waitForTxConfirmation(txHash, network, { maxWaitMs: 600000 }).then(result => {
         if (result.confirmed) {
@@ -1283,6 +1286,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       // Clear WIF key from memory
       setWifKey('');
       setWifAddress('');
+
+      // Trigger immediate balance refresh after tx broadcast
+      refresh();
 
       // Start confirmation polling in background
       waitForTxConfirmation(txHash, network, { maxWaitMs: 600000 }).then(result => {

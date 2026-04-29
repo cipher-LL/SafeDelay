@@ -95,8 +95,10 @@ export function useElectrumContractData(
   const [currentBlock, setCurrentBlock] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Trigger version — incrementing triggers an immediate re-fetch
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
-  useEffect(() => {
+  const fetchContractData = useCallback(async () => {
     if (storedContracts.length === 0) {
       setContractsWithData([]);
       return;
@@ -106,65 +108,68 @@ export function useElectrumContractData(
     setLoading(true);
     setError(null);
 
-    async function fetchData() {
-      try {
-        const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+    try {
+      const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
 
-        // Get current block height
-        const blockHeight = await provider.getBlockHeight();
-        if (cancelled) return;
-        setCurrentBlock(Number(blockHeight));
+      // Get current block height
+      const blockHeight = await provider.getBlockHeight();
+      if (cancelled) return;
+      setCurrentBlock(Number(blockHeight));
 
-        // Fetch UTXOs for each contract address
-        const contractsData: ContractWithBalance[] = [];
+      // Fetch UTXOs for each contract address
+      const contractsData: ContractWithBalance[] = [];
 
-        for (const contract of storedContracts) {
-          try {
-            const utxos = await provider.getUtxos(contract.address);
-            // utxo.satoshis is bigint - convert to BCH
-            const balance = utxos.reduce((sum, utxo) => sum + Number(utxo.satoshis) / 100000000, 0);
-            
-            contractsData.push({
-              ...contract,
-              balance,
-              currentBlock: Number(blockHeight),
-            });
-          } catch (utxoError) {
-            // If we can't fetch UTXOs for a contract (e.g., it doesn't exist yet),
-            // still include it with 0 balance
-            debug.warn(`Could not fetch UTXOs for ${contract.address}:`, utxoError);
-            contractsData.push({
-              ...contract,
-              balance: 0,
-              currentBlock: Number(blockHeight),
-            });
-          }
-        }
-
-        if (!cancelled) {
-          setContractsWithData(contractsData);
-          setLoading(false);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          debug.error('Error fetching contract data from Electrum:', err);
-          setError(err instanceof Error ? err.message : 'Failed to fetch from Electrum');
-          setLoading(false);
+      for (const contract of storedContracts) {
+        try {
+          const utxos = await provider.getUtxos(contract.address);
+          // utxo.satoshis is bigint - convert to BCH
+          const balance = utxos.reduce((sum, utxo) => sum + Number(utxo.satoshis) / 100000000, 0);
+          
+          contractsData.push({
+            ...contract,
+            balance,
+            currentBlock: Number(blockHeight),
+          });
+        } catch (utxoError) {
+          // If we can't fetch UTXOs for a contract (e.g., it doesn't exist yet),
+          // still include it with 0 balance
+          debug.warn(`Could not fetch UTXOs for ${contract.address}:`, utxoError);
+          contractsData.push({
+            ...contract,
+            balance: 0,
+            currentBlock: Number(blockHeight),
+          });
         }
       }
+
+      if (!cancelled) {
+        setContractsWithData(contractsData);
+        setLoading(false);
+      }
+    } catch (err) {
+      if (!cancelled) {
+        debug.error('Error fetching contract data from Electrum:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch from Electrum');
+        setLoading(false);
+      }
     }
-
-    fetchData();
-
-    return () => {
-      cancelled = true;
-    };
   }, [storedContracts, network]);
+
+  // Re-fetch when dependencies change OR when refreshVersion increments
+  useEffect(() => {
+    fetchContractData();
+  }, [fetchContractData, refreshVersion]);
+
+  // Manually trigger a balance refresh (call after tx broadcasts or confirms)
+  const refresh = useCallback(() => {
+    setRefreshVersion(v => v + 1);
+  }, []);
 
   return {
     contracts: contractsWithData,
     currentBlock,
     loading,
     error,
+    refresh,
   };
 }
