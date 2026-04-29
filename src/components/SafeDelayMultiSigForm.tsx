@@ -330,7 +330,9 @@ export default function SafeDelayMultiSigForm() {
     setError(null);
     setContractAddress(null);
     setBytecodeError(null);
-    setLoading(true);
+    // Use queueMicrotask to ensure loading state is painted before the synchronous
+    // bytecode digest blocks the event loop (issue #227)
+    queueMicrotask(() => setLoading(true));
 
     try {
       // Verify embedded artifact bytecode against known-good hash before deployment

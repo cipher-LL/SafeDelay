@@ -251,7 +251,9 @@ export default function SafeDelayForm() {
       return;
     }
 
-    setLoading(true);
+    // Use queueMicrotask to ensure loading state is painted before the synchronous
+    // bytecode digest blocks the event loop (issue #227)
+    queueMicrotask(() => setLoading(true));
     setBytecodeError(null);
     try {
       // Verify embedded artifact bytecode against known-good hash before deployment
