@@ -1040,7 +1040,7 @@ export default function SafeDelayManagerDashboard() {
                 <StepDesc>
                   Run this command in the SafeDelay repo:
                   <br />
-                  <StepCommand>node scripts/deploy-manager.mjs --sp-pkh &lt;your_pkh&gt; --network {network}</StepCommand>
+                  <StepCommand>node scripts/deploy-manager.mjs --sp-pkh &lt;your_pkh&gt; --network {network === 'testnet' ? 'chipnet' : network}</StepCommand>
                 </StepDesc>
               </StepContent>
             </OnboardingStepRow>
