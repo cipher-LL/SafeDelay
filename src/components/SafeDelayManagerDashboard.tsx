@@ -250,6 +250,111 @@ const AddressBox = styled.div`
   gap: 12px;
 `;
 
+const OnboardingCard = styled.div`
+  background: linear-gradient(135deg, rgba(79,70,229,0.15), rgba(139,92,246,0.1));
+  border: 1px solid rgba(79,70,229,0.3);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-top: 16px;
+`;
+
+const OnboardingTitle = styled.h3`
+  font-size: 20px;
+  font-weight: 700;
+  color: #c7d2fe;
+  margin-bottom: 6px;
+`;
+
+const OnboardingSubtitle = styled.p`
+  font-size: 14px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 24px;
+  line-height: 1.5;
+`;
+
+const OnboardingSteps = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`;
+
+const OnboardingStepRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+`;
+
+const StepNumber = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+`;
+
+const StepContent = styled.div`
+  flex: 1;
+`;
+
+const StepTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  margin-bottom: 3px;
+`;
+
+const StepDesc = styled.div`
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.4;
+`;
+
+const StepCommand = styled.code`
+  font-family: monospace;
+  font-size: 12px;
+  background: rgba(0,0,0,0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #a5b4fc;
+`;
+
+const OnboardingActions = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+`;
+
+const OnboardingLink = styled.a`
+  font-size: 13px;
+  color: #a5b4fc;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  &:hover { text-decoration: underline; }
+`;
+
+const ConfigWarningBox = styled.div`
+  background: rgba(234,179,8,0.1);
+  border: 1px solid rgba(234,179,8,0.3);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: #fbbf24;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+`;
+
 const ViewToggle = styled.div`
   display: flex;
   gap: 8px;
@@ -908,20 +1013,90 @@ export default function SafeDelayManagerDashboard() {
         </SecondaryBtn>
       </FormRow>
 
+      {/* ── New User Onboarding ── */}
       {!managerAddress && !isManagerDeployed(network as 'mainnet' | 'chipnet' | 'testnet') && (
-        <MessageBox $type="info">
-          <strong>SafeDelayManager not deployed on {network}.</strong>{' '}
-          To set up the registry, run:{' '}
-          <code style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-            node scripts/deploy-manager.mjs --sp-pkh &lt;your_pkh&gt; --network {network}
-          </code>
-          {' '}Then update <code style={{ fontFamily: 'monospace', fontSize: '12px' }}>src/config/contracts.ts</code> with the deployed address.
-        </MessageBox>
+        <OnboardingCard>
+          <OnboardingTitle>🛡️ Welcome to SafeDelayManager</OnboardingTitle>
+          <OnboardingSubtitle>
+            A registry of time-locked wallets. Each registered SafeDelay pays a small fee to the
+            service provider — you control the keys, we track the registry on-chain.
+          </OnboardingSubtitle>
+
+          <OnboardingSteps>
+            <OnboardingStepRow>
+              <StepNumber>1</StepNumber>
+              <StepContent>
+                <StepTitle>Get your Service Provider PKH</StepTitle>
+                <StepDesc>
+                  Open Paytaca wallet → Settings → Security → Export Private Key. Copy the 40-hex public key hash.
+                </StepDesc>
+              </StepContent>
+            </OnboardingStepRow>
+
+            <OnboardingStepRow>
+              <StepNumber>2</StepNumber>
+              <StepContent>
+                <StepTitle>Deploy the registry contract</StepTitle>
+                <StepDesc>
+                  Run this command in the SafeDelay repo:
+                  <br />
+                  <StepCommand>node scripts/deploy-manager.mjs --sp-pkh &lt;your_pkh&gt; --network {network}</StepCommand>
+                </StepDesc>
+              </StepContent>
+            </OnboardingStepRow>
+
+            <OnboardingStepRow>
+              <StepNumber>3</StepNumber>
+              <StepContent>
+                <StepTitle>Update config &amp; reload</StepTitle>
+                <StepDesc>
+                  Copy the deployed manager address and SP PKH into{' '}
+                  <code style={{ fontFamily: 'monospace', fontSize: '12px', color: '#a5b4fc' }}>src/config/contracts.ts</code>,
+                  then paste the manager address above and click Load Registry.
+                </StepDesc>
+              </StepContent>
+            </OnboardingStepRow>
+
+            <OnboardingStepRow>
+              <StepNumber>4</StepNumber>
+              <StepContent>
+                <StepTitle>Create your first SafeDelay wallet</StepTitle>
+                <StepDesc>
+                  Once the manager is loaded, go to the <strong>Create SafeDelay</strong> tab to deploy a
+                  time-locked wallet and register it with the manager.
+                </StepDesc>
+              </StepContent>
+            </OnboardingStepRow>
+          </OnboardingSteps>
+
+          <OnboardingActions>
+            <PrimaryBtn
+              onClick={() => window.open('https://github.com/LifestoneLabs/SafeDelay/blob/main/DEPLOY.md', '_blank')}
+            >
+              📖 Deployment Guide
+            </PrimaryBtn>
+            <OnboardingLink
+              href="https://github.com/LifestoneLabs/SafeDelay"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              🔗 View on GitHub →
+            </OnboardingLink>
+          </OnboardingActions>
+
+          {getServiceProviderPkh(network as 'mainnet' | 'chipnet' | 'testnet') === '' && (
+            <ConfigWarningBox>
+              ⚠️ <strong>Config not ready:</strong> <code style={{ fontFamily: 'monospace', fontSize: '12px' }}>contracts.ts</code> has
+              empty addresses for <strong>{network}</strong>. Deploy the manager first, then update the config.
+            </ConfigWarningBox>
+          )}
+        </OnboardingCard>
       )}
 
       {!managerAddress && isManagerDeployed(network as 'mainnet' | 'chipnet' | 'testnet') && (
         <MessageBox $type="info">
-          Enter the SafeDelayManager contract address to browse the registry.
+          <strong>Manager deployed but not loaded.</strong> Paste the SafeDelayManager address above
+          and click <em>Load Registry</em> to browse the wallet registry.
           The service provider PKH is required to register new entries.
         </MessageBox>
       )}
