@@ -4,10 +4,14 @@
  * Compiles SafeDelay.cash, SafeDelayManager.cash, and SafeDelayMultiSig.cash
  * in sequence, reporting success/failure for each. Exits with non-zero if
  * any contract fails, but always attempts all three.
+ * 
+ * After successful compilation, prints the SHA256 bytecode hash so users
+ * can verify against artifacts/HASHES.json without a separate command.
  */
 
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { createHash } from 'crypto';
 
 const ARTIFACT_DIR = 'dist';
 
@@ -21,12 +25,29 @@ function ensureDir(dir) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
+function computeBytecodeHash(artifactPath) {
+  try {
+    const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
+    const bytecode = artifact.bytecode;
+    if (!bytecode) return null;
+    const hash = createHash('sha256').update(Buffer.from(bytecode, 'hex')).digest('hex');
+    return hash;
+  } catch {
+    return null;
+  }
+}
+
 function compile(name, file) {
   const outFile = `${ARTIFACT_DIR}/${name}.artifact.json`;
   console.log(`\n[${name}] Compiling ${file} → ${outFile}`);
   try {
     execSync(`npx cashc ${file} -o ${outFile}`, { stdio: 'inherit' });
-    console.log(`[${name}] ✓ Success`);
+    const hash = computeBytecodeHash(outFile);
+    if (hash) {
+      console.log(`[${name}] ✓ Success — bytecode hash: ${hash}`);
+    } else {
+      console.log(`[${name}] ✓ Success`);
+    }
     return true;
   } catch (err) {
     console.error(`[${name}] ✗ FAILED — exit code ${err.status}`);
