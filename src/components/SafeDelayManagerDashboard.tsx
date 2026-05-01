@@ -1229,9 +1229,13 @@ export default function SafeDelayManagerDashboard() {
                   {externalResult.locked
                     ? `🔒 Locked — ${externalResult.remaining.toLocaleString()} blocks remaining (~${externalResult.days} days)`
                     : '✅ Fully unlocked — ready to withdraw'}
-                  {externalResult.balance > 0 && (
+                  {externalResult.balance > 0 ? (
                     <span style={{ color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 700 }}>
                       {externalResult.balance.toFixed(4)} BCH
+                    </span>
+                  ) : (
+                    <span style={{ color: 'rgba(255,255,255,0.3)', display: 'block', marginTop: '4px' }}>
+                      0.0000 BCH
                     </span>
                   )}
                 </WalletMeta>
