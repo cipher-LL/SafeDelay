@@ -517,6 +517,7 @@ export default function SafeDelayManagerDashboard() {
     balance: number;
     verified: boolean | null;
     computedAddress: string | null;
+    unlockDate: string | null;
   } | null>(null);
 
   // ─── Track external SafeDelay address ────────────────────────────────────
@@ -600,8 +601,11 @@ export default function SafeDelayManagerDashboard() {
       const remaining = Math.max(0, effectiveLockEnd - bh);
       const days = Math.floor(remaining / 144);
       const locked = effectiveLockEnd > bh;
+      const msPerBlock = 10 * 60 * 1000;
+      const unlockMs = Date.now() + (remaining * msPerBlock);
+      const unlockDate = new Date(unlockMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-      setExternalResult({ address, locked, remaining, days, balance, verified, computedAddress });
+      setExternalResult({ address, locked, remaining, days, balance, verified, computedAddress, unlockDate: locked ? unlockDate : null });
     } catch (err) {
       setExternalError(err instanceof Error ? err.message : 'Failed to fetch SafeDelay status');
     }
@@ -1227,7 +1231,7 @@ export default function SafeDelayManagerDashboard() {
               {externalResult && (
                 <WalletMeta style={{ marginTop: '8px' }}>
                   {externalResult.locked
-                    ? `🔒 Locked — ${externalResult.remaining.toLocaleString()} blocks remaining (~${externalResult.days} days)`
+                    ? `🔒 Locked — ${externalResult.remaining.toLocaleString()} blocks remaining (~${externalResult.days} days${externalResult.unlockDate ? ` · est. ${externalResult.unlockDate}` : ''})`
                     : '✅ Fully unlocked — ready to withdraw'}
                   {externalResult.balance > 0 ? (
                     <span style={{ color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 700 }}>
