@@ -155,6 +155,27 @@ const Grid3 = styled.div`
   margin-bottom: 20px;
 `;
 
+const DeploymentStatusBanner = styled.div`
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+`;
+
+const BannerTitle = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  color: #ef4444;
+  margin-bottom: 8px;
+`;
+
+const BannerBody = styled.div`
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+`;
+
 const StatCard = styled.div`
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
@@ -1019,6 +1040,32 @@ export default function SafeDelayManagerDashboard() {
           Load Registry
         </SecondaryBtn>
       </FormRow>
+
+      {/* ── Deployment Status Banner ── */}
+      {!isManagerDeployed(network as 'mainnet' | 'chipnet' | 'testnet') && (
+        <DeploymentStatusBanner>
+          <BannerTitle>⚠️ SafeDelayManager Not Deployed on {network === 'testnet' ? 'Chipnet' : network}</BannerTitle>
+          <BannerBody>
+            The SafeDelayManager registry contract is not deployed on this network.
+            Fill in the Manager Address above to connect to an existing deployment, or deploy your own:
+            <br /><br />
+            <strong>SafeDelay bytecode:</strong> <code>f68fd15f33a19b50fdbd2e6aa0001d48e40f1f1e094d3a8a883cfea4318d01e6</code> (185 bytes)
+            <br />
+            <strong>SafeDelayMultiSig bytecode:</strong> <code>a13fb855218f3fc0af4bd2af187f5831dbe7b11a04e43585587799000a1dc1d5</code> (286 bytes)
+            <br /><br />
+            See{' '}
+            <a
+              href="https://github.com/LifestoneLabs/SafeDelay/blob/main/DEPLOY.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#60a5fa', textDecoration: 'underline' }}
+            >
+              DEPLOY.md
+            </a>
+            {' '}for deployment instructions.
+          </BannerBody>
+        </DeploymentStatusBanner>
+      )}
 
       {/* ── New User Onboarding ── */}
       {!managerAddress && !isManagerDeployed(network as 'mainnet' | 'chipnet' | 'testnet') && (
