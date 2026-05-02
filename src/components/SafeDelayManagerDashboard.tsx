@@ -62,6 +62,30 @@ const Section = styled.div`
 
 const SectionTitle = styled.h3`font-size: 18px; margin-bottom: 12px; color: rgba(255, 255, 255, 0.9);`;
 
+const NetworkBadge = styled.span<{ $network: string }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 12px;
+  vertical-align: middle;
+  background: ${({ $network }) =>
+    $network === 'mainnet' ? 'rgba(16, 185, 129, 0.2)' :
+    $network === 'chipnet' ? 'rgba(245, 158, 11, 0.2)' :
+    'rgba(156, 163, 175, 0.2)'};
+  color: ${({ $network }) =>
+    $network === 'mainnet' ? '#10b981' :
+    $network === 'chipnet' ? '#f59e0b' :
+    '#9ca3af'};
+  border: 1px solid ${({ $network }) =>
+    $network === 'mainnet' ? 'rgba(16, 185, 129, 0.3)' :
+    $network === 'chipnet' ? 'rgba(245, 158, 11, 0.3)' :
+    'rgba(156, 163, 175, 0.3)'};
+`;
+
 const FormRow = styled.div`
   display: flex;
   gap: 12px;
@@ -658,7 +682,10 @@ export default function SafeDelayManagerDashboard() {
 
   return (
     <Container>
-      <Title>SafeDelay Manager</Title>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+        <Title>SafeDelay Manager</Title>
+        <NetworkBadge $network={network}>{network.toUpperCase()}</NetworkBadge>
+      </div>
       <Description>
         Browse and manage SafeDelay wallets in the on-chain registry.
       </Description>
