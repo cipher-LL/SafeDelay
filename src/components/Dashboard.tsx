@@ -55,6 +55,41 @@ const StatCard = styled.div`
   border-radius: 12px;
   padding: 20px;
   text-align: center;
+  min-height: 80px;
+`;
+
+const StatSkeleton = styled.div`
+  height: 32px;
+  width: 60%;
+  margin: 0 auto 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  animation: pulse 1.5s ease-in-out infinite;
+`;
+
+const StatLabelSkeleton = styled.div`
+  height: 14px;
+  width: 45%;
+  margin: 0 auto;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  animation: pulse 1.5s ease-in-out infinite;
+`;
+
+const ContractSkeletonCard = styled.div`
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  animation: pulse 1.5s ease-in-out infinite;
+`;
+
+const ContractSkeletonLine = styled.div<{ $w?: string }>`
+  height: 14px;
+  width: ${({ $w }) => $w || '70%'};
+  margin-bottom: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
 `;
 
 const StatValue = styled.div<{ $color?: string }>`
@@ -669,6 +704,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const { signWithdraw, signCancel, getAddressFromWif } = useWifSigner();
   const [contracts, setContracts] = useState<TimeLock[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
   const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'cancel' | 'create'>(() => {
     try { return (localStorage.getItem('safedelay-tx-filter') as any) || 'all'; } catch { return 'all'; }
   });
@@ -846,6 +882,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         owners: c.owners,
       }));
       setContracts(timeLocks);
+      setContractsLoaded(true);
 
       contractsWithData.forEach(c => {
         addDeposit(c.address, c.lockEndBlock, c.currentBlock);
@@ -1395,24 +1432,35 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         </MessageBox>
       )}
 
-      <StatsGrid>
-        <StatCard>
-          <StatValue>{contracts.length}</StatValue>
-          <StatLabel>Active Contracts</StatLabel>
-        </StatCard>
-        <StatCard>
-          <StatValue>
-            {contracts.reduce((sum, c) => sum + c.balance, 0).toFixed(4)}
-          </StatValue>
-          <StatLabel>Total BCH Locked</StatLabel>
-        </StatCard>
-        <StatCard>
-          <StatValue>
-            {contracts.filter(c => c.lockEndBlock > c.currentBlock).length}
-          </StatValue>
-          <StatLabel>Currently Locked</StatLabel>
-        </StatCard>
-      </StatsGrid>
+      {!contractsLoaded ? (
+        <StatsGrid>
+          {[0, 1, 2].map(i => (
+            <StatCard key={i}>
+              <StatSkeleton />
+              <StatLabelSkeleton />
+            </StatCard>
+          ))}
+        </StatsGrid>
+      ) : (
+        <StatsGrid>
+          <StatCard>
+            <StatValue>{contracts.length}</StatValue>
+            <StatLabel>Active Contracts</StatLabel>
+          </StatCard>
+          <StatCard>
+            <StatValue>
+              {contracts.reduce((sum, c) => sum + c.balance, 0).toFixed(4)}
+            </StatValue>
+            <StatLabel>Total BCH Locked</StatLabel>
+          </StatCard>
+          <StatCard>
+            <StatValue>
+              {contracts.filter(c => c.lockEndBlock > c.currentBlock).length}
+            </StatValue>
+            <StatLabel>Currently Locked</StatLabel>
+          </StatCard>
+        </StatsGrid>
+      )}
 
       {/* Analytics Section */}
       <SectionTitle>Analytics</SectionTitle>
@@ -1633,6 +1681,24 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               <option value="unlock">Time Remaining</option>
             </SortSelect>
           </SortBar>
+        )}
+
+        {/* Skeleton while loading contracts from Electrum */}
+        {!contractsLoaded && wallet.connected && (
+          <ContractList>
+            {[0, 1, 2].map(i => (
+              <ContractSkeletonCard key={i}>
+                <ContractSkeletonLine $w="40%" />
+                <ContractSkeletonLine $w="75%" />
+                <ContractSkeletonLine $w="55%" />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                  <ContractSkeletonLine $w="80px" />
+                  <ContractSkeletonLine $w="80px" />
+                  <ContractSkeletonLine $w="80px" />
+                </div>
+              </ContractSkeletonCard>
+            ))}
+          </ContractList>
         )}
 
         {wallet.connected ? (
