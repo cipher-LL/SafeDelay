@@ -8,6 +8,7 @@ import SafeDelayMultiSigForm from './components/SafeDelayMultiSigForm';
 import Dashboard from './components/Dashboard';
 import SafeDelayManagerDashboard from './components/SafeDelayManagerDashboard';
 import Header from './components/Header';
+import { ToastContainer } from './components/Toast';
 
 const Container = styled.div`
   max-width: 1200px;
@@ -88,6 +89,7 @@ function App() {
   return (
     <ThemeProvider>
       <AppContent />
+      <ToastContainer />
     </ThemeProvider>
   );
 }

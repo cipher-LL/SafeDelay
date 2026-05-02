@@ -1260,7 +1260,6 @@ export default function SafeDelayManagerDashboard() {
                 {myEntries.map((entry, i) => {
                   const locked = entry.lockEndBlock > entry.currentBlock;
                   const remaining = entry.lockEndBlock - entry.currentBlock;
-                  const days = Math.floor(remaining / 144);
                   // Estimate unlock date based on ~10 min per block
                   const msPerBlock = 10 * 60 * 1000;
                   const estimatedUnlockDate = new Date(Date.now() + remaining * msPerBlock);

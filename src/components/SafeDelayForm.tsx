@@ -7,6 +7,7 @@ import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 import { useFormNavigationWarning } from '../hooks/useFormNavigationWarning';
 import HASHES from '../../artifacts/HASHES.json';
 import { debug } from '../utils/debug';
+import { showToast } from './Toast';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -247,7 +248,7 @@ export default function SafeDelayForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!wallet.connected || !wallet.pubkeyHash) {
-      alert('Please connect your wallet first');
+      showToast('Please connect your wallet first', 'warning');
       return;
     }
 
@@ -299,7 +300,7 @@ export default function SafeDelayForm() {
       });
     } catch (error) {
       debug.error('Error creating SafeDelay:', error);
-      alert('Failed to create SafeDelay: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      showToast('Failed to create SafeDelay: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
     } finally {
       setLoading(false);
     }
