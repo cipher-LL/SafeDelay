@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { getManagerAddress, getServiceProviderPkh, isManagerDeployed } from '../config/contracts';
@@ -133,6 +133,11 @@ const SuccessBtn = styled(PrimaryBtn)`
   &:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4); }
 `;
 
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
+
 const MessageBox = styled.div<{ $type: 'success' | 'error' | 'info' }>`
   padding: 12px 16px;
   border-radius: 8px;
@@ -146,6 +151,19 @@ const MessageBox = styled.div<{ $type: 'success' | 'error' | 'info' }>`
     $type === 'success' ? '#10b981' :
     $type === 'error' ? '#ef4444' : '#a5b4fc'};
   white-space: pre-wrap;
+`;
+
+const ScanMessageBox = styled(MessageBox)`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const Spinner = styled.span`
+  display: inline-block;
+  font-size: 16px;
+  animation: ${spin} 1s linear infinite;
+  flex-shrink: 0;
 `;
 
 const Grid3 = styled.div`
@@ -1203,7 +1221,7 @@ export default function SafeDelayManagerDashboard() {
             </ViewToggle>
           )}
 
-          {loadingEntries && <MessageBox $type="info">Scanning blockchain for registry entries...</MessageBox>}
+          {loadingEntries && <ScanMessageBox $type="info"><Spinner>🌀</Spinner>Scanning blockchain for registry entries...</ScanMessageBox>}
           {entriesError && !managerAddress && <MessageBox $type="error">{entriesError}</MessageBox>}
 
           {/* ── Track External SafeDelay (e.g. from BadgerSurvivors prizes) ── */}
@@ -1418,7 +1436,7 @@ export default function SafeDelayManagerDashboard() {
           {txHistoryError && <MessageBox $type="error">{txHistoryError}</MessageBox>}
 
           {txHistoryLoading && (
-            <MessageBox $type="info">Fetching transaction history from Electrum...</MessageBox>
+            <ScanMessageBox $type="info"><Spinner>🌀</Spinner>Fetching transaction history from Electrum...</ScanMessageBox>
           )}
 
           {!txHistoryLoading && txHistory.length === 0 && selectedEntryForTx && (
