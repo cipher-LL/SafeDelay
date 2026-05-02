@@ -36,7 +36,8 @@ export function verifyBytecode(onChainBytecode: string, artifact: any): {
   artifactBytecode?: string;
   onChainBytecode?: string;
 } {
-  const artifactBytecode = normalizeBytecode(artifact.bytecode);
+  // debug.bytecode is the canonical bytecode for verification
+  const artifactBytecode = normalizeBytecode(artifact.debug?.bytecode ?? artifact.bytecode);
   const chainBytecode = normalizeBytecode(onChainBytecode);
   
   if (artifactBytecode === chainBytecode) {

@@ -28,7 +28,8 @@ function ensureDir(dir) {
 function computeBytecodeHash(artifactPath) {
   try {
     const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
-    const bytecode = artifact.bytecode;
+    // Use debug.bytecode — the canonical bytecode hash committed to HASHES.json
+    const bytecode = artifact.debug?.bytecode;
     if (!bytecode) return null;
     const hash = createHash('sha256').update(Buffer.from(bytecode, 'hex')).digest('hex');
     return hash;
@@ -66,6 +67,13 @@ for (const { name, file } of contracts) {
 console.log('\n' + '='.repeat(50));
 if (allPassed) {
   console.log('All contracts compiled successfully ✓');
+  console.log('\nRegenerating HASHES.json...');
+  try {
+    const { execSync: execSyncHash } = await import('child_process');
+    execSyncHash('node scripts/generate-hashes.mjs', { stdio: 'inherit' });
+  } catch {
+    console.warn('⚠️  Failed to regenerate HASHES.json — run `node scripts/generate-hashes.mjs` manually');
+  }
 } else {
   console.error('One or more contracts failed to compile ✗');
   process.exit(1);
