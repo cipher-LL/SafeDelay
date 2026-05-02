@@ -1004,7 +1004,10 @@ export default function SafeDelayManagerDashboard() {
           />
         </FormGroup>
         <FormGroup style={{ minWidth: '200px' }}>
-          <Label>Service Provider PKH (40 hex)</Label>
+          <Label>
+            Service Provider Key &nbsp;
+            <span title="Your wallet's public key hash — the service provider who receives registration fees" style={{ cursor: 'help', opacity: 0.7 }}>ⓘ</span>
+          </Label>
           <Input
             placeholder="0a1b2c3d4e..."
             value={serviceProviderPkh}
@@ -1258,6 +1261,10 @@ export default function SafeDelayManagerDashboard() {
                   const locked = entry.lockEndBlock > entry.currentBlock;
                   const remaining = entry.lockEndBlock - entry.currentBlock;
                   const days = Math.floor(remaining / 144);
+                  // Estimate unlock date based on ~10 min per block
+                  const msPerBlock = 10 * 60 * 1000;
+                  const estimatedUnlockDate = new Date(Date.now() + remaining * msPerBlock);
+                  const dateStr = estimatedUnlockDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
                   return (
                     <WalletCard key={entry.address || i}>
                       <WalletInfo>
@@ -1265,7 +1272,7 @@ export default function SafeDelayManagerDashboard() {
                         <WalletMeta>
                           Lock end: block {entry.lockEndBlock.toLocaleString()} •{' '}
                           {locked
-                            ? `🔒 ${remaining.toLocaleString()} blocks (~${days} days)`
+                            ? `🔒 ~${dateStr} (${remaining.toLocaleString()} blocks)`
                             : '✅ Unlocked'}
                         </WalletMeta>
                         {viewMode === 'all' && (
@@ -1521,24 +1528,15 @@ export default function SafeDelayManagerDashboard() {
       {/* ── How It Works ── */}
       {managerAddress && (
         <Section>
-          <SectionTitle>How the Registry Works</SectionTitle>
+          <SectionTitle>How It Works</SectionTitle>
           <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: '1.7' }}>
             <p>
-              The <strong>SafeDelayManager</strong> is an <strong>NFT-bound registry</strong>.
-              Each wallet entry is encoded in the NFT commitment as:
-            </p>
-            <code style={{ display: 'block', fontFamily: 'monospace', margin: '8px 0', padding: '8px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-              [ownerPKH (20 bytes)][lockEndBlock (8 bytes big-endian)]
-            </code>
-            <p>
-              Child SafeDelay addresses are computed <strong>off-chain</strong>:<br />
-              <code style={{ fontFamily: 'monospace' }}>
-                hash256(ownerPKH_le ‖ lockEndBlock_le ‖ SafeDelayBytecode)
-              </code>
+              <strong>SafeDelay</strong> lets you create time-locked wallets — funds are frozen until a
+              target block is reached. Useful for escrow, prize escrow, or controlled vesting.
             </p>
             <p style={{ marginTop: '8px' }}>
-              The service provider PKH (set at manager deployment) receives the registration fee.
-              Only the service provider can call <code style={{ fontFamily: 'monospace' }}>createDelay()</code>.
+              Register your SafeDelay address with the manager to make it publicly visible.
+              The service provider key prevents spam registrations.
             </p>
           </div>
         </Section>
