@@ -356,6 +356,108 @@ export interface TxConfirmationResult {
   error?: string;
 }
 
+// ============ Cancel Delay Function ============
+
+export interface CancelDelayOptions {
+  wifKey: string;
+  ownerPkh: string;
+  lockEndBlock: number;
+  config: NetworkConfig;
+}
+
+export interface CancelDelayResult {
+  txHash: string;
+  amountSats: bigint;
+  feeSats: bigint;
+}
+
+/**
+ * Cancel a SafeDelay contract and refund all funds to the owner.
+ * Can be called at any time before or after lock expiration.
+ *
+ * @param options.wifKey - WIF private key of the owner
+ * @param options.ownerPkh - Owner's public key hash (40 hex chars)
+ * @param options.lockEndBlock - Lock expiration block height of the contract
+ * @param options.config.network - Network: 'mainnet' | 'testnet' | 'chipnet'
+ * @param options.config.electrumUrl - Optional Electrum RPC URL
+ * @returns CancelDelayResult with txHash, refunded amount, and fee
+ */
+export async function cancelDelay(options: CancelDelayOptions): Promise<CancelDelayResult> {
+  const { wifKey, ownerPkh, lockEndBlock, config } = options;
+  const { network, electrumUrl } = config;
+  const rpcUrl = electrumUrl || DEFAULT_ELECTRUM_URLS[network];
+
+  // Derive owner keypair from WIF
+  const owner = deriveKeyPair(wifKey, network);
+
+  // Verify the WIF matches the ownerPKH
+  if (owner.pkh.toLowerCase() !== ownerPkh.toLowerCase()) {
+    throw new Error('WIF key does not match ownerPKH');
+  }
+
+  // Get Electrum provider
+  const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+
+  // Get contract instance
+  const contract = getSafeDelayContract(ownerPkh, lockEndBlock, network, provider);
+
+  // Fetch contract UTXOs
+  const contractUtxos = await provider.getUtxos(contract.address);
+  if (contractUtxos.length === 0) {
+    throw new Error(`No UTXOs found at contract address ${contract.address}. Contract may not be funded.`);
+  }
+
+  // Get owner UTXOs for the owner input
+  const ownerUtxos = await getAddressUtxos(rpcUrl, owner.address);
+
+  if (ownerUtxos.length === 0) {
+    // Use a dust UTXO if no UTXOs available
+    const dustUtxo = {
+      tx_hash: '0'.repeat(64),
+      tx_pos: 0,
+      value: 546,
+      height: 0,
+    };
+    ownerUtxos.push(dustUtxo);
+  }
+
+  // Calculate total balance to refund
+  const contractBalance = contractUtxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n);
+  const refundAmount = contractBalance - FEE_SATS;
+
+  if (refundAmount <= 0n) {
+    throw new Error('Contract balance too low to cover transaction fee');
+  }
+
+  // Build cancel transaction
+  const cancelTx = (contract as any).functions.cancel(owner.publicKey);
+
+  // Select owner UTXO for signature
+  const ownerInputUtxo = ownerUtxos[0];
+  const ownerInput = {
+    txHash: ownerInputUtxo.tx_hash,
+    vout: ownerInputUtxo.tx_pos,
+    satoshis: BigInt(ownerInputUtxo.value),
+    token: undefined,
+    address: owner.address,
+  };
+
+  // Use the contract UTXO and owner input
+  const txDetails = await cancelTx
+    .from([contractUtxos[0], ownerInput])
+    .to(owner.address, refundAmount)
+    .withHardcodedPublisherKeySignature(owner.publicKey, owner.signer)
+    .send() as any;
+
+  const txHash = typeof txDetails === 'string' ? txDetails : txDetails.txid || txDetails.hash;
+
+  return {
+    txHash,
+    amountSats: refundAmount,
+    feeSats: FEE_SATS,
+  };
+}
+
 /**
  * Wait for a transaction to be confirmed on the BCH network.
  * Polls Electrum every 5 seconds for up to maxWaitMs milliseconds.
