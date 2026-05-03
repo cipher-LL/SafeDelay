@@ -286,6 +286,214 @@ export async function deposit(options: {
 }
 
 /**
+ * Withdraw BCH from a SafeDelay contract after the lock has expired.
+ * Uses WIF key to sign the transaction. Partial withdrawals supported.
+ *
+ * @param wifKey - WIF private key of the owner
+ * @param ownerPkh - Owner's public key hash (40 hex chars)
+ * @param lockEndBlock - Current lock expiration block height
+ * @param withdrawAmount - Amount to withdraw in satoshis
+ * @param config - Network configuration
+ * @returns txHash and fee info
+ */
+export async function withdraw(
+  wifKey: string,
+  ownerPkh: string,
+  lockEndBlock: number,
+  withdrawAmount: bigint,
+  config: NetworkConfig
+): Promise<{ txHash: string; feeSats: bigint }> {
+  const provider = new ElectrumNetworkProvider(toCashScriptNetwork(config.network));
+
+  // Derive wallet from WIF
+  const wallet = deriveKeyPair(wifKey, config.network);
+
+  // Get contract and UTXOs
+  const contract = getSafeDelayContract(ownerPkh, lockEndBlock, config.network, provider);
+  const contractUtxos = await provider.getUtxos(contract.address);
+
+  if (contractUtxos.length === 0) {
+    throw new Error('No UTXOs found at contract address. Contract may not be funded.');
+  }
+
+  const contractBalance = contractUtxos.reduce((sum, u) => sum + u.satoshis, 0n);
+  if (withdrawAmount > contractBalance) {
+    const err = new Error(`Insufficient balance: requested ${withdrawAmount} sats, have ${contractBalance} sats`) as InsufficientBalanceError;
+    err.required = withdrawAmount;
+    err.available = contractBalance;
+    throw err;
+  }
+
+  // Get wallet UTXOs for signing
+  const rpcUrl = config.electrumUrl || DEFAULT_ELECTRUM_URLS[config.network];
+  const walletUtxos = await getAddressUtxos(rpcUrl, wallet.address);
+
+  if (walletUtxos.length === 0) {
+    throw new Error('No wallet UTXOs found. Your wallet needs BCH to pay miner fees.');
+  }
+
+  // Select wallet UTXOs to cover fees
+  const feeRequired = FEE_SATS;
+  let accumulated = 0n;
+  const selectedUtxos: ElectrumUtxo[] = [];
+  for (const utxo of walletUtxos) {
+    if (accumulated >= feeRequired) break;
+    selectedUtxos.push(utxo);
+    accumulated += BigInt(utxo.value);
+  }
+
+  // Build withdraw transaction
+  // withdraw(pubkey ownerPk, sig ownerSig, int withdrawAmount)
+  const withdrawTx = (contract as any).functions.withdraw(wallet.pkh, withdrawAmount);
+
+  const walletInputs = selectedUtxos.map((utxo): any => ({
+    txHash: utxo.tx_hash,
+    vout: utxo.tx_pos,
+    satoshis: BigInt(utxo.value),
+    token: undefined,
+    address: wallet.address,
+  }));
+
+  const txDetails = await withdrawTx
+    .from([contractUtxos[0], ...walletInputs])
+    .withHardcodedLockTime(lockEndBlock)
+    .send() as any;
+
+  const txHash = typeof txDetails === 'string' ? txDetails : txDetails.txid || txDetails.hash;
+
+  debugLog('SafeDelayLibrary', 'withdraw tx:', txHash);
+
+  return { txHash, feeSats: FEE_SATS };
+}
+
+/**
+ * Cancel a SafeDelay contract and reclaim all funds immediately.
+ * Uses WIF key to sign. No time-lock restriction — works before or after lock expiry.
+ *
+ * @param wifKey - WIF private key of the owner
+ * @param ownerPkh - Owner's public key hash (40 hex chars)
+ * @param lockEndBlock - Current lock expiration block height
+ * @param config - Network configuration
+ * @returns txHash and fee info
+ */
+export async function cancel(
+  wifKey: string,
+  ownerPkh: string,
+  lockEndBlock: number,
+  config: NetworkConfig
+): Promise<{ txHash: string; feeSats: bigint }> {
+  const provider = new ElectrumNetworkProvider(toCashScriptNetwork(config.network));
+
+  // Derive wallet from WIF
+  const wallet = deriveKeyPair(wifKey, config.network);
+
+  // Get contract UTXOs
+  const contract = getSafeDelayContract(ownerPkh, lockEndBlock, config.network, provider);
+  const contractUtxos = await provider.getUtxos(contract.address);
+
+  if (contractUtxos.length === 0) {
+    throw new Error('No UTXOs found at contract address.');
+  }
+
+  const contractBalance = contractUtxos.reduce((sum, u) => sum + u.satoshis, 0n);
+
+  // Get wallet UTXOs for signing
+  const rpcUrl = config.electrumUrl || DEFAULT_ELECTRUM_URLS[config.network];
+  const walletUtxos = await getAddressUtxos(rpcUrl, wallet.address);
+
+  if (walletUtxos.length === 0) {
+    throw new Error('No wallet UTXOs found.');
+  }
+
+  // cancel(pubkey ownerPk, sig ownerSig) — no withdrawAmount, sends everything minus fee
+  const cancelTx = (contract as any).functions.cancel(wallet.pkh);
+
+  const txDetails = await cancelTx
+    .from([contractUtxos[0], {
+      txHash: walletUtxos[0].tx_hash,
+      vout: walletUtxos[0].tx_pos,
+      satoshis: BigInt(walletUtxos[0].value),
+      token: undefined,
+      address: wallet.address,
+    }])
+    .to(wallet.address, contractBalance - FEE_SATS)
+    .send() as any;
+
+  const txHash = typeof txDetails === 'string' ? txDetails : txDetails.txid || txDetails.hash;
+
+  debugLog('SafeDelayLibrary', 'cancel tx:', txHash);
+
+  return { txHash, feeSats: FEE_SATS };
+}
+
+/**
+ * Extend the lock period of a SafeDelay contract to a later block height.
+ * Uses WIF key to sign. One-way operation — lock can only be extended, never shortened.
+ * Note: This withdraws all funds to owner; owner must redeposit into a new contract.
+ *
+ * @param wifKey - WIF private key of the owner
+ * @param ownerPkh - Owner's public key hash (40 hex chars)
+ * @param lockEndBlock - Current lock expiration block height
+ * @param newLockEndBlock - New lock expiration block height (must be > lockEndBlock)
+ * @param config - Network configuration
+ * @returns txHash and fee info
+ */
+export async function extend(
+  wifKey: string,
+  ownerPkh: string,
+  lockEndBlock: number,
+  newLockEndBlock: number,
+  config: NetworkConfig
+): Promise<{ txHash: string; feeSats: bigint }> {
+  if (newLockEndBlock <= lockEndBlock) {
+    throw new Error(`newLockEndBlock (${newLockEndBlock}) must be greater than current lockEndBlock (${lockEndBlock})`);
+  }
+
+  const provider = new ElectrumNetworkProvider(toCashScriptNetwork(config.network));
+
+  // Derive wallet from WIF
+  const wallet = deriveKeyPair(wifKey, config.network);
+
+  // Get contract UTXOs
+  const contract = getSafeDelayContract(ownerPkh, lockEndBlock, config.network, provider);
+  const contractUtxos = await provider.getUtxos(contract.address);
+
+  if (contractUtxos.length === 0) {
+    throw new Error('No UTXOs found at contract address. Contract may not be funded.');
+  }
+
+  const contractBalance = contractUtxos.reduce((sum, u) => sum + u.satoshis, 0n);
+
+  // Get wallet UTXOs for signing
+  const rpcUrl = config.electrumUrl || DEFAULT_ELECTRUM_URLS[config.network];
+  const walletUtxos = await getAddressUtxos(rpcUrl, wallet.address);
+
+  if (walletUtxos.length === 0) {
+    throw new Error('No wallet UTXOs found.');
+  }
+
+  // extend(pubkey ownerPk, sig ownerSig, int newLockEndBlock)
+  const extendTx = (contract as any).functions.extend(wallet.pkh, BigInt(newLockEndBlock));
+
+  const txDetails = await extendTx
+    .from([contractUtxos[0], {
+      txHash: walletUtxos[0].tx_hash,
+      vout: walletUtxos[0].tx_pos,
+      satoshis: BigInt(walletUtxos[0].value),
+      token: undefined,
+      address: wallet.address,
+    }])
+    .to(wallet.address, contractBalance - FEE_SATS)
+    .send() as any;
+
+  const txHash = typeof txDetails === 'string' ? txDetails : txDetails.txid || txDetails.hash;
+
+  debugLog('SafeDelayLibrary', 'extend tx:', txHash);
+
+  return { txHash, feeSats: FEE_SATS };
+}
+
+/**
  * Get the balance of a SafeDelay contract.
  */
 export async function getBalance(
