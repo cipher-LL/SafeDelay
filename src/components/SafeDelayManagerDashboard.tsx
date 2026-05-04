@@ -542,6 +542,8 @@ export default function SafeDelayManagerDashboard() {
   const [txHistoryLoading, setTxHistoryLoading] = useState(false);
   const [txHistoryError, setTxHistoryError] = useState<string | null>(null);
   const [selectedEntryForTx, setSelectedEntryForTx] = useState<string | null>(null);
+  const [txPage, setTxPage] = useState(1);
+  const TX_PER_PAGE = 50;
 
   // External SafeDelay tracking (e.g. from BadgerSurvivors prize claims)
   const [externalAddressInput, setExternalAddressInput] = useState('');
@@ -1001,6 +1003,7 @@ export default function SafeDelayManagerDashboard() {
 
   const handleFetchTxHistory = useCallback(async (address: string) => {
     setSelectedEntryForTx(address);
+    setTxPage(1);
     setTxHistoryLoading(true);
     setTxHistoryError(null);
     setTxHistory([]);
@@ -1448,42 +1451,86 @@ export default function SafeDelayManagerDashboard() {
           )}
 
           {txHistory.length > 0 && (
-            <TxList>
-              {txHistory.map(tx => (
-                <TxCard key={tx.txHash}>
-                  <TxInfo>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <TxType $type={tx.type}>{tx.type}</TxType>
-                      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>
-                        #{tx.blockHeight.toLocaleString()}
-                      </span>
-                    </div>
-                    <TxMeta>
-                      <span>~{new Date(tx.timestamp).toLocaleString()}</span>
-                      <span>Tx: {tx.txHash.slice(0, 12)}...{tx.txHash.slice(-8)}</span>
-                    </TxMeta>
-                  </TxInfo>
-                  <div style={{ textAlign: 'right' }}>
-                    <TxAmount $type={tx.type}>
-                      {tx.amount > 0 ? (
-                        <>
-                          {tx.type === 'deposit' || tx.type === 'receive' ? '+' : ''}
-                          {tx.amount.toFixed(4)} BCH
-                        </>
-                      ) : '—'}
-                    </TxAmount>
-                    <ExternalLinkBtn
-                      href={getExplorerTxUrl(tx.txHash)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ marginTop: '4px', display: 'inline-block' }}
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '0 4px' }}>
+                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
+                  {txHistory.length} transaction{txHistory.length !== 1 ? 's' : ''}
+                </span>
+                {txHistory.length > TX_PER_PAGE && (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      onClick={() => setTxPage(p => Math.max(1, p - 1))}
+                      disabled={txPage === 1}
+                      style={{
+                        padding: '4px 12px',
+                        background: 'rgba(255,255,255,0.1)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        borderRadius: '6px',
+                        color: 'white',
+                        cursor: txPage === 1 ? 'not-allowed' : 'pointer',
+                        opacity: txPage === 1 ? 0.4 : 1,
+                      }}
                     >
-                      🔗 Explorer
-                    </ExternalLinkBtn>
+                      ← Prev
+                    </button>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                      {txPage} / {Math.ceil(txHistory.length / TX_PER_PAGE)}
+                    </span>
+                    <button
+                      onClick={() => setTxPage(p => Math.min(Math.ceil(txHistory.length / TX_PER_PAGE), p + 1))}
+                      disabled={txPage >= Math.ceil(txHistory.length / TX_PER_PAGE)}
+                      style={{
+                        padding: '4px 12px',
+                        background: 'rgba(255,255,255,0.1)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        borderRadius: '6px',
+                        color: 'white',
+                        cursor: txPage >= Math.ceil(txHistory.length / TX_PER_PAGE) ? 'not-allowed' : 'pointer',
+                        opacity: txPage >= Math.ceil(txHistory.length / TX_PER_PAGE) ? 0.4 : 1,
+                      }}
+                    >
+                      Next →
+                    </button>
                   </div>
-                </TxCard>
-              ))}
-            </TxList>
+                )}
+              </div>
+              <TxList>
+                {txHistory.slice((txPage - 1) * TX_PER_PAGE, txPage * TX_PER_PAGE).map(tx => (
+                  <TxCard key={tx.txHash}>
+                    <TxInfo>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <TxType $type={tx.type}>{tx.type}</TxType>
+                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>
+                          #{tx.blockHeight.toLocaleString()}
+                        </span>
+                      </div>
+                      <TxMeta>
+                        <span>~{new Date(tx.timestamp).toLocaleString()}</span>
+                        <span>Tx: {tx.txHash.slice(0, 12)}...{tx.txHash.slice(-8)}</span>
+                      </TxMeta>
+                    </TxInfo>
+                    <div style={{ textAlign: 'right' }}>
+                      <TxAmount $type={tx.type}>
+                        {tx.amount > 0 ? (
+                          <>
+                            {tx.type === 'deposit' || tx.type === 'receive' ? '+' : ''}
+                            {tx.amount.toFixed(4)} BCH
+                          </>
+                        ) : '—'}
+                      </TxAmount>
+                      <ExternalLinkBtn
+                        href={getExplorerTxUrl(tx.txHash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ marginTop: '4px', display: 'inline-block' }}
+                      >
+                        🔗 Explorer
+                      </ExternalLinkBtn>
+                    </div>
+                  </TxCard>
+                ))}
+              </TxList>
+            </>
           )}
         </Section>
       )}
