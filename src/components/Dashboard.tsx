@@ -1701,6 +1701,16 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           </ContractList>
         )}
 
+        {/* Scanning indicator: shown when recovery scan is running but no contracts loaded yet */}
+        {contractsLoaded && wallet.connected && !sortedContracts.length && recoveryScanning && (
+          <ContractList>
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.6)' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔄</div>
+              <div>{recoveryScanProgress || 'Scanning blockchain for SafeDelay contracts...'}</div>
+            </div>
+          </ContractList>
+        )}
+
         {wallet.connected ? (
           sortedContracts.length > 0 ? (
             <ContractList>
