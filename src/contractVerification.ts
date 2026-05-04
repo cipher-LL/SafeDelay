@@ -130,8 +130,8 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   
   if (args.length < 2) {
-    console.log('Usage: ts-node verify-contract.ts <contract-name> <address> [electrum-url]');
-    console.log('Example: ts-node verify-contract.ts SafeDelay qpkq5...');
+    debug.log('Usage: ts-node verify-contract.ts <contract-name> <address> [electrum-url]');
+    debug.log('Example: ts-node verify-contract.ts SafeDelay qpkq5...');
     process.exit(1);
   }
   
@@ -139,15 +139,15 @@ if (require.main === module) {
   
   verifyContract(address, contractName, electrumUrl)
     .then(result => {
-      console.log('\n--- Verification Result ---');
-      console.log(`Status: ${result.verified ? '✅ VERIFIED' : '❌ FAILED'}`);
-      console.log(`Message: ${result.message}`);
-      if (result.contractName) console.log(`Contract: ${result.contractName}`);
-      console.log(`Address: ${result.address}`);
+      debug.log('\n--- Verification Result ---');
+      debug.log(`Status: ${result.verified ? '✅ VERIFIED' : '❌ FAILED'}`);
+      debug.log(`Message: ${result.message}`);
+      if (result.contractName) debug.log(`Contract: ${result.contractName}`);
+      debug.log(`Address: ${result.address}`);
       process.exit(result.verified ? 0 : 1);
     })
     .catch(err => {
-      console.error('Error:', err.message);
+      debug.error('Error:', err.message);
       process.exit(1);
     });
 }
