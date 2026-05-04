@@ -1418,6 +1418,13 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         </MessageBox>
       )}
 
+      {/* Auto-verification results: bytecode mismatch detected */}
+      {verificationResult && verificationResult.bytecodeMismatch.length > 0 && (
+        <MessageBox $type="error" style={{ marginBottom: '20px' }}>
+          ⚠️ {verificationResult.bytecodeMismatch.length} contract(s) have bytecode that does NOT match the expected SafeDelay hash — they may be modified or not genuine SafeDelay contracts. Review carefully before interacting.
+        </MessageBox>
+      )}
+
       {/* Auto-verification results: orphaned contracts found */}
       {verificationResult && verificationResult.orphaned.length > 0 && (
         <MessageBox $type="error" style={{ marginBottom: '20px' }}>
