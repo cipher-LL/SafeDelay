@@ -1,8 +1,6 @@
 import { useCallback } from 'react';
-import { ElectrumNetworkProvider, Network } from 'cashscript';
-import { addressToLockScript } from 'cashscript/dist/utils.js';
-import { sha256 } from '@cashscript/utils';
-import { binToHex } from '@bitauth/libauth';
+import { ElectrumNetworkProvider } from 'cashscript';
+import { addressToScripthash, parseVarInt, skipVarInt, toCashScriptNetwork, addressToLockScriptHex } from '../utils/safeDelayUtils';
 
 export interface OnChainTx {
   txHash: string;
@@ -14,25 +12,6 @@ export interface OnChainTx {
   timestamp: number;
   /** Whether this transaction was already in localStorage */
   isLocalOnly: boolean;
-}
-
-/**
- * Convert a BCH address to an Electrum-compatible scripthash (hex, reversed SHA256 of locking script)
- */
-function addressToScripthash(address: string): string {
-  const lockScript = addressToLockScript(address);
-  const scriptHash = sha256(lockScript);
-  scriptHash.reverse();
-  return binToHex(scriptHash);
-}
-
-function toCashScriptNetwork(network: 'mainnet' | 'testnet' | 'chipnet'): Network {
-  switch (network) {
-    case 'mainnet': return Network.MAINNET;
-    case 'testnet': return Network.TESTNET3;
-    case 'chipnet': return Network.CHIPNET;
-    default: return Network.TESTNET3;
-  }
 }
 
 /**
@@ -73,7 +52,7 @@ export function useOnChainTxHistory() {
     const currentTime = Date.now();
 
     // Get scripthash for this address
-    const scripthash = addressToScripthash(address);
+    const scripthash = await addressToScripthash(address);
 
     // Fetch transaction history from Electrum
     // Returns list of { height, tx_hash, fee? } for this scripthash
@@ -148,13 +127,10 @@ function parseTxType(txHex: string, contractAddress: string): { type: OnChainTx[
     offset = skipVarInt(txHex, offset);
 
     // Collect input data
-    const inputs: Array<{ satoshis: bigint; scriptHex: string }> = [];
     for (let i = 0; i < inputCount; i++) {
       offset += 36; // previous txid (32) + vout (4)
       const scriptLen = parseVarInt(txHex, offset);
       offset = skipVarInt(txHex, offset);
-      const scriptHex = txHex.slice(offset, offset + scriptLen * 2);
-      inputs.push({ satoshis: BigInt(0), scriptHex }); // input value requires fetching prev tx
       offset += scriptLen;
       offset += 4; // sequence
     }
@@ -261,88 +237,8 @@ function parseTxType(txHex: string, contractAddress: string): { type: OnChainTx[
       };
     }
 
-    // Check for contract function call patterns in unlocking scripts
-    // This would appear in the INPUT side, but we'd need the prev tx output
-    // to confirm it's a SafeDelay UTXO being spent.
-
     return { type: 'unknown', amount: Number(totalOut) / 100000000 };
-  } catch (e) {
+  } catch {
     return { type: 'unknown', amount: 0 };
   }
-}
-
-/**
- * Get the hex encoding of a P2PKH locking script for an address.
- * This is the same logic used by addressToLockScript from @bitauth/libauth.
- */
-function addressToLockScriptHex(address: string): string {
-  // Strip prefix if present
-  const addr = address.replace(/^(bitcoincash:|bchtest:|bchreg:)/, '');
-
-  try {
-    // Decode base58 address to get the pubkey hash
-    const decoded = base58Decode(addr);
-    if (decoded.length < 25) return '';
-
-    // P2PKH locking script: OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG
-    // Hex: 76 a9 14 <pubKeyHash> 88 ac
-    const pubKeyHashHex = binToHex(decoded.slice(1, -4));
-    return `76a914${pubKeyHashHex}88ac`;
-  } catch {
-    return '';
-  }
-}
-
-function base58Decode(address: string): Uint8Array {
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  const Base58Map: { [key: string]: number } = {};
-  for (let i = 0; i < ALPHABET.length; i++) {
-    Base58Map[ALPHABET[i]] = i;
-  }
-
-  // Remove leading zeros
-  let leadingZeros = 0;
-  for (let i = 0; i < address.length && address[i] === '1'; i++) {
-    leadingZeros++;
-  }
-
-  const result: number[] = [];
-  for (let i = leadingZeros; i < address.length; i++) {
-    let carry = Base58Map[address[i]];
-    if (carry === undefined) throw new Error(`Invalid base58 character: ${address[i]}`);
-
-    for (let j = 0; j < result.length; j++) {
-      carry += result[j] * 58;
-      result[j] = carry & 0xff;
-      carry = Math.floor(carry / 256);
-    }
-    while (carry > 0) {
-      result.push(carry & 0xff);
-      carry = Math.floor(carry / 256);
-    }
-  }
-
-  // Add leading zeros back
-  const resultBytes = new Uint8Array(leadingZeros + result.length);
-  for (let i = 0; i < result.length; i++) {
-    resultBytes[leadingZeros + i] = result[i];
-  }
-
-  return resultBytes;
-}
-
-function parseVarInt(hex: string, offset: number): number {
-  const byte = parseInt(hex.slice(offset, offset + 2), 16);
-  if (byte < 0xfd) return byte;
-  if (byte === 0xfd) return parseInt(hex.slice(offset + 2, offset + 6), 16);
-  if (byte === 0xfe) return parseInt(hex.slice(offset + 2, offset + 10), 16);
-  return parseInt(hex.slice(offset + 2, offset + 18), 16);
-}
-
-function skipVarInt(hex: string, offset: number): number {
-  const byte = parseInt(hex.slice(offset, offset + 2), 16);
-  if (byte < 0xfd) return offset + 2;
-  if (byte === 0xfd) return offset + 6;
-  if (byte === 0xfe) return offset + 10;
-  return offset + 18;
 }
