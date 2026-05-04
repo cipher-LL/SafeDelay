@@ -1532,7 +1532,6 @@ export default function SafeDelayManagerDashboard() {
                     </button>
                   </div>
                 )}
-              </div>
               <TxList>
                 {txHistory.slice((txPage - 1) * TX_PER_PAGE, txPage * TX_PER_PAGE).map(tx => (
                   <TxCard key={tx.txHash}>
