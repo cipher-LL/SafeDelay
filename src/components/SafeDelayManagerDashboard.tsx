@@ -545,6 +545,28 @@ export default function SafeDelayManagerDashboard() {
   const [txPage, setTxPage] = useState(1);
   const TX_PER_PAGE = 50;
 
+  // CSV export for transaction history
+  const handleExportTxCSV = () => {
+    const headers = ['Type', 'Block Height', 'Timestamp', 'Tx Hash', 'Amount (BCH)'];
+    const rows = txHistory.map(tx => [
+      tx.type,
+      tx.blockHeight.toString(),
+      new Date(tx.timestamp).toISOString(),
+      tx.txHash,
+      tx.amount > 0 ? tx.amount.toFixed(8) : '0',
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `safedelay-tx-history-${selectedEntryForTx?.slice(0, 8) || 'wallet'}-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // External SafeDelay tracking (e.g. from BadgerSurvivors prize claims)
   const [externalAddressInput, setExternalAddressInput] = useState('');
   const [externalOwnerPkh, setExternalOwnerPkh] = useState('');
@@ -1456,7 +1478,24 @@ export default function SafeDelayManagerDashboard() {
                 <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
                   {txHistory.length} transaction{txHistory.length !== 1 ? 's' : ''}
                 </span>
-                {txHistory.length > TX_PER_PAGE && (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    onClick={handleExportTxCSV}
+                    style={{
+                      padding: '4px 12px',
+                      background: 'rgba(255,255,255,0.1)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: '6px',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                  >
+                    📥 Export CSV
+                  </button>
+                </div>
+              </div>
+              {txHistory.length > TX_PER_PAGE && (
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button
                       onClick={() => setTxPage(p => Math.max(1, p - 1))}
