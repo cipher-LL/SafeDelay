@@ -709,7 +709,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     try { return (localStorage.getItem('safedelay-tx-filter') as any) || 'all'; } catch { return 'all'; }
   });
   const [sortBy, setSortBy] = useState<SortOption>(() => {
-    try { return (localStorage.getItem('safedelay-sort') as SortOption) || 'date'; } catch { return 'date'; }
+    try { return (localStorage.getItem('safedelay-sort') as SortOption) || 'amount'; } catch { return 'amount'; }
   });
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
