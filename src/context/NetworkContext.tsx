@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
-type Network = 'mainnet' | 'testnet';
+export type Network = 'mainnet' | 'testnet' | 'chipnet';
 
 interface NetworkContextType {
   network: Network;
@@ -10,7 +10,7 @@ interface NetworkContextType {
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
 export function NetworkProvider({ children }: { children: ReactNode }) {
-  const [network, setNetwork] = useState<Network>('testnet');
+  const [network, setNetwork] = useState<Network>('chipnet');
 
   return (
     <NetworkContext.Provider value={{ network, setNetwork }}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useNetwork } from '../context/NetworkContext';
+import { useNetwork, Network } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -194,7 +194,9 @@ export default function Header() {
   }, []);
 
   const toggleNetwork = () => {
-    setNetwork(network === 'mainnet' ? 'testnet' : 'mainnet');
+    const networks: Network[] = ['chipnet', 'testnet', 'mainnet'];
+    const idx = networks.indexOf(network);
+    setNetwork(networks[(idx + 1) % networks.length]);
   };
 
   const handleWalletConnect = async () => {
@@ -236,8 +238,8 @@ export default function Header() {
             <NotificationBadge>{notificationCount > 9 ? '9+' : notificationCount}</NotificationBadge>
           </BellButton>
         )}
-        <NetworkToggle $isTestnet={network === 'testnet'} onClick={toggleNetwork}>
-          {network === 'testnet' ? '🧪 Testnet' : '💰 Mainnet'}
+        <NetworkToggle $isTestnet={network !== 'mainnet'} onClick={toggleNetwork}>
+          {network === 'mainnet' ? '💰 Mainnet' : network === 'testnet' ? '🧪 Testnet' : '🧪 Chipnet'}
         </NetworkToggle>
         {wallet.connected ? (
           <WalletInfo>

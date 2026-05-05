@@ -1087,7 +1087,7 @@ export default function SafeDelayManagerDashboard() {
       {/* ── Deployment Status Banner ── */}
       {!isManagerDeployed(network as 'mainnet' | 'chipnet' | 'testnet') && (
         <DeploymentStatusBanner>
-          <BannerTitle>⚠️ SafeDelayManager Not Deployed on {network === 'testnet' ? 'Chipnet' : network}</BannerTitle>
+          <BannerTitle>⚠️ SafeDelayManager Not Deployed on {network === 'chipnet' ? 'Chipnet' : network === 'testnet' ? 'Testnet' : 'Mainnet'}</BannerTitle>
           <BannerBody>
             The SafeDelayManager registry contract is not deployed on this network.
             Fill in the Manager Address above to connect to an existing deployment, or deploy your own:
