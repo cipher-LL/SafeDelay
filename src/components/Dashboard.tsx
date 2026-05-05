@@ -699,7 +699,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const { network } = useNetwork();
   const { wallet, hasSigner } = useWallet();
   const { getLabel, setLabel, removeLabel } = useWalletLabels();
-  const { contracts: storedContracts } = useStoredContracts();
+  const { contracts: storedContracts, updateContract } = useStoredContracts();
   const { contracts: contractsWithData, currentBlock, refresh } = useElectrumContractData(storedContracts, network);
   const { signWithdraw, signCancel, getAddressFromWif } = useWifSigner();
   const [contracts, setContracts] = useState<TimeLock[]>([]);
@@ -742,6 +742,18 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     wallet.pubkeyHash,
     network
   );
+
+  // Mark confirmed contracts as verified to skip bytecode re-verification on future loads
+  useEffect(() => {
+    if (verificationResult?.confirmed) {
+      for (const address of verificationResult.confirmed) {
+        const contract = storedContracts.find(c => c.address === address);
+        if (contract && !contract.contractVerified) {
+          updateContract(address, { contractVerified: true });
+        }
+      }
+    }
+  }, [verificationResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load saved transactions from localStorage
   useEffect(() => {

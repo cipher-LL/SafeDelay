@@ -11,6 +11,8 @@ export interface StoredContract {
   type: 'single' | 'multisig';
   owners?: string[];
   createdAt: number;
+  /** Whether bytecode has been verified against HASHES.json at this address */
+  contractVerified?: boolean;
 }
 
 export interface ContractWithBalance extends StoredContract {
@@ -67,6 +69,10 @@ export function useStoredContracts() {
     addContract,
     removeContract,
     clearContracts,
+    updateContract: (address: string, updates: Partial<StoredContract>) => {
+      const updated = contracts.map(c => c.address === address ? { ...c, ...updates } : c);
+      saveContracts(updated);
+    },
   };
 }
 

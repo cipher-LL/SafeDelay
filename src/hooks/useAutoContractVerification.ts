@@ -131,40 +131,47 @@ export function useAutoContractVerification(
             const hasHistory = historyResult && historyResult.length > 0;
 
             if (hasUtxos) {
-              // Contract has live UTXOs — verify bytecode matches expected hash
-              try {
-                const scriptHex = await provider.performRequest(
-                  'get_address_script',
-                  contract.address
-                ) as string | null;
-
-                if (scriptHex) {
-                  // Hash the script and compare against HASHES.json
-                  const scriptBytes = Uint8Array.from(Buffer.from(scriptHex, 'hex'));
-                  const scriptHash = sha256(scriptBytes);
-                  const hashHex = binToHex(scriptHash);
-
-                  // Import HASHES at runtime to avoid module resolution issues
-                  const hashes = await import('../../artifacts/HASHES.json').then(m => m.default);
-                  const expectedHash = hashes.SafeDelay?.bytecodeHash;
-
-                  if (expectedHash && hashHex !== expectedHash) {
-                    result.bytecodeMismatch.push(contract.address);
-                    debugLog('AutoVerify', `⚠️ ${contract.address}: bytecode mismatch (expected ${expectedHash}, got ${hashHex})`);
-                    result.errors.push(`Contract ${contract.address.slice(0, 16)}... has mismatched bytecode! The on-chain contract may have been modified or is not a SafeDelay contract.`);
-                  } else {
-                    result.confirmed.push(contract.address);
-                    debugLog('AutoVerify', `✓ ${contract.address}: confirmed (${utxos.length} UTXO(s), bytecode verified)`);
-                  }
-                } else {
-                  // Couldn't fetch script — just mark as confirmed
-                  result.confirmed.push(contract.address);
-                  debugLog('AutoVerify', `✓ ${contract.address}: confirmed (${utxos.length} UTXO(s), script fetch skipped)`);
-                }
-              } catch (e) {
-                // Bytecode verification failed — still mark as confirmed (existence check passed)
+              // Skip bytecode verification if already verified at this address
+              // Bytecode is deterministic per address, so once verified, no need to re-verify
+              if (contract.contractVerified) {
                 result.confirmed.push(contract.address);
-                debug.warn('AutoVerify', `Bytecode verification failed for ${contract.address}:`, e);
+                debugLog('AutoVerify', `✓ ${contract.address}: confirmed (${utxos.length} UTXO(s), cached verification)`);
+              } else {
+                // Contract has live UTXOs — verify bytecode matches expected hash
+                try {
+                  const scriptHex = await provider.performRequest(
+                    'get_address_script',
+                    contract.address
+                  ) as string | null;
+
+                  if (scriptHex) {
+                    // Hash the script and compare against HASHES.json
+                    const scriptBytes = Uint8Array.from(Buffer.from(scriptHex, 'hex'));
+                    const scriptHash = sha256(scriptBytes);
+                    const hashHex = binToHex(scriptHash);
+
+                    // Import HASHES at runtime to avoid module resolution issues
+                    const hashes = await import('../../artifacts/HASHES.json').then(m => m.default);
+                    const expectedHash = hashes.SafeDelay?.bytecodeHash;
+
+                    if (expectedHash && hashHex !== expectedHash) {
+                      result.bytecodeMismatch.push(contract.address);
+                      debugLog('AutoVerify', `⚠️ ${contract.address}: bytecode mismatch (expected ${expectedHash}, got ${hashHex})`);
+                      result.errors.push(`Contract ${contract.address.slice(0, 16)}... has mismatched bytecode! The on-chain contract may have been modified or is not a SafeDelay contract.`);
+                    } else {
+                      result.confirmed.push(contract.address);
+                      debugLog('AutoVerify', `✓ ${contract.address}: confirmed (${utxos.length} UTXO(s), bytecode verified)`);
+                    }
+                  } else {
+                    // Couldn't fetch script — just mark as confirmed
+                    result.confirmed.push(contract.address);
+                    debugLog('AutoVerify', `✓ ${contract.address}: confirmed (${utxos.length} UTXO(s), script fetch skipped)`);
+                  }
+                } catch (e) {
+                  // Bytecode verification failed — still mark as confirmed (existence check passed)
+                  result.confirmed.push(contract.address);
+                  debug.warn('AutoVerify', `Bytecode verification failed for ${contract.address}:`, e);
+                }
               }
             } else if (hasHistory) {
               // Contract has history but no UTXOs — fully withdrawn/empty
