@@ -259,6 +259,16 @@ export default function SafeDelayMultiSigForm() {
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const [formReady, setFormReady] = useState(false);
+
+  // Mark form ready once wallet is connected and we've confirmed network access
+  useEffect(() => {
+    if (wallet.connected && networkStatus === 'connected') {
+      setFormReady(true);
+    } else {
+      setFormReady(false);
+    }
+  }, [wallet.connected, networkStatus]);
 
   // Fetch current block height on mount and when network changes
   useEffect(() => {
@@ -438,6 +448,43 @@ export default function SafeDelayMultiSigForm() {
 
   return (
     <FormContainer>
+      {!formReady ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+            <div style={{ height: 28, background: 'rgba(255,255,255,0.06)', borderRadius: 6, width: 240 }} />
+            <div style={{ height: 24, width: 100, background: 'rgba(255,255,255,0.06)', borderRadius: 12 }} />
+          </div>
+          <div style={{ height: 14, background: 'rgba(255,255,255,0.04)', borderRadius: 4, width: '50%', marginBottom: '2rem' }} />
+          {/* Threshold */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ height: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 4, width: 160, marginBottom: 8 }} />
+            <div style={{ height: 42, background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }} />
+          </div>
+          {/* Owner fields */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ height: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 4, width: 100, marginBottom: 8 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 16, background: 'rgba(0,0,0,0.15)', borderRadius: 8 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+                  <div style={{ flex: 1, height: 40, background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Lock duration */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ height: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 4, width: 140, marginBottom: 8 }} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ height: 42, background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }} />
+              <div style={{ height: 42, background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }} />
+            </div>
+          </div>
+          {/* Button */}
+          <div style={{ height: 44, background: 'rgba(255,255,255,0.06)', borderRadius: 8, width: 160, marginTop: '1.5rem' }} />
+        </>
+      ) : (
+      <>
       <Title>Create MultiSig Time-Lock</Title>
       <NetworkStatusBadge $status={networkStatus}>
         {networkStatus === 'connected' && <>🟢 Connected to {network}</>}
@@ -532,7 +579,8 @@ export default function SafeDelayMultiSigForm() {
           {loading ? 'Creating...' : 'Create MultiSig'}
         </SubmitButton>
       </Form>
-
+      </>
+      )}
       {contractAddress && (
         <ContractAddressBox>
           <ContractAddressLabel>Contract Address</ContractAddressLabel>
