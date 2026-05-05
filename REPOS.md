@@ -83,13 +83,20 @@ The React dashboard (`src/App.tsx`) provides:
 
 - WalletConnect (browser extension / MetaMask-style)
 - WIF key direct input (for power users / hardware wallets)
--read-only mode (view balances without signing)
+- Read-only mode (view balances without signing)
+
+### Network Support
+
+- **Chipnet** — Default network (🧪 Chipnet button in header)
+- **Testnet** — Toggle via header button (cycles chipnet → testnet → mainnet)
+- **Mainnet** — Toggle via header button
 
 ## Deployments
 
 | Network | Status | Notes |
 |---------|--------|-------|
 | **Chipnet** | 🔄 Pending | Needs SP PKH from Kyle |
+| **Testnet** | 🔄 Pending | Needs SP PKH from Kyle |
 | **Mainnet** | 🔄 Pending | Needs SP PKH + funding |
 
 SafeDelayManager (registry) deployment requires the Service Provider PKH from Kyle. Once provided, run:
