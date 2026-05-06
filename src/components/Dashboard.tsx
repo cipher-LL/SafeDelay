@@ -730,6 +730,10 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [wifAddress, setWifAddress] = useState('');
   const [wifError, setWifError] = useState('');
 
+  // Auto-scan state for on-chain history scanning
+  const [autoScanProgress, setAutoScanProgress] = useState<string>('');
+  const [autoScanCancellable, setAutoScanCancellable] = useState(false);
+
   const { fetchHistory } = useOnChainTxHistory();
   const { discoverContracts, scanning: recoveryScanning, scanProgress: recoveryScanProgress, lastScanResult } = useOnChainContractDiscovery();
   const [discoveredContracts, setDiscoveredContracts] = useState<DiscoveredContract[]>([]);
@@ -920,18 +924,28 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
     let cancelled = false;
     setScanningOnChain(true);
+    setAutoScanProgress('Starting on-chain scan...');
+    setAutoScanCancellable(true);
 
     async function scanContracts() {
       // Build set of known tx hashes from localStorage for deduplication
       const knownHashes = new Set(transactions.map(t => t.txHash));
 
       const allOnChainTxs: Transaction[] = [];
+      const totalContracts = contractsWithData.length;
 
-      for (const contract of contractsWithData) {
+      for (let i = 0; i < contractsWithData.length; i++) {
+        if (cancelled) break;
+        
+        const contract = contractsWithData[i];
+        // Update progress indicator
+        setAutoScanProgress(`Scanning ${contract.address.slice(0, 12)}... (${i + 1}/${totalContracts})`);
+
         try {
           const onChainTxs = await fetchHistory(contract.address, network, knownHashes);
 
           for (const otx of onChainTxs) {
+            if (cancelled) break;
             // Skip if we already have this tx locally
             if (knownHashes.has(otx.txHash)) continue;
 
@@ -957,15 +971,30 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         }
       }
 
-      if (!cancelled && allOnChainTxs.length > 0) {
-        // Merge: new on-chain txs + existing local txs, sorted by timestamp desc
-        const merged = [...allOnChainTxs, ...transactions];
-        merged.sort((a, b) => b.timestamp - a.timestamp);
-        saveTransactions(merged);
-        setLastOnChainScan(Date.now());
-      }
-
       if (!cancelled) {
+        if (allOnChainTxs.length > 0) {
+          // Merge: new on-chain txs + existing local txs, sorted by timestamp desc
+          const merged = [...allOnChainTxs, ...transactions];
+          merged.sort((a, b) => b.timestamp - a.timestamp);
+          saveTransactions(merged);
+          setLastOnChainScan(Date.now());
+          setAutoScanProgress(`Found ${allOnChainTxs.length} new transactions!`);
+        } else {
+          setAutoScanProgress('No new transactions found.');
+        }
+        
+        // Clear progress after delay
+        setTimeout(() => {
+          if (!cancelled) {
+            setAutoScanProgress('');
+            setAutoScanCancellable(false);
+          }
+        }, 2000);
+        
+        setScanningOnChain(false);
+      } else {
+        setAutoScanProgress('Scan cancelled.');
+        setAutoScanCancellable(false);
         setScanningOnChain(false);
       }
     }
@@ -1700,6 +1729,41 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               <option value="unlock">Time Remaining</option>
             </SortSelect>
           </SortBar>
+        )}
+
+        {/* On-chain scan progress indicator */}
+        {scanningOnChain && autoScanProgress && (
+          <div style={{
+            padding: '12px 16px',
+            background: 'rgba(79, 70, 229, 0.15)',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.2rem' }}>🔄</span>
+              <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px' }}>{autoScanProgress}</span>
+            </div>
+            {autoScanCancellable && (
+              <button
+                onClick={() => { setScanningOnChain(false); setAutoScanProgress('Scan cancelled.'); setAutoScanCancellable(false); }}
+                style={{
+                  padding: '4px 12px',
+                  background: 'rgba(239, 68, 68, 0.8)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         )}
 
         {/* Skeleton while loading contracts from Electrum */}
