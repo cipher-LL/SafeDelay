@@ -9,7 +9,7 @@ import { useDepositMilestones } from '../hooks/useDepositMilestones';
 import { useStoredContracts, useElectrumContractData, StoredContract } from '../hooks/useSafeDelayContracts';
 import { useOnChainTxHistory } from '../hooks/useOnChainTxHistory';
 import { useWifSigner } from '../hooks/useWifSigner';
-import { useOnChainContractDiscovery, DiscoveredContract } from '../hooks/useOnChainContractDiscovery';
+import { useOnChainContractDiscovery, DiscoveredContract, ScanResult } from '../hooks/useOnChainContractDiscovery';
 import { useAutoContractVerification } from '../hooks/useAutoContractVerification';
 import { QRCodeSVG } from 'qrcode.react';
 import QrScanner from './QrScanner';
@@ -735,9 +735,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [autoScanCancellable, setAutoScanCancellable] = useState(false);
 
   const { fetchHistory } = useOnChainTxHistory();
-  const { discoverContracts, scanning: recoveryScanning, scanProgress: recoveryScanProgress, lastScanResult } = useOnChainContractDiscovery();
+  const { discoverContracts, scanning: recoveryScanning, scanProgress: recoveryScanProgress, abort: abortDiscovery } = useOnChainContractDiscovery();
   const [discoveredContracts, setDiscoveredContracts] = useState<DiscoveredContract[]>([]);
   const [recoveryScanDone, setRecoveryScanDone] = useState(false);
+  const [discoveryResult, setDiscoveryResult] = useState<ScanResult | null>(null);
+  const [verifyStartTime, setVerifyStartTime] = useState<number | null>(null);
 
   // Auto-verify stored contracts against on-chain state on app load
   const { verificationResult, isVerifying, verifyProgress, abort } = useAutoContractVerification(
@@ -746,6 +748,15 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     wallet.pubkeyHash,
     network
   );
+
+  // Track verification start time for elapsed display
+  useEffect(() => {
+    if (isVerifying && verifyStartTime === null) {
+      setVerifyStartTime(Date.now());
+    } else if (!isVerifying) {
+      setVerifyStartTime(null);
+    }
+  }, [isVerifying]);
 
   // Mark confirmed contracts as verified to skip bytecode re-verification on future loads
   useEffect(() => {
@@ -854,8 +865,10 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     }
     setDiscoveredContracts([]);
     setRecoveryScanDone(false);
+    setDiscoveryResult(null);
     const result = await discoverContracts(wallet.address, wallet.pubkeyHash, network);
     setDiscoveredContracts(result.discovered);
+    setDiscoveryResult(result);
     setRecoveryScanDone(true);
   };
 
@@ -1458,6 +1471,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>🔍</span>
             <span>{verifyProgress || 'Verifying contracts on-chain...'}</span>
+            {verifyStartTime && (
+              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                ({(Math.round((Date.now() - verifyStartTime) / 1000))}s elapsed)
+              </span>
+            )}
           </div>
           <button
             onClick={abort}
@@ -2093,6 +2111,23 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           >
             {recoveryScanning ? '🔄 Scanning...' : '🔍 Scan for Contracts'}
           </button>
+          {recoveryScanning && (
+            <button
+              onClick={abortDiscovery}
+              style={{
+                padding: '10px 20px',
+                background: 'rgba(239, 68, 68, 0.2)',
+                color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel Scan
+            </button>
+          )}
         </BackupActions>
 
         {!wallet.connected && (
@@ -2101,12 +2136,12 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           </div>
         )}
 
-        {lastScanResult && lastScanResult.errors.length > 0 && (
+        {discoveryResult && discoveryResult.errors.length > 0 && (
           <div style={{ marginTop: '12px' }}>
             <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>
               Scan warnings:
             </div>
-            {lastScanResult.errors.slice(0, 3).map((err, i) => (
+            {discoveryResult.errors.slice(0, 3).map((err, i) => (
               <div key={i} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
                 • {err}
               </div>

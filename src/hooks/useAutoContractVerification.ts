@@ -101,7 +101,11 @@ export function useAutoContractVerification(
     setTimeout(() => {
       setIsVerifying(false);
       setVerifyProgress('');
-    }, 500);
+      setVerificationResult(prev => prev ? {
+        ...prev,
+        errors: [...(prev.errors), 'Verification cancelled by user.'],
+      } : null);
+    }, 300);
   }, []);
 
   const runVerification = useCallback(async () => {
@@ -199,6 +203,12 @@ export function useAutoContractVerification(
           } catch (e) {
             result.errors.push(`Failed to verify ${contract.address}: ${e instanceof Error ? e.message : String(e)}`);
             debug.warn('AutoVerify', `Error verifying ${contract.address}:`, e);
+          }
+
+          // Check for cancellation between contracts
+          if (cancelledRef.current) {
+            result.errors.push('Verification cancelled by user.');
+            break;
           }
         }
 

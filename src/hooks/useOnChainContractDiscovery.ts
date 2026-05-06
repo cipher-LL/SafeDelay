@@ -9,7 +9,7 @@
  * 4. Returning recoverable contracts that can be merged into localStorage
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { ElectrumNetworkProvider, Network } from 'cashscript';
 import { sha256 } from '@cashscript/utils';
 import { binToHex } from '@bitauth/libauth';
@@ -46,7 +46,7 @@ export interface DiscoveredContract {
   createdAtBlock: number;
 }
 
-interface ScanResult {
+export interface ScanResult {
   discovered: DiscoveredContract[];
   errors: string[];
 }
@@ -184,6 +184,14 @@ export function useOnChainContractDiscovery() {
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<string>('');
   const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
+  const cancelledRef = useRef(false);
+
+  const abort = useCallback(() => {
+    cancelledRef.current = true;
+    setScanning(false);
+    setScanProgress('Scan cancelled.');
+    setTimeout(() => setScanProgress(''), 2000);
+  }, []);
 
   /**
    * Scan the blockchain for SafeDelay contracts associated with a wallet.
@@ -246,6 +254,12 @@ export function useOnChainContractDiscovery() {
           debug.warn(`Error scanning UTXO ${utxo.address}:`, e);
           errors.push(`Failed to scan ${utxo.address}: ${e instanceof Error ? e.message : String(e)}`);
         }
+
+        // Allow cancellation between UTXOs
+        if (cancelledRef.current) {
+          errors.push('Scan cancelled by user.');
+          break;
+        }
       }
 
       setScanProgress('');
@@ -258,6 +272,7 @@ export function useOnChainContractDiscovery() {
     const result: ScanResult = { discovered, errors };
     setLastScanResult(result);
     setScanning(false);
+    if (!cancelledRef.current) setScanProgress('');
     return result;
   }, []);
 
@@ -266,6 +281,7 @@ export function useOnChainContractDiscovery() {
     scanning,
     scanProgress,
     lastScanResult,
+    abort,
   };
 }
 
