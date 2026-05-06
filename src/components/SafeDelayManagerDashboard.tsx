@@ -24,6 +24,7 @@ import {
   type Network as LibNetwork,
 } from '../utils/SafeDelayManagerLibrary';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
+import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
 import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 import type { SafeDelayManagerEntry } from '../types/index';
 import QrScanner from './QrScanner';
@@ -1092,9 +1093,9 @@ export default function SafeDelayManagerDashboard() {
             The SafeDelayManager registry contract is not deployed on this network.
             Fill in the Manager Address above to connect to an existing deployment, or deploy your own:
             <br /><br />
-            <strong>SafeDelay bytecode:</strong> <code>f68fd15f33a19b50fdbd2e6aa0001d48e40f1f1e094d3a8a883cfea4318d01e6</code> (185 bytes)
+            <strong>SafeDelay bytecode:</strong> <code>{(SafeDelayArtifact as any).debug?.bytecode?.slice(0, 16) || 'f68fd15f33a19b50f'}... ({(SafeDelayArtifact as any).debug?.bytecode?.length || 185} bytes)</code>
             <br />
-            <strong>SafeDelayMultiSig bytecode:</strong> <code>a13fb855218f3fc0af4bd2af187f5831dbe7b11a04e43585587799000a1dc1d5</code> (286 bytes)
+            <strong>SafeDelayMultiSig bytecode:</strong> <code>{(SafeDelayMultiSigArtifact as any).debug?.bytecode?.slice(0, 16) || 'a13fb855218f3fc0'}... ({(SafeDelayMultiSigArtifact as any).debug?.bytecode?.length || 286} bytes)</code>
             <br /><br />
             See{' '}
             <a
