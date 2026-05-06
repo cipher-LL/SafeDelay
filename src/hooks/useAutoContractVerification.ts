@@ -9,7 +9,7 @@
  * of on-chain contracts — instead, the app now auto-discovers and recovers.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ElectrumNetworkProvider, Network } from 'cashscript';
 import { sha256 } from '@cashscript/utils';
 import { binToHex } from '@bitauth/libauth';
@@ -63,6 +63,8 @@ export interface UseAutoContractVerificationResult {
   verifyProgress: string;
   /** Re-run verification manually */
   reverify: () => void;
+  /** Abort the current verification operation */
+  abort: () => void;
   /** Apply recovered contracts to localStorage */
   applyRecovery: (contracts: VerificationResult['recoverable']) => void;
 }
@@ -91,9 +93,20 @@ export function useAutoContractVerification(
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyProgress, setVerifyProgress] = useState('');
+  const cancelledRef = useRef(false);
+
+  const abort = useCallback(() => {
+    cancelledRef.current = true;
+    setVerifyProgress('Verification cancelled by user.');
+    setTimeout(() => {
+      setIsVerifying(false);
+      setVerifyProgress('');
+    }, 500);
+  }, []);
 
   const runVerification = useCallback(async () => {
     if (!walletAddress || !walletPubkeyHash) return;
+    cancelledRef.current = false;
     setIsVerifying(true);
     setVerifyProgress('');
 
@@ -282,6 +295,11 @@ export function useAutoContractVerification(
     }
 
     setVerificationResult(result);
+    if (cancelledRef.current) {
+      setIsVerifying(false);
+      setVerifyProgress('');
+      return;
+    }
     setIsVerifying(false);
     setVerifyProgress('');
   }, [storedContracts, walletAddress, walletPubkeyHash, network]);
@@ -304,6 +322,7 @@ export function useAutoContractVerification(
     isVerifying,
     verifyProgress,
     reverify: runVerification,
+    abort,
     applyRecovery,
   };
 }

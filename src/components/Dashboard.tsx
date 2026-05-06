@@ -740,7 +740,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [recoveryScanDone, setRecoveryScanDone] = useState(false);
 
   // Auto-verify stored contracts against on-chain state on app load
-  const { verificationResult, isVerifying, verifyProgress } = useAutoContractVerification(
+  const { verificationResult, isVerifying, verifyProgress, abort } = useAutoContractVerification(
     storedContracts,
     wallet.address,
     wallet.pubkeyHash,
@@ -1454,8 +1454,25 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
       {/* Auto-verification progress */}
       {isVerifying && (
-        <MessageBox $type="info" style={{ marginBottom: '20px' }}>
-          🔍 {verifyProgress || 'Verifying contracts on-chain...'}
+        <MessageBox $type="info" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>🔍</span>
+            <span>{verifyProgress || 'Verifying contracts on-chain...'}</span>
+          </div>
+          <button
+            onClick={abort}
+            style={{
+              padding: '4px 12px',
+              background: 'rgba(239, 68, 68, 0.8)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            Cancel
+          </button>
         </MessageBox>
       )}
 
