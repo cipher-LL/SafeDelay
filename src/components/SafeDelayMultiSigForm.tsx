@@ -8,6 +8,7 @@ import { useFormNavigationWarning } from '../hooks/useFormNavigationWarning';
 import HASHES from '../../artifacts/HASHES.json';
 import { debug } from '../utils/debug';
 import { showToast } from './Toast';
+import FormSkeleton from './FormSkeleton';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -258,6 +259,21 @@ export default function SafeDelayMultiSigForm() {
   const [error, setError] = useState<string | null>(null);
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [formReady, setFormReady] = useState(false);
+
+  // Track when wallet and network are both ready — show skeleton until both confirm
+  useEffect(() => {
+    if (wallet.connected && networkStatus === 'connected') {
+      setFormReady(true);
+    } else if (!wallet.connected) {
+      setFormReady(false);
+    }
+  }, [wallet.connected, networkStatus]);
+
+  // Show skeleton loader while wallet/network are initializing
+  if (!formReady) {
+    return <FormSkeleton compileServerStatus={networkStatus === 'checking' ? 'checking' : undefined} />;
+  }
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   // Fetch current block height on mount and when network changes
