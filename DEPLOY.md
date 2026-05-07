@@ -177,6 +177,68 @@ node scripts/deploy-manager.mjs --compute-child --owner <owner_pkh_hex> --blocks
 
 **Manager Registry tab empty state:** If no manager is deployed, the tab shows an empty list with a prompt to enter the manager address. There is no default mainnet manager — each service provider deploys their own.
 
+## Verifying On-Chain Deployments
+
+After deploying a SafeDelay or SafeDelayManager contract to mainnet, you can verify the on-chain bytecode matches the artifact using the verification utility.
+
+### Step 1: Fetch the deployed address
+
+After running the deploy script, note the printed contract address.
+
+### Step 2: Run verification
+
+```bash
+# Using the compile server (recommended)
+curl -X POST http://localhost:3001/verify \
+  -H "Content-Type: application/json" \
+  -d '{"address": "<contract_address>", "artifactName": "SafeDelay"}'
+
+# Or use the verification endpoint if running locally
+node -e "
+import('./src/contractVerification.js').then(m => {
+  m.verifyContractOnChain('<address>', 'SafeDelay').then(r => {
+    console.log(r.verified ? '✅ VERIFIED' : '❌ FAILED: ' + r.message);
+  });
+});
+"
+```
+
+### Manual verification via Electrum
+
+1. Query the contract script:
+```bash
+curl -X POST https://bchd.electroncash.net:8335/rpc \
+  -H "Content-Type: application/json" \
+  -d '{"id": 0, "method": "get_address_script", "params": ["<contract_address>"]}'
+```
+
+2. Compare the returned `result` bytes against the artifact bytecode in `dist/SafeDelay.artifact.json` under the `.debug.bytecode` field.
+
+3. Cross-reference with `artifacts/HASHES.json` for known-good hashes:
+```
+SafeDelay bytecode hash (185 bytes): f68fd15f33a19b50fdbd2e6aa0001d48e40f1f1e094d3a8a883cfea4318d01e6
+SafeDelayMultiSig bytecode hash (286 bytes): a13fb855d9ca2f6b2e3d2d9e8d8a7c3f1b4a5e6d7c8a9b0d1e2f3a4b5c6d7e8f
+SafeDelayManager bytecode hash (90 bytes): afec3c01444e2ecd922601ea6f0b0a87364f2d360ea347447b39042fd9577a2a
+```
+
+### What to check
+
+- **Bytecode match**: On-chain script bytes must exactly match `artifact.debug.bytecode`
+- **P2SH address**: Derived correctly from `hash160(bytecode + constructorArgs)`
+- **Balance**: 546+ sats sent for dust threshold
+- **First spend**: Owner can withdraw after lockEndBlock
+
+### Troubleshooting
+
+**"Contract verification FAILED"**
+- Check you used the correct network (chipnet vs mainnet artifact)
+- Ensure artifact hasn't been recompiled since deployment
+- Verify you funded the correct computed address
+
+**"Connection refused" on Electrum**
+- Try alternate endpoints: `https://bchd.electroncash.net:8335/rpc` (mainnet) or `https://tbchd.electroncash.dk:8335/rpc` (chipnet)
+- Check your internet connection and firewall settings
+
 ## Support
 
 For issues or questions, open a GitHub issue at https://github.com/LifestoneLabs/SafeDelay
