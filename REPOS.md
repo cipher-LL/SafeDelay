@@ -120,3 +120,12 @@ node scripts/deploy-manager.mjs --sp-pkh <pkh_hex> --network chipnet
 - ✅ On-chain contract discovery — scan addresses to find SafeDelay wallets automatically
 - ✅ Auto bytecode verification on discovered contracts
 - ✅ #249 (May 1, 2026) — `npm run compile` now uses `scripts/compile-all.mjs` instead of `&&` chaining; all 3 contracts compile sequentially with per-contract reporting, always attempts all even on failure. After each successful compile, the script now prints the SHA256 bytecode hash for quick verification against `artifacts/HASHES.json`.
+
+## Recent Commits (2026)
+
+- `8af2fdb` — docs(DEPLOY.md): add mainnet deployment guide with verification steps
+- `2626f8f` — fix(SafeDelay): correct SafeDelay bytecode hash in HASHES.json (179→185 bytes)
+- `de37d20` — chore: rebuild artifacts with cashc 0.12.1
+- `cd6beb9` — feat(SafeDelayManagerDashboard): Add streamlined Emergency Cancel flow
+- `77134b1` — docs: add emergency withdrawal guide
+- `249` (May 1, 2026) — `npm run compile` now uses `scripts/compile-all.mjs` instead of `&&` chaining; all 3 contracts compile sequentially with per-contract reporting, always attempts all even on failure. After each successful compile, the script prints the SHA256 bytecode hash for quick verification against `artifacts/HASHES.json`.
