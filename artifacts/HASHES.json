@@ -1,7 +1,7 @@
 {
   "SafeDelay": {
-    "bytecodeHash": "788a1fb56ebe29fb74562c9c440ad8e73227d22eb0df3aeb7c2cab1924a8449a",
-    "bytecodeLength": 179,
+    "bytecodeHash": "f68fd15f33a19b50fdbd2e6aa0001d48e40f1f1e094d3a8a883cfea4318d01e6",
+    "bytecodeLength": 185,
     "compiler": "cashc 0.12.1"
   },
   "SafeDelayManager": {
