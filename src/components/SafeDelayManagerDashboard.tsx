@@ -257,6 +257,13 @@ const WithdrawBtn = styled(CopyBtn)`
   &:hover:not(:disabled) { background: rgba(16,185,129,0.45); }
 `;
 
+const CancelBtn = styled(CopyBtn)`
+  background: rgba(245,158,11,0.2);
+  color: #fbbf24;
+  font-weight: 600;
+  &:hover:not(:disabled) { background: rgba(245,158,11,0.4); }
+`;
+
 const ExternalLinkBtn = styled.a`
   padding: 6px 12px;
   border: none;
@@ -973,6 +980,11 @@ export default function SafeDelayManagerDashboard() {
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawSuccess, setWithdrawSuccess] = useState<string | null>(null);
 
+  // ─── Cancel SafeDelay (emergency refund — works at any time) ───────────────
+  const [cancelling, setCancelling] = useState<Set<string>>(new Set());
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
+
   const handleWithdraw = useCallback(async (entry: EntryWithBalance) => {
     if (!wallet.connected || !wallet.pubkeyHash) {
       setWithdrawError('Connect your wallet first');
@@ -1007,6 +1019,48 @@ export default function SafeDelayManagerDashboard() {
       setWithdrawError(err instanceof Error ? err.message : 'Withdrawal failed');
     } finally {
       setWithdrawing(prev => {
+        const next = new Set(prev);
+        next.delete(entry.address!);
+        return next;
+      });
+    }
+  }, [wallet.connected, wallet.pubkeyHash, network, handleRefreshEntry]);
+
+  // ─── Cancel SafeDelay (emergency full refund) ──────────────────────────────
+  const handleCancel = useCallback(async (entry: EntryWithBalance) => {
+    if (!wallet.connected || !wallet.pubkeyHash) {
+      setCancelError('Connect your wallet first');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `⚠️ EMERGENCY CANCEL — This will reclaim ALL ${entry.balance.toFixed(4)} BCH from this SafeDelay.\n\n` +
+      `This action CANNOT be undone. The SafeDelay contract will be closed permanently.\n\n` +
+      `Contract: ${entry.address}\n` +
+      `Owner PKH: ${entry.ownerPkh}\n` +
+      `Lock end: block ${entry.lockEndBlock.toLocaleString()}`
+    );
+    if (!confirmed) return;
+
+    setCancelError(null);
+    setCancelSuccess(null);
+    setCancelling(prev => new Set(prev).add(entry.address!));
+
+    try {
+      const { cancelSafeDelay } = await import('../utils/deployContract');
+
+      const txResult = await cancelSafeDelay({
+        ownerPubkeyHash: entry.ownerPkh,
+        lockEndBlock: entry.lockEndBlock,
+        network,
+      });
+
+      setCancelSuccess(`Cancelled! ${entry.balance.toFixed(4)} BCH reclaimed. Tx: ${txResult.txid.slice(0, 20)}...`);
+      await handleRefreshEntry(entry.address!);
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : 'Cancel failed');
+    } finally {
+      setCancelling(prev => {
         const next = new Set(prev);
         next.delete(entry.address!);
         return next;
@@ -1394,6 +1448,13 @@ export default function SafeDelayManagerDashboard() {
                               {withdrawing.has(entry.address) ? '⏳' : '💰'} Withdraw
                             </WithdrawBtn>
                           )}
+                          <CancelBtn
+                            onClick={() => entry.address && handleCancel(entry)}
+                            disabled={cancelling.has(entry.address)}
+                            title="Emergency cancel — reclaim all funds at any time"
+                          >
+                            {cancelling.has(entry.address) ? '⏳' : '🛑'} Cancel
+                          </CancelBtn>
                         </>
                       )}
                     </WalletCard>
@@ -1402,6 +1463,8 @@ export default function SafeDelayManagerDashboard() {
               </WalletList>
               {withdrawError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{withdrawError}</MessageBox>}
               {withdrawSuccess && <MessageBox $type="success" style={{ marginTop: '8px' }}>{withdrawSuccess}</MessageBox>}
+              {cancelError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{cancelError}</MessageBox>}
+              {cancelSuccess && <MessageBox $type="success" style={{ marginTop: '8px' }}>{cancelSuccess}</MessageBox>}
             </Section>
           )}
 

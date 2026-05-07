@@ -218,3 +218,36 @@ export async function withdrawFromSafeDelay(options: {
 
   return result;
 }
+
+/**
+ * Cancel a SafeDelay and reclaim all funds at any time.
+ * Unlike withdraw(), cancel() works regardless of lock status and sends ALL funds.
+ * The owner signs to authorize cancellation.
+ *
+ * @param options.ownerPubkeyHash - The owner's public key hash (40 hex chars)
+ * @param options.lockEndBlock - The block height when the lock expires
+ * @param options.network - Network name
+ * @returns The signed transaction hex and txid
+ */
+export async function cancelSafeDelay(options: {
+  ownerPubkeyHash: string;
+  lockEndBlock: number;
+  network: 'mainnet' | 'testnet' | 'chipnet';
+}): Promise<{ txHex: string; txid: string }> {
+  const { ownerPubkeyHash, lockEndBlock, network } = options;
+
+  const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
+
+  const contract = new Contract(SafeDelayArtifact as any, [ownerPubkeyHash, BigInt(lockEndBlock)], {
+    provider,
+  } as any);
+
+  const contractUtxos = await provider.getUtxos(contract.address);
+  if (contractUtxos.length === 0) {
+    throw new Error('No UTXOs found in SafeDelay contract');
+  }
+  const contractUtxo = contractUtxos[0];
+
+  const result = await (contract as any).functions.cancel().toTxHex(contractUtxo);
+  return result;
+}
