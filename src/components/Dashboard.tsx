@@ -1708,12 +1708,14 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                     Clear All
                   </button>
                 </div>
-                {notifications.slice(-3).reverse().map((n, i) => (
+                {notifications.slice(-3).reverse().map((n, i) => {
+                  const isExpired = n.type === 'expired';
+                  return (
                   <div
                     key={i}
                     style={{
                       padding: '8px 12px',
-                      background: 'rgba(16, 185, 129, 0.1)',
+                      background: isExpired ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.1)',
                       borderRadius: '6px',
                       marginBottom: '8px',
                       display: 'flex',
@@ -1722,7 +1724,10 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                     }}
                   >
                     <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px' }}>
-                      📬 {n.address.slice(0, 12)}... reached {n.percent}%
+                      {isExpired
+                        ? <>🔓 Lock expired! {n.address.slice(0, 12)}... is now withdrawable</>
+                        : <>📬 {n.address.slice(0, 12)}... reached {n.percent}%</>
+                      }
                     </span>
                     <button
                       onClick={() => dismissNotification(notifications.length - 1 - i)}
@@ -1738,7 +1743,8 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                       ✕
                     </button>
                   </div>
-                ))}
+                );
+                })}
               </div>
             )}
           </>

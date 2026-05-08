@@ -14,6 +14,8 @@ export interface MilestoneNotification {
   percent: number;
   remainingBlocks: number;
   timestamp: number;
+  /** Notification type: 'milestone' for progress, 'expired' for lock expiry */
+  type?: 'milestone' | 'expired';
 }
 
 const STORAGE_KEY = 'safedelay_milestone_notifications';
@@ -23,6 +25,8 @@ const DEFAULT_MILESTONES = [25, 50, 75, 100];
 interface UnlockTracking {
   notifiedMilestones: number[];
   notifiedAtBlock: Record<number, number>; // milestone → block when notified
+  /** Block when expiry notification was sent (undefined = never notified) */
+  notifiedExpiryAtBlock?: number;
 }
 
 interface StoredData {
@@ -199,10 +203,25 @@ export function useDepositMilestones(enabled: boolean = true) {
           }
         }
 
+        // Send expiry notification when lock first becomes unlocked
+        const isExpired = currentBlock >= deposit.lockEndBlock;
+        const alreadyNotifiedExpiryAtBlock = tracking.notifiedExpiryAtBlock;
+        const needsExpiryNotification = isExpired && (alreadyNotifiedExpiryAtBlock === undefined || alreadyNotifiedExpiryAtBlock < deposit.lockEndBlock);
+        if (needsExpiryNotification) {
+          newNotifications.push({
+            address: deposit.address,
+            percent: 100,
+            remainingBlocks: 0,
+            timestamp: Date.now(),
+            type: 'expired',
+          });
+        }
+
         // Update tracking ref
         unlockTrackingRef.current[deposit.address] = {
           notifiedMilestones: newNotifiedMilestones,
-          notifiedAtBlock: newNotifiedAtBlock
+          notifiedAtBlock: newNotifiedAtBlock,
+          notifiedExpiryAtBlock: needsExpiryNotification ? currentBlock : alreadyNotifiedExpiryAtBlock,
         };
 
         return {
@@ -225,14 +244,22 @@ export function useDepositMilestones(enabled: boolean = true) {
         // Send browser notification if permitted
         if (enabled && permission === 'granted') {
           newNotifications.forEach(n => {
-            const body = n.percent === 100
-              ? 'Your deposit is now fully unlocked! You can withdraw.'
-              : `Your deposit has reached ${n.percent}% of lock duration (${n.remainingBlocks} blocks remaining)`;
-
-            new Notification('SafeDelay Milestone', {
+            let title: string;
+            let body: string;
+            if (n.type === 'expired') {
+              title = '🔓 SafeDelay Lock Expired';
+              body = `Your SafeDelay deposit at ${n.address.slice(0, 12)}... is now withdrawable!`;
+            } else if (n.percent === 100) {
+              title = 'SafeDelay Milestone';
+              body = 'Your deposit is now fully unlocked! You can withdraw.';
+            } else {
+              title = 'SafeDelay Milestone';
+              body = `Your deposit has reached ${n.percent}% of lock duration (${n.remainingBlocks} blocks remaining)`;
+            }
+            new Notification(title, {
               body,
               icon: '/favicon.ico',
-              tag: `milestone-${n.address}-${n.percent}`,
+              tag: n.type === 'expired' ? `expired-${n.address}` : `milestone-${n.address}-${n.percent}`,
             });
           });
         }
