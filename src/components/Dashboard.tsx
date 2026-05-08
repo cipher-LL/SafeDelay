@@ -16,7 +16,7 @@ import QrScanner from './QrScanner';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
-import { deposit, waitForTxConfirmation } from '../utils/SafeDelayLibrary';
+import { deposit, waitForTxConfirmation, extend } from '../utils/SafeDelayLibrary';
 
 const STORAGE_KEY = 'safedelay_transactions';
 
@@ -269,6 +269,15 @@ const DepositButton = styled(ActionButton)`
   }
 `;
 
+const ExtendButton = styled(ActionButton)`
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+
+  &:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.3);
+  }
+`;
+
 const EmptyState = styled.div`
   text-align: center;
   padding: 40px;
@@ -484,13 +493,13 @@ const PasswordLabel = styled.span`
   margin-left: 12px;
 `;
 
-const MessageBox = styled.div<{ $type: 'success' | 'error' | 'info' }>`
+const MessageBox = styled.div<{ $type: 'success' | 'error' | 'info' | 'warning' }>`
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 14px;
   margin-top: 12px;
-  background: ${({ $type }) => $type === 'success' ? 'rgba(16, 185, 129, 0.2)' : $type === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(79, 70, 229, 0.2)'};
-  color: ${({ $type }) => $type === 'success' ? '#10b981' : $type === 'error' ? '#ef4444' : '#a5b4fc'};
+  background: ${({ $type }) => $type === 'success' ? 'rgba(16, 185, 129, 0.2)' : $type === 'error' ? 'rgba(239, 68, 68, 0.2)' : $type === 'warning' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(79, 70, 229, 0.2)'};
+  color: ${({ $type }) => $type === 'success' ? '#10b981' : $type === 'error' ? '#ef4444' : $type === 'warning' ? '#f59e0b' : '#a5b4fc'};
 `;
 
 const EncryptNote = styled.p`
@@ -665,8 +674,9 @@ interface Transaction {
 interface PendingTx {
   id: string;
   contractAddress: string;
-  type: 'withdraw' | 'cancel' | 'deposit';
+  type: 'withdraw' | 'cancel' | 'deposit' | 'extend';
   amount?: number;
+  lockEndBlock?: number;
   status: 'confirm' | 'broadcasting' | 'confirming' | 'confirmed' | 'success' | 'error';
   txHash?: string;
   error?: string;
@@ -1148,6 +1158,19 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     });
   }, [depositAmount]);
 
+  // ─── Extend lock handler ─────────────────────────────────────────────────
+  const [extendDays, setExtendDays] = useState('');
+  const handleExtendRequest = useCallback((contract: TimeLock) => {
+    setExtendDays('');
+    setPendingTx({
+      id: `extend-${contract.address}-${Date.now()}`,
+      contractAddress: contract.address,
+      type: 'extend',
+      lockEndBlock: contract.lockEndBlock,
+      status: 'confirm',
+    });
+  }, []);
+
   // ─── Execute pending transaction ─────────────────────────────────────────
   const executePendingTx = useCallback(async () => {
     if (!pendingTx) return;
@@ -1216,6 +1239,19 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         // cancel(pubkey ownerPk, sig ownerSig) — no locktime restriction
         const cancelTx = (contract as any).functions.cancel(ownerPkh);
         tx = await cancelTx
+          .from([contractUtxos[0], walletUtxos[0]])
+          .send();
+        txHash = typeof tx === 'string' ? tx : (tx.txid || tx.hash || '');
+      } else if (pendingTx.type === 'extend') {
+        // extend(pubkey ownerPk, sig ownerSig, int newLockEndBlock)
+        // Withdraws all funds to owner's P2PKH — user must redeposit to new contract
+        const currentLockEnd = pendingTx.lockEndBlock;
+        if (!currentLockEnd) throw new Error('Missing lockEndBlock for extend.');
+        const daysToAdd = parseInt(extendDays || '0');
+        if (daysToAdd <= 0) throw new Error('Please enter a valid number of days to extend (minimum 1).');
+        const newEndBlock = currentLockEnd + (daysToAdd * 144);
+        const extendTx = (contract as any).functions.extend(ownerPkh, BigInt(newEndBlock));
+        tx = await extendTx
           .from([contractUtxos[0], walletUtxos[0]])
           .send();
         txHash = typeof tx === 'string' ? tx : (tx.txid || tx.hash || '');
@@ -1347,6 +1383,21 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           walletAddress: derivedAddress,
           contractBalance,
         });
+      } else if (pendingTx.type === 'extend') {
+        // Extend lock period — withdraws all funds to owner, who must redeposit into new contract
+        const currentLockEnd = pendingTx.lockEndBlock;
+        if (!currentLockEnd) throw new Error('Missing lockEndBlock for extend.');
+        const daysToAdd = parseInt(extendDays || '0');
+        if (daysToAdd <= 0) throw new Error('Please enter a valid number of days to extend (minimum 1).');
+        const newEndBlock = currentLockEnd + (daysToAdd * 144);
+        const result = await extend(
+          wifKey.trim(),
+          ownerPkh,
+          currentLockEnd,
+          newEndBlock,
+          { network }
+        );
+        txHash = result.txHash;
       } else {
         // Deposit via SafeDelayLibrary
         const amountSats = BigInt(Math.round((parseFloat(depositAmount) || 0.01) * 100000000));
@@ -1905,6 +1956,12 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                       >
                         Cancel
                       </CancelButton>
+                      <ExtendButton
+                        onClick={() => handleExtendRequest(contract)}
+                        title="Extend the lock period to a later block (one-way, cannot shorten)"
+                      >
+                        Extend
+                      </ExtendButton>
                     </ContractActions>
                   </ContractCard>
                 );
@@ -2157,11 +2214,13 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             <ModalTitle>
               {pendingTx.type === 'withdraw' ? '💸 Withdraw Funds' :
                pendingTx.type === 'cancel' ? '✕ Cancel Contract' :
+               pendingTx.type === 'extend' ? '🔒 Extend Lock' :
                '💰 Deposit Funds'}
             </ModalTitle>
             <ModalDesc>
               {pendingTx.type === 'withdraw' && 'Withdraw your locked BCH once the lock period has expired. This will send all funds to your wallet address.'}
               {pendingTx.type === 'cancel' && 'Cancel the SafeDelay contract and return all funds to your wallet immediately. No wait time required.'}
+              {pendingTx.type === 'extend' && 'One-way extend: your lock end block moves forward. All funds are sent to your wallet — you must create a new SafeDelay and deposit again. Cannot be undone.'}
               {pendingTx.type === 'deposit' && `Deposit BCH into your SafeDelay contract at ${pendingTx.contractAddress.slice(0, 16)}...`}
             </ModalDesc>
 
@@ -2193,6 +2252,30 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               <MessageBox $type="info" style={{ marginBottom: '16px' }}>
                 ⏳ Signing & broadcasting transaction...
               </MessageBox>
+            )}
+
+            {pendingTx.status === 'confirm' && pendingTx.type === 'extend' && (
+              <div style={{ marginBottom: '16px' }}>
+                <MessageBox $type="warning" style={{ marginBottom: '12px', fontSize: '13px' }}>
+                  ⚠️ This will send ALL funds to your wallet. You must create a new SafeDelay with the extended lock and deposit again. Cannot be undone.
+                </MessageBox>
+                <label style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
+                  Current lock: block {pendingTx.lockEndBlock} — add days to extend:
+                </label>
+                <ModalInput
+                  type="number"
+                  step="1"
+                  min="1"
+                  placeholder="e.g. 30"
+                  value={extendDays}
+                  onChange={(e) => setExtendDays(e.target.value)}
+                />
+                {extendDays && pendingTx.lockEndBlock && (
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                    New lock end block: {pendingTx.lockEndBlock + (parseInt(extendDays) * 144)} (~{extendDays} days from now)
+                  </div>
+                )}
+              </div>
             )}
 
             {pendingTx.status === 'confirm' && pendingTx.type === 'deposit' && (
@@ -2234,10 +2317,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                         <ModalConfirmBtn
                           style={{ width: '100%' }}
                           onClick={executePendingTx}
-                          disabled={pendingTx.type === 'deposit' && !depositAmount}
+                          disabled={pendingTx.type === 'deposit' && !depositAmount || pendingTx.type === 'extend' && !extendDays}
                         >
                           {pendingTx.type === 'withdraw' ? '💸 Withdraw (Wallet)' :
                            pendingTx.type === 'cancel' ? '✕ Cancel Contract (Wallet)' :
+                           pendingTx.type === 'extend' ? '🔒 Extend Lock (Wallet)' :
                            '💰 Deposit (Wallet)'}
                         </ModalConfirmBtn>
                       ) : null}
@@ -2288,9 +2372,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                       <ModalConfirmBtn
                         style={{ width: '100%' }}
                         onClick={executeWifTx}
-                        disabled={!wifAddress || (pendingTx.type === 'deposit' && !depositAmount)}
+                        disabled={!wifAddress || (pendingTx.type === 'deposit' && !depositAmount) || (pendingTx.type === 'extend' && !extendDays)}
                       >
-                        {`🔑 Sign with WIF — ${pendingTx.type === 'withdraw' ? 'Withdraw' : pendingTx.type === 'cancel' ? 'Cancel' : 'Deposit'}`}
+                        {`🔑 Sign with WIF — ${pendingTx.type === 'withdraw' ? 'Withdraw' : pendingTx.type === 'cancel' ? 'Cancel' : pendingTx.type === 'extend' ? 'Extend Lock' : 'Deposit'}`}
                       </ModalConfirmBtn>
                       <ModalCancelBtn
                         style={{ width: '100%', textAlign: 'center' }}
@@ -2319,6 +2403,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                   {pendingTx.status === 'broadcasting' ? '⏳ Signing & Broadcasting...' :
                    pendingTx.type === 'withdraw' ? '💸 Withdraw' :
                    pendingTx.type === 'cancel' ? '✕ Cancel Contract' :
+                   pendingTx.type === 'extend' ? '🔒 Extend Lock' :
                    '💰 Deposit'}
                 </ModalConfirmBtn>
               </ModalActions>
