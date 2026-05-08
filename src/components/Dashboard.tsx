@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
@@ -1160,8 +1160,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
   // ─── Extend lock handler ─────────────────────────────────────────────────
   const [extendDays, setExtendDays] = useState('');
+  // Ref to track extend days for the current pending tx (avoids stale closure in executePendingTx)
+  const extendDaysRef = useRef('');
   const handleExtendRequest = useCallback((contract: TimeLock) => {
     setExtendDays('');
+    extendDaysRef.current = '';
     setPendingTx({
       id: `extend-${contract.address}-${Date.now()}`,
       contractAddress: contract.address,
@@ -1247,7 +1250,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         // Withdraws all funds to owner's P2PKH — user must redeposit to new contract
         const currentLockEnd = pendingTx.lockEndBlock;
         if (!currentLockEnd) throw new Error('Missing lockEndBlock for extend.');
-        const daysToAdd = parseInt(extendDays || '0');
+        const daysToAdd = parseInt(extendDaysRef.current || '0');
         if (daysToAdd <= 0) throw new Error('Please enter a valid number of days to extend (minimum 1).');
         const newEndBlock = currentLockEnd + (daysToAdd * 144);
         const extendTx = (contract as any).functions.extend(ownerPkh, BigInt(newEndBlock));
@@ -1387,7 +1390,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         // Extend lock period — withdraws all funds to owner, who must redeposit into new contract
         const currentLockEnd = pendingTx.lockEndBlock;
         if (!currentLockEnd) throw new Error('Missing lockEndBlock for extend.');
-        const daysToAdd = parseInt(extendDays || '0');
+        const daysToAdd = parseInt(extendDaysRef.current || '0');
         if (daysToAdd <= 0) throw new Error('Please enter a valid number of days to extend (minimum 1).');
         const newEndBlock = currentLockEnd + (daysToAdd * 144);
         const result = await extend(
@@ -2268,7 +2271,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                   min="1"
                   placeholder="e.g. 30"
                   value={extendDays}
-                  onChange={(e) => setExtendDays(e.target.value)}
+                  onChange={(e) => { setExtendDays(e.target.value); extendDaysRef.current = e.target.value; }}
                 />
                 {extendDays && pendingTx.lockEndBlock && (
                   <div style={{ marginTop: '8px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
