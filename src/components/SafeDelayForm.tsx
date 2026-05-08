@@ -150,6 +150,19 @@ const BytecodeErrorText = styled.div`
   line-height: 1.5;
 `;
 
+const HelperTextBox = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 4px;
+`;
+
+const WarningIcon = styled.span`
+  font-size: 14px;
+`;
+
 const NetworkStatusBadge = styled.div<{ $status: 'checking' | 'connected' | 'disconnected' }>`
   display: inline-flex;
   align-items: center;
@@ -371,7 +384,10 @@ export default function SafeDelayForm() {
             onChange={(e) => setDepositAmount(e.target.value)}
             disabled={loading}
           />
-          <HelpText>Leave empty to create contract without initial deposit</HelpText>
+          <HelperTextBox>
+            <WarningIcon>⚠️</WarningIcon>
+            <span>Minimum deposit: 0.0001 BCH (1000 sats) — dust threshold for on-chain settlement</span>
+          </HelperTextBox>
         </FormGroup>
 
         <SubmitButton type="submit" disabled={loading || !wallet.connected || !!bytecodeError}>
