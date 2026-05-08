@@ -2077,6 +2077,76 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         )}
       </BackupSection>
 
+      {/* ─── Emergency Recovery Section ─────────────────────────────────────── */}
+      <BackupSection>
+        <SectionTitle>⚠️ Emergency Recovery</SectionTitle>
+        <Description>
+          Immediately cancel a time-lock and recover all funds to your wallet address. Use this if you made a mistake or need urgent access — funds are sent directly to your wallet and the lock is permanently destroyed.
+        </Description>
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+        }}>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.5' }}>
+            <strong style={{ color: '#ef4444' }}>Warning:</strong> Cancel is immediate and irreversible. Funds are sent to your wallet address and the contract is permanently destroyed. Only use this for emergency recovery.
+          </div>
+        </div>
+        {wallet.connected && sortedContracts.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {sortedContracts
+              .filter(c => c.lockEndBlock > c.currentBlock) // only locked contracts
+              .map(c => (
+                <div key={c.address} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 14px',
+                  background: 'rgba(255,255,255,0.05)',
+                  borderRadius: '8px',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                }}>
+                  <div>
+                    <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>
+                      {c.address.slice(0, 24)}...{c.address.slice(-8)}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
+                      {c.balance.toFixed(4)} BCH · 🔒 Locked for {Math.max(0, c.lockEndBlock - c.currentBlock).toLocaleString()} more blocks
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleCancel(c)}
+                    style={{
+                      padding: '6px 14px',
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🚨 Cancel & Recover
+                  </button>
+                </div>
+              ))}
+            {sortedContracts.filter(c => c.lockEndBlock > c.currentBlock).length === 0 && (
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+                No locked contracts available — all contracts are currently unlocked.
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+            {wallet.connected ? 'No active locked contracts found.' : 'Connect your wallet to manage emergency recovery.'}
+          </div>
+        )}
+      </BackupSection>
+
       {/* ─── On-Chain Contract Recovery Section ─────────────────────────────── */}
       <BackupSection>
         <SectionTitle>🔍 On-Chain Contract Recovery</SectionTitle>
