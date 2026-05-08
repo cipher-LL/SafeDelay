@@ -516,6 +516,23 @@ export async function getBalance(
 }
 
 /**
+ * Check if a lock has expired given current block height.
+ */
+export function isLockExpired(lockEndBlock: number, currentBlock: number): boolean {
+  return currentBlock >= lockEndBlock;
+}
+
+/**
+ * Filter a list of contracts to find expired ones.
+ */
+export function getExpiredLocks(
+  contracts: Array<{ lockEndBlock: number }>,
+  currentBlock: number
+): Array<{ lockEndBlock: number }> {
+  return contracts.filter(c => isLockExpired(c.lockEndBlock, currentBlock));
+}
+
+/**
  * Compute the deployment address for a SafeDelay contract.
  */
 export async function computeAddress(ownerPkh: string, lockEndBlock: number, network: NetworkConfig['network']): Promise<string> {
