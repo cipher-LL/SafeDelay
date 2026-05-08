@@ -10,7 +10,7 @@
  * - Register funded SafeDelay addresses with the manager
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
@@ -30,6 +30,7 @@ import type { SafeDelayManagerEntry } from '../types/index';
 import QrScanner from './QrScanner';
 import { debug } from '../utils/debug';
 import { useOnChainTxHistory, OnChainTx } from '../hooks/useOnChainTxHistory';
+import { showToast } from './Toast';
 
 function getExplorerAddressUrl(n: 'mainnet' | 'testnet' | 'chipnet', addr: string): string {
   const clean = addr.replace(/^(bitcoincash:|bchtest:|bchreg:)/, '');
@@ -553,6 +554,10 @@ export default function SafeDelayManagerDashboard() {
   const [txPage, setTxPage] = useState(1);
   const TX_PER_PAGE = 50;
 
+  // Lock expiry notifications
+  const notifiedRef = useRef<Set<string>>(new Set());
+  const [expiringEntries, setExpiringEntries] = useState<string[]>([]);
+
   // CSV export for transaction history
   const handleExportTxCSV = () => {
     const headers = ['Type', 'Block Height', 'Timestamp', 'Tx Hash', 'Amount (BCH)'];
@@ -804,6 +809,31 @@ export default function SafeDelayManagerDashboard() {
     }, 60000);
     return () => clearInterval(interval);
   }, [managerAddress, loadingEntries, loadRegistry]);
+
+  // ─── Lock expiry notifications ────────────────────────────────────────────
+  useEffect(() => {
+    if (myEntries.length === 0 || currentBlock === 0) return;
+
+    const nowExpiring: string[] = [];
+    for (const entry of myEntries) {
+      const remaining = entry.lockEndBlock - entry.currentBlock;
+      // Notify when ~10 blocks remain (~100 min on mainnet, ~20 min on chipnet)
+      const key = entry.address || entry.ownerPkh;
+      if (remaining > 0 && remaining <= 10 && !notifiedRef.current.has(key)) {
+        notifiedRef.current.add(key);
+        showToast(
+          `🔔 SafeDelay at ${entry.address?.slice(0, 16)}... unlocks in ~${remaining} block${remaining !== 1 ? 's' : ''}!`,
+          'warning',
+          8000
+        );
+      }
+      // Collect entries that will expire within ~500 blocks for badge
+      if (remaining > 0 && remaining <= 500) {
+        nowExpiring.push(key);
+      }
+    }
+    setExpiringEntries(nowExpiring);
+  }, [myEntries, currentBlock]);
 
   // ─── Compute new SafeDelay address ─────────────────────────────────────────
   const handleComputeAddress = useCallback(async () => {
@@ -1400,6 +1430,11 @@ export default function SafeDelayManagerDashboard() {
             <Section>
               <SectionTitle>
                 {viewMode === 'mine' ? 'My SafeDelay Wallets' : `Registry Entries`} ({myEntries.length})
+                {expiringEntries.length > 0 && (
+                  <span style={{ marginLeft: '10px', fontSize: '13px', color: '#f59e0b', fontWeight: 600 }}>
+                    ⚡ {expiringEntries.length} unlocking soon
+                  </span>
+                )}
               </SectionTitle>
               <WalletList>
                 {myEntries.map((entry, i) => {
