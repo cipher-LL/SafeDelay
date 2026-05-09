@@ -73,4 +73,22 @@ contract SafeDelayManager(
             require(tx.outputs[2].value == change);
         }
     }
+
+    /**
+     * Enumerate all delay entries registered in this manager UTXO.
+     *
+     * This is a view function — it reads the NFT commitment but does not
+     * authorize any transaction. Use it to:
+     *   - List all registered SafeDelay wallets
+     *   - Filter entries by ownerPKH (off-chain comparison)
+     *   - Check which locks are expired (lockEndBlock <= current block height)
+     *
+     * Returns: bytes commitment — the raw NFT commitment containing all entries.
+     * Off-chain parsing: [entry1_pkh(20)][entry1_lockEndBlock(8)][entry2_pkh(20)][entry2_lockEndBlock(8)]...
+     */
+    function enumerate() -> bytes {
+        require(tx.inputs.length >= 1);
+        require(tx.inputs[0].tokenCategory != 0x); // Must be the NFT UTXO
+        return tx.inputs[0].nftCommitment;
+    }
 }

@@ -195,3 +195,63 @@ export async function getAllManagerDelays(
 
   return allEntries;
 }
+
+/**
+ * Filter manager entries to find locks that have expired (lockEndBlock <= currentBlock).
+ *
+ * @param entries - Array of SafeDelayManagerEntry from getAllManagerDelays
+ * @param currentBlock - Current block height
+ * @returns - Array of expired entries (locks that can now be withdrawn)
+ */
+export function getExpiredManagerEntries(
+  entries: SafeDelayManagerEntry[],
+  currentBlock: number
+): SafeDelayManagerEntry[] {
+  return entries.filter(e => e.lockEndBlock <= currentBlock);
+}
+
+/**
+ * Get the full NFT commitment bytes from a manager contract via on-chain enumeration.
+ *
+ * Calls the enumerate() view function on the SafeDelayManager contract to read
+ * the raw commitment bytes directly from the blockchain.
+ *
+ * @param managerAddress - Cash address of the deployed SafeDelayManager
+ * @param electrumUrl - Electrum RPC URL
+ * @param currentBlock - Current block height (for expiry check)
+ * @returns - Array of parsed SafeDelayManagerEntry with computed addresses
+ */
+export async function enumerateManagerEntries(
+  managerAddress: string,
+  electrumUrl: string,
+  currentBlock: number
+): Promise<SafeDelayManagerEntry[]> {
+  // Get all UTXOs for the manager address
+  const utxos = await getManagerUtxos(managerAddress, electrumUrl);
+  const allEntries: SafeDelayManagerEntry[] = [];
+
+  // Check main UTXO (NFT) for commitment
+  for (const utxo of utxos) {
+    if (utxo.managerData.delays.length > 0) {
+      for (const entry of utxo.managerData.delays) {
+        const address = computeSafeDelayAddress(entry.ownerPkh, entry.lockEndBlock, 'mainnet');
+        const isExpired = entry.lockEndBlock <= currentBlock;
+        allEntries.push({
+          ownerPkh: entry.ownerPkh,
+          lockEndBlock: entry.lockEndBlock,
+          address,
+          isExpired,
+        } as SafeDelayManagerEntry & { isExpired?: boolean });
+      }
+    }
+  }
+
+  return allEntries;
+}
+
+// Augment SafeDelayManagerEntry to support isExpired flag
+declare module '../types/index.js' {
+  interface SafeDelayManagerEntry {
+    isExpired?: boolean;
+  }
+}
