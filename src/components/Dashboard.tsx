@@ -734,11 +734,24 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [txStatus, setTxStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [scanningOnChain, setScanningOnChain] = useState(false);
   const [lastOnChainScan, setLastOnChainScan] = useState<number>(0);
-  // WIF signing state
-  const [wifMode, setWifMode] = useState(false);
-  const [wifKey, setWifKey] = useState('');
-  const [wifAddress, setWifAddress] = useState('');
+  // WIF signing state — persisted so users don't re-enter key every session
+  const [wifMode, setWifMode] = useState(() => localStorage.getItem('safedelay_wif_mode') === 'true');
+  const [wifKey, setWifKey] = useState(() => localStorage.getItem('safedelay_wif_key') || '');
+  const [wifAddress, setWifAddress] = useState(() => localStorage.getItem('safedelay_wif_address') || '');
   const [wifError, setWifError] = useState('');
+
+  // Persist WIF state to localStorage so it's restored on next session
+  useEffect(() => {
+    localStorage.setItem('safedelay_wif_mode', wifMode ? 'true' : 'false');
+  }, [wifMode]);
+
+  useEffect(() => {
+    localStorage.setItem('safedelay_wif_key', wifKey);
+  }, [wifKey]);
+
+  useEffect(() => {
+    localStorage.setItem('safedelay_wif_address', wifAddress);
+  }, [wifAddress]);
 
   // Auto-scan state for on-chain history scanning
   const [autoScanProgress, setAutoScanProgress] = useState<string>('');
@@ -1324,9 +1337,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     setDepositAmount('');
     setTxStatus(null);
     setWifMode(false);
-    setWifKey('');
-    setWifAddress('');
-    setWifError('');
+    // WIF key/address persist in localStorage so user doesn't re-enter on next transaction
   }, []);
 
   // ─── Execute transaction using WIF key ───────────────────────────────────
