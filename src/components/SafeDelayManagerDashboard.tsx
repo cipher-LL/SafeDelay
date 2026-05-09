@@ -26,6 +26,7 @@ import {
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
 import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
+import { verifyContract } from '../contractVerification';
 import type { SafeDelayManagerEntry } from '../types/index';
 import QrScanner from './QrScanner';
 import { debug } from '../utils/debug';
@@ -540,6 +541,10 @@ export default function SafeDelayManagerDashboard() {
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
+
+  // Contract verification
+  const [verifying, setVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<{ verified: boolean; message: string } | null>(null);
 
   // UI
   const [copied, setCopied] = useState<string | null>(null);
@@ -1167,7 +1172,37 @@ export default function SafeDelayManagerDashboard() {
         <SecondaryBtn onClick={() => setManagerAddress(managerAddressInput.trim())} disabled={!managerAddressInput.trim()}>
           Load Registry
         </SecondaryBtn>
+        <SecondaryBtn
+          onClick={async () => {
+            if (!managerAddressInput.trim()) return;
+            setVerifying(true);
+            setVerificationResult(null);
+            try {
+              const result = await verifyContract(
+                managerAddressInput.trim(),
+                SafeDelayManagerArtifact as any,
+                'https://electrumx.lifestone.cash'
+              );
+              setVerificationResult(result);
+            } catch (err) {
+              setVerificationResult({ verified: false, message: err instanceof Error ? err.message : 'Verification failed' });
+            } finally {
+              setVerifying(false);
+            }
+          }}
+          disabled={!managerAddressInput.trim() || verifying}
+          style={{ color: verifying ? undefined : (verificationResult?.verified ? '#10b981' : verificationResult && !verificationResult.verified ? '#ef4444' : undefined) }}
+        >
+          {verifying ? '⏳ Verifying...' : verificationResult ? (verificationResult.verified ? '✅ Verified' : '❌ Failed') : '🔍 Verify'}
+        </SecondaryBtn>
       </FormRow>
+      {verificationResult && (
+        <MessageBox $type={verificationResult.verified ? 'success' : 'error'} style={{ marginTop: '8px', fontSize: '13px' }}>
+          {verificationResult.verified
+            ? '✅ Contract bytecode verified — on-chain code matches artifact'
+            : `❌ ${verificationResult.message}`}
+        </MessageBox>
+      )}
 
       {/* ── Deployment Status Banner ── */}
       {!isManagerDeployed(network as 'mainnet' | 'chipnet' | 'testnet') && (
