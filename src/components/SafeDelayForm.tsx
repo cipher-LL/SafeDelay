@@ -9,6 +9,7 @@ import HASHES from '../../artifacts/HASHES.json';
 import { debug } from '../utils/debug';
 import { showToast } from './Toast';
 import FormSkeleton from './FormSkeleton';
+import { decodePrivateKeyWif } from '@bitauth/libauth';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -150,6 +151,51 @@ const BytecodeErrorText = styled.div`
   line-height: 1.5;
 `;
 
+const TextArea = styled.textarea`
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 14px;
+  font-family: monospace;
+  resize: vertical;
+  min-height: 80px;
+
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+  }
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+`;
+
+const WifToggle = styled.button`
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+
+  &:hover {
+    color: #4f46e5;
+  }
+`;
+
+const WifWarning = styled.div`
+  padding: 12px 16px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #f59e0b;
+  line-height: 1.5;
+`;
+
 const HelperTextBox = styled.div`
   display: flex;
   align-items: center;
@@ -213,15 +259,22 @@ export default function SafeDelayForm() {
   const [estimatedUnlockBlock, setEstimatedUnlockBlock] = useState<number | null>(null);
   const [estimatedUnlockDate, setEstimatedUnlockDate] = useState<string | null>(null);
   const [formReady, setFormReady] = useState(false);
+  const [useWifKey, setUseWifKey] = useState(false);
+  const [wifKey, setWifKey] = useState('');
+  const [wifError, setWifError] = useState<string | null>(null);
 
-  // Track when wallet and network are both ready — show skeleton until both confirm
+  // Track when wallet/network are ready, OR when WIF key mode is active
   useEffect(() => {
-    if (wallet.connected && networkStatus === 'connected') {
+    if (useWifKey && wifKey && !wifError) {
+      setFormReady(true);
+    } else if (useWifKey && (!wifKey || wifError)) {
+      setFormReady(false);
+    } else if (wallet.connected && networkStatus === 'connected') {
       setFormReady(true);
     } else if (!wallet.connected) {
       setFormReady(false);
     }
-  }, [wallet.connected, networkStatus]);
+  }, [wallet.connected, networkStatus, useWifKey, wifKey, wifError]);
 
   // Show skeleton loader while wallet/network are initializing
   if (!formReady) {
@@ -276,9 +329,18 @@ export default function SafeDelayForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wallet.connected || !wallet.pubkeyHash) {
-      showToast('Please connect your wallet first', 'warning');
-      return;
+
+    // Validate: either wallet is connected or WIF key is provided
+    if (useWifKey) {
+      if (!wifKey || wifError) {
+        showToast('Please enter a valid WIF key', 'warning');
+        return;
+      }
+    } else {
+      if (!wallet.connected || !wallet.pubkeyHash) {
+        showToast('Please connect your wallet first', 'warning');
+        return;
+      }
     }
 
     // Use queueMicrotask to ensure loading state is painted before the synchronous
@@ -306,8 +368,28 @@ export default function SafeDelayForm() {
       // Calculate lock duration in blocks (~10 min/block, ~144 blocks/day)
       const blocks = getDurationInBlocks();
 
-      // Derive PKH from wallet address
-      const ownerPkh = await addressToPubkeyHash(wallet.address!);
+      let ownerPkh: string;
+
+      if (useWifKey) {
+        // Derive PKH from WIF key
+        const { hash160 } = await import('@bitauth/libauth');
+        const decoded = decodePrivateKeyWif(wifKey);
+        if (typeof decoded === 'string') throw new Error(`Invalid WIF key: ${decoded}`);
+        const pubkey = decoded.privateKey; // WIF decoded private key is returned as private key; derive pubkey
+        // For P2PKH address derivation, we need the public key hash
+        // libauth doesn't have direct ECIES pubkey derivation, so use the address derivation path
+        const { publicKeyToP2pkhCashAddress } = await import('@bitauth/libauth');
+        const pubkeyHash = hash160(Uint8Array.from([...pubkey])); // This gives us 20-byte hash
+        // Build P2PKH address to extract pkh
+        const addr = publicKeyToP2pkhCashAddress(pubkey, network === 'mainnet' ? 'bitcoincash' : 'bchtest');
+        const { cashAddressToLockingBytecode } = await import('@bitauth/libauth');
+        const lb = cashAddressToLockingBytecode(addr);
+        if (typeof lb === 'string') throw new Error('Failed to decode address');
+        ownerPkh = (lb.bytecode as Uint8Array).slice(3, 23).map(b => b.toString(16).padStart(2, '0')).join('');
+      } else {
+        // Derive PKH from wallet address
+        ownerPkh = await addressToPubkeyHash(wallet.address!);
+      }
 
       // Deploy contract — deploySafeDelay internally fetches current block height
       // and computes actualLockEndBlock = currentBlock + blocks (absolute height)
@@ -390,8 +472,43 @@ export default function SafeDelayForm() {
           </HelperTextBox>
         </FormGroup>
 
-        <SubmitButton type="submit" disabled={loading || !wallet.connected || !!bytecodeError}>
-          {loading ? 'Creating...' : 'Create SafeDelay'}
+        <WifToggle type="button" onClick={() => { setUseWifKey(!useWifKey); setWifKey(''); setWifError(null); }}>
+            {useWifKey ? '▲ Hide WIF key options — use wallet instead' : '▼ Advanced: Use WIF key instead of browser wallet'}
+          </WifToggle>
+
+          {useWifKey && (
+            <FormGroup>
+              <Label>WIF Private Key</Label>
+              <TextArea
+                placeholder="Kx... (51 or 52 chars)"
+                value={wifKey}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  setWifKey(val);
+                  if (val && val.length !== 51 && val.length !== 52) {
+                    setWifError('WIF keys are 51 or 52 characters');
+                  } else if (val) {
+                    try {
+                      decodePrivateKeyWif(val);
+                      setWifError(null);
+                    } catch (err) {
+                      setWifError(err instanceof Error ? err.message : 'Invalid WIF key');
+                    }
+                  } else {
+                    setWifError(null);
+                  }
+                }}
+                disabled={loading}
+              />
+              {wifError && <HelpText style={{ color: '#ef4444' }}>{wifError}</HelpText>}
+              <WifWarning>
+                ⚠️ <strong>Security Notice:</strong> Your WIF key is processed entirely client-side and never transmitted to any server. Only use keys you control. Never paste keys from untrusted sources.
+              </WifWarning>
+            </FormGroup>
+          )}
+
+        <SubmitButton type="submit" disabled={loading || (!useWifKey && (!wallet.connected || !!bytecodeError)) || (useWifKey && (!wifKey || !!wifError))}>
+          {loading ? 'Creating...' : useWifKey ? 'Create SafeDelay with WIF key' : 'Create SafeDelay'}
         </SubmitButton>
 
         {bytecodeError && (
