@@ -156,14 +156,14 @@ export function useAutoContractVerification(
               } else {
                 // Contract has live UTXOs — verify bytecode matches expected hash
                 try {
-                  const scriptHex = await provider.performRequest(
-                    'get_address_script',
+                  const addressInfo = await provider.performRequest(
+                    'get_address',
                     contract.address
-                  ) as string | null;
+                  ) as { script: string } | null;
 
-                  if (scriptHex) {
+                  if (addressInfo?.script) {
                     // Hash the script and compare against HASHES.json
-                    const scriptBytes = Uint8Array.from(Buffer.from(scriptHex, 'hex'));
+                    const scriptBytes = Uint8Array.from(Buffer.from(addressInfo.script, 'hex'));
                     const scriptHash = sha256(scriptBytes);
                     const hashHex = binToHex(scriptHash);
 
