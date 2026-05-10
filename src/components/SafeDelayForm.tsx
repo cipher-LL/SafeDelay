@@ -371,21 +371,21 @@ export default function SafeDelayForm() {
       let ownerPkh: string;
 
       if (useWifKey) {
-        // Derive PKH from WIF key
-        const { hash160 } = await import('@bitauth/libauth');
+        // Derive PKH from WIF key — use libauth to derive P2PKH address then extract PKH
         const decoded = decodePrivateKeyWif(wifKey);
         if (typeof decoded === 'string') throw new Error(`Invalid WIF key: ${decoded}`);
-        const pubkey = decoded.privateKey; // WIF decoded private key is returned as private key; derive pubkey
-        // For P2PKH address derivation, we need the public key hash
-        // libauth doesn't have direct ECIES pubkey derivation, so use the address derivation path
+        const pubkey = decoded.privateKey;
         const { publicKeyToP2pkhCashAddress } = await import('@bitauth/libauth');
-        const pubkeyHash = hash160(Uint8Array.from([...pubkey])); // This gives us 20-byte hash
-        // Build P2PKH address to extract pkh
-        const addr = publicKeyToP2pkhCashAddress(pubkey, network === 'mainnet' ? 'bitcoincash' : 'bchtest');
+        const addrResult = publicKeyToP2pkhCashAddress({
+          publicKey: Uint8Array.from([...pubkey]),
+          prefix: network === 'mainnet' ? 'bitcoincash' : 'bchtest',
+        });
+        if (typeof addrResult === 'string') throw new Error(`Failed to derive P2PKH address: ${addrResult}`);
         const { cashAddressToLockingBytecode } = await import('@bitauth/libauth');
-        const lb = cashAddressToLockingBytecode(addr);
-        if (typeof lb === 'string') throw new Error('Failed to decode address');
-        ownerPkh = (lb.bytecode as Uint8Array).slice(3, 23).map(b => b.toString(16).padStart(2, '0')).join('');
+        const lbResult = cashAddressToLockingBytecode(addrResult.address);
+        if (typeof lbResult === 'string') throw new Error(`Failed to decode address: ${lbResult}`);
+        const bytecode: Uint8Array = lbResult.bytecode;
+        ownerPkh = Array.from(bytecode.slice(3, 23)).map(b => b.toString(16).padStart(2, '0')).join('');
       } else {
         // Derive PKH from wallet address
         ownerPkh = await addressToPubkeyHash(wallet.address!);
