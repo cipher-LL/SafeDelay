@@ -1530,6 +1530,30 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         </MessageBox>
       )}
 
+      {/* Pending transaction indicator */}
+      {pendingTx && (
+        <MessageBox $type="info" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>⏳</span>
+            <span>Transaction pending: {pendingTx.type} — {pendingTx.contractAddress.slice(0, 16)}... (click to view)</span>
+          </div>
+          <button
+            onClick={() => setPendingTx(null)}
+            style={{
+              padding: '4px 12px',
+              background: 'rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.7)',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            Dismiss
+          </button>
+        </MessageBox>
+      )}
+
       {/* Auto-verification progress */}
       {isVerifying && (
         <MessageBox $type="info" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
