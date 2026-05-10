@@ -777,7 +777,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [verifyStartTime, setVerifyStartTime] = useState<number | null>(null);
 
   // Auto-verify stored contracts against on-chain state on app load
-  const { verificationResult, isVerifying, verifyProgress, abort } = useAutoContractVerification(
+  const { verificationResult, isVerifying, verifyProgress, abort, reverify } = useAutoContractVerification(
     storedContracts,
     wallet.address,
     wallet.pubkeyHash,
@@ -1605,12 +1605,21 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             {active.map(addr => (
               <div key={addr} style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                 <code style={{ fontSize: '12px' }}>{addr.slice(0, 20)}...</code>
-                <button
-                  onClick={() => setDismissedMismatches(prev => [...prev, addr])}
-                  style={{ padding: '2px 8px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444' }}
-                >
-                  Dismiss
-                </button>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    onClick={reverify}
+                    style={{ padding: '2px 8px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #6366f1', background: 'transparent', color: '#818cf8' }}
+                    title="Re-verify all contracts"
+                  >
+                    Re-verify
+                  </button>
+                  <button
+                    onClick={() => setDismissedMismatches(prev => [...prev, addr])}
+                    style={{ padding: '2px 8px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444' }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             ))}
           </MessageBox>
