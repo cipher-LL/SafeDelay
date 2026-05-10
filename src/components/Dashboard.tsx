@@ -738,6 +738,13 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [wifMode, setWifMode] = useState(() => localStorage.getItem('safedelay_wif_mode') === 'true');
   const [wifKey, setWifKey] = useState(() => localStorage.getItem('safedelay_wif_key') || '');
   const [wifAddress, setWifAddress] = useState(() => localStorage.getItem('safedelay_wif_address') || '');
+
+  // Track bytecode mismatch warnings the user has dismissed
+  const [dismissedMismatches, setDismissedMismatches] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('safedelay_dismissed_mismatches') || '[]');
+    } catch { return []; }
+  });
   const [wifError, setWifError] = useState('');
 
   // Persist WIF state to localStorage so it's restored on next session
@@ -752,6 +759,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   useEffect(() => {
     localStorage.setItem('safedelay_wif_address', wifAddress);
   }, [wifAddress]);
+
+  // Persist dismissed bytecode mismatch warnings
+  useEffect(() => {
+    localStorage.setItem('safedelay_dismissed_mismatches', JSON.stringify(dismissedMismatches));
+  }, [dismissedMismatches]);
 
   // Auto-scan state for on-chain history scanning
   const [autoScanProgress, setAutoScanProgress] = useState<string>('');
@@ -1584,11 +1596,26 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       )}
 
       {/* Auto-verification results: bytecode mismatch detected */}
-      {verificationResult && verificationResult.bytecodeMismatch.length > 0 && (
-        <MessageBox $type="error" style={{ marginBottom: '20px' }}>
-          ⚠️ {verificationResult.bytecodeMismatch.length} contract(s) have bytecode that does NOT match the expected SafeDelay hash — they may be modified or not genuine SafeDelay contracts. Review carefully before interacting.
-        </MessageBox>
-      )}
+      {(() => {
+        const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a)) || [];
+        if (active.length === 0) return null;
+        return (
+          <MessageBox $type="error" style={{ marginBottom: '20px' }}>
+            ⚠️ {active.length} contract(s) have bytecode that does NOT match the expected SafeDelay hash — they may be modified or not genuine SafeDelay contracts.
+            {active.map(addr => (
+              <div key={addr} style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <code style={{ fontSize: '12px' }}>{addr.slice(0, 20)}...</code>
+                <button
+                  onClick={() => setDismissedMismatches(prev => [...prev, addr])}
+                  style={{ padding: '2px 8px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            ))}
+          </MessageBox>
+        );
+      })()}
 
       {/* Auto-verification results: orphaned contracts found */}
       {verificationResult && verificationResult.orphaned.length > 0 && (
