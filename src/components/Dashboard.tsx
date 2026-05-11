@@ -772,7 +772,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [autoScanCancellable, setAutoScanCancellable] = useState(false);
 
   const { fetchHistory } = useOnChainTxHistory();
-  const { discoverContracts, scanning: recoveryScanning, scanProgress: recoveryScanProgress, abort: abortDiscovery } = useOnChainContractDiscovery();
+  const { discoverContracts, scanning: recoveryScanning, scanProgress: recoveryScanProgress, abort: abortDiscovery, scanTimestamp } = useOnChainContractDiscovery();
   const [discoveredContracts, setDiscoveredContracts] = useState<DiscoveredContract[]>([]);
   const [recoveryScanDone, setRecoveryScanDone] = useState(false);
   // Restore saved scan result on mount so results persist across page refresh
@@ -791,10 +791,13 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     if (savedScan && savedScan.discovered.length > 0) {
       setDiscoveredContracts(savedScan.discovered);
       setRecoveryScanDone(true);
+      setShowSavedBanner(true);
     }
   }, []);
   const [discoveryResult, setDiscoveryResult] = useState<ScanResult | null>(null);
   const [verifyStartTime, setVerifyStartTime] = useState<number | null>(null);
+  // Show banner when saved scan results are restored on mount
+  const [showSavedBanner, setShowSavedBanner] = useState(false);
 
   // Auto-verify stored contracts against on-chain state on app load
   const { verificationResult, isVerifying, verifyProgress, abort, reverify } = useAutoContractVerification(
@@ -2241,11 +2244,58 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       </BackupSection>
 
       {/* ─── On-Chain Contract Recovery Section ─────────────────────────────── */}
-      <BackupSection>
+      <BackupSection id="onchain-recovery-section">
         <SectionTitle>🔍 On-Chain Contract Recovery</SectionTitle>
         <Description>
           Lost your contracts due to browser data clearing? Scan the blockchain to recover them using your wallet address.
         </Description>
+
+        {/* Banner shown when saved scan results were restored from localStorage */}
+        {showSavedBanner && (
+          <MessageBox $type="success" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <span>
+              📋 Previous scan found <strong>{discoveredContracts.length}</strong> contract{discoveredContracts.length !== 1 ? 's' : ''} on-chain.
+              {!recoveryScanDone && ' Click "Review" to see them, or run a new scan below.'}
+              {recoveryScanDone && ' Review them below or run a fresh scan.'}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {recoveryScanDone && (
+                <button
+                  onClick={() => setShowSavedBanner(false)}
+                  style={{
+                    padding: '4px 12px',
+                    background: 'rgba(16, 185, 129, 0.3)',
+                    color: '#10b981',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Dismiss
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setShowSavedBanner(false);
+                  // Trigger the section to scroll into view
+                  document.getElementById('onchain-recovery-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                style={{
+                  padding: '4px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                Review
+              </button>
+            </div>
+          </MessageBox>
+        )}
 
         {recoveryScanning && (
           <MessageBox $type="info" style={{ marginBottom: '16px' }}>
@@ -2261,9 +2311,43 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
         {recoveryScanDone && discoveredContracts.length > 0 && (
           <div style={{ marginBottom: '16px' }}>
-            <MessageBox $type="success" style={{ marginBottom: '12px' }}>
-              Found {discoveredContracts.length} SafeDelay contract{discoveredContracts.length !== 1 ? 's' : ''} on-chain!
-            </MessageBox>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+              <MessageBox $type="success" style={{ margin: 0, flex: 1 }}>
+                Found {discoveredContracts.length} SafeDelay contract{discoveredContracts.length !== 1 ? 's' : ''} on-chain!
+                {scanTimestamp && (
+                  <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginLeft: '8px' }}>
+                    Scanned {(() => {
+                      const mins = Math.floor((Date.now() - scanTimestamp) / 60000);
+                      if (mins < 1) return 'just now';
+                      if (mins < 60) return `${mins}m ago`;
+                      const hrs = Math.floor(mins / 60);
+                      if (hrs < 24) return `${hrs}h ago`;
+                      return `${Math.floor(hrs / 24)}d ago`;
+                    })()}
+                  </span>
+                )}
+              </MessageBox>
+              <button
+                onClick={() => {
+                  setDiscoveredContracts([]);
+                  setRecoveryScanDone(false);
+                  setDiscoveryResult(null);
+                  setShowSavedBanner(false);
+                  clearSavedScanResult();
+                }}
+                style={{
+                  padding: '4px 12px',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: 'rgba(255,255,255,0.7)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                Clear Scan
+              </button>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
               {discoveredContracts.map(c => (
                 <div key={c.address} style={{
