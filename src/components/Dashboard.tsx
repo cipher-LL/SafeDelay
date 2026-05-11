@@ -680,6 +680,8 @@ interface PendingTx {
   status: 'confirm' | 'broadcasting' | 'confirming' | 'confirmed' | 'success' | 'error';
   txHash?: string;
   error?: string;
+  /** Optional warning message shown in the confirm modal (for withdraw/cancel actions) */
+  warning?: string;
 }
 
 type SortOption = 'date' | 'amount' | 'unlock';
@@ -1167,16 +1169,13 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       setTxStatus({ type: 'error', message: 'No balance to withdraw from this contract.' });
       return;
     }
-    const confirmed = window.confirm(
-      `Withdraw ${contract.balance.toFixed(4)} BCH from this contract?\n\nAddress: ${contract.address.slice(0, 24)}...\n\nThis action cannot be undone.`
-    );
-    if (!confirmed) return;
     setPendingTx({
       id: `withdraw-${contract.address}-${Date.now()}`,
       contractAddress: contract.address,
       type: 'withdraw',
       amount: contract.balance,
       status: 'confirm',
+      warning: `Withdraw ${contract.balance.toFixed(4)} BCH from this contract?\n\nAddress: ${contract.address.slice(0, 24)}...\n\nThis action cannot be undone.`,
     });
   }, []);
 
@@ -1186,15 +1185,12 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       setTxStatus({ type: 'error', message: 'No balance to cancel from this contract.' });
       return;
     }
-    const confirmed = window.confirm(
-      `Cancel and withdraw ${contract.balance.toFixed(4)} BCH from this contract?\n\nAddress: ${contract.address.slice(0, 24)}...\n\nThis action cannot be undone.`
-    );
-    if (!confirmed) return;
     setPendingTx({
       id: `cancel-${contract.address}-${Date.now()}`,
       contractAddress: contract.address,
       type: 'cancel',
       status: 'confirm',
+      warning: `Cancel and withdraw ${contract.balance.toFixed(4)} BCH from this contract?\n\nAddress: ${contract.address.slice(0, 24)}...\n\nThis action cannot be undone.`,
     });
   }, []);
 
@@ -2427,6 +2423,12 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               {pendingTx.type === 'extend' && 'One-way extend: your lock end block moves forward. All funds are sent to your wallet — you must create a new SafeDelay and deposit again. Cannot be undone.'}
               {pendingTx.type === 'deposit' && `Deposit BCH into your SafeDelay contract at ${pendingTx.contractAddress.slice(0, 16)}...`}
             </ModalDesc>
+
+            {pendingTx.status === 'confirm' && pendingTx.warning && (
+              <MessageBox $type="warning" style={{ marginBottom: '16px', fontSize: '13px', whiteSpace: 'pre-line' }}>
+                {pendingTx.warning}
+              </MessageBox>
+            )}
 
             {pendingTx.status === 'error' && pendingTx.error && (
               <MessageBox $type="error" style={{ marginBottom: '16px' }}>

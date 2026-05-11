@@ -280,10 +280,67 @@ const ExternalLinkBtn = styled.a`
   &:hover { background: rgba(99,102,241,0.4); }
 `;
 
+const ConfirmOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+`;
+
+const ConfirmBox = styled.div`
+  background: #1a1a2e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 480px;
+  width: 90%;
+`;
+
+const ConfirmTitle = styled.h3`
+  font-size: 20px;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.95);
+`;
+
+const ConfirmDesc = styled.p`
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+`;
+
 const EmptyState = styled.div`
   text-align: center;
   padding: 40px;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
+`;
+
+const ModalCancelBtn = styled.button`
+  padding: 10px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.2s;
+  &:hover { background: rgba(255, 255, 255, 0.05); }
+`;
+
+const ModalConfirmBtn = styled.button`
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: white;
+  transition: all 0.2s;
+  &:hover:not(:disabled) { opacity: 0.85; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 const AddressBox = styled.div`
@@ -1022,11 +1079,11 @@ export default function SafeDelayManagerDashboard() {
   }, [network]);
 
   // ─── Withdraw from expired SafeDelay ───────────────────────────────────────
-  const [withdrawing, setWithdrawing] = useState<Set<string>>(new Set());
+  const [withdrawConfirmAddr, setWithdrawConfirmAddr] = useState<string | null>(null);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawSuccess, setWithdrawSuccess] = useState<string | null>(null);
-
-  // ─── Cancel SafeDelay (emergency refund — works at any time) ───────────────
+  const [withdrawing, setWithdrawing] = useState<Set<string>>(new Set());
+  const [cancelConfirmAddr, setCancelConfirmAddr] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<Set<string>>(new Set());
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
@@ -1036,15 +1093,12 @@ export default function SafeDelayManagerDashboard() {
       setWithdrawError('Connect your wallet first');
       return;
     }
+    // Show in-modal confirmation instead of window.confirm
+    setWithdrawConfirmAddr(entry.address!);
+  }, [wallet.connected, wallet.pubkeyHash]);
 
-    const confirmed = window.confirm(
-      `Withdraw ${entry.balance.toFixed(4)} BCH from SafeDelay?\n\n` +
-      `Contract: ${entry.address}\n` +
-      `Owner PKH: ${entry.ownerPkh}\n` +
-      `Lock ended at block: ${entry.lockEndBlock.toLocaleString()}`
-    );
-    if (!confirmed) return;
-
+  const confirmWithdraw = useCallback(async (entry: EntryWithBalance) => {
+    setWithdrawConfirmAddr(null);
     setWithdrawError(null);
     setWithdrawSuccess(null);
     setWithdrawing(prev => new Set(prev).add(entry.address!));
@@ -1070,7 +1124,7 @@ export default function SafeDelayManagerDashboard() {
         return next;
       });
     }
-  }, [wallet.connected, wallet.pubkeyHash, network, handleRefreshEntry]);
+  }, [network, handleRefreshEntry]);
 
   // ─── Cancel SafeDelay (emergency full refund) ──────────────────────────────
   const handleCancel = useCallback(async (entry: EntryWithBalance) => {
@@ -1078,16 +1132,12 @@ export default function SafeDelayManagerDashboard() {
       setCancelError('Connect your wallet first');
       return;
     }
+    // Show in-modal confirmation instead of window.confirm
+    setCancelConfirmAddr(entry.address!);
+  }, [wallet.connected, wallet.pubkeyHash]);
 
-    const confirmed = window.confirm(
-      `⚠️ EMERGENCY CANCEL — This will reclaim ALL ${entry.balance.toFixed(4)} BCH from this SafeDelay.\n\n` +
-      `This action CANNOT be undone. The SafeDelay contract will be closed permanently.\n\n` +
-      `Contract: ${entry.address}\n` +
-      `Owner PKH: ${entry.ownerPkh}\n` +
-      `Lock end: block ${entry.lockEndBlock.toLocaleString()}`
-    );
-    if (!confirmed) return;
-
+  const confirmCancel = useCallback(async (entry: EntryWithBalance) => {
+    setCancelConfirmAddr(null);
     setCancelError(null);
     setCancelSuccess(null);
     setCancelling(prev => new Set(prev).add(entry.address!));
@@ -1112,7 +1162,7 @@ export default function SafeDelayManagerDashboard() {
         return next;
       });
     }
-  }, [wallet.connected, wallet.pubkeyHash, network, handleRefreshEntry]);
+  }, [network, handleRefreshEntry]);
 
   // ─── Copy helper ───────────────────────────────────────────────────────────
   const handleCopy = async (text: string) => {
@@ -1569,6 +1619,38 @@ export default function SafeDelayManagerDashboard() {
               {cancelSuccess && <MessageBox $type="success" style={{ marginTop: '8px' }}>{cancelSuccess}</MessageBox>}
             </Section>
           )}
+
+          {/* ── In-modal Confirm Dialog (shown instead of window.confirm) ── */}
+          {(withdrawConfirmAddr || cancelConfirmAddr) && (() => {
+            // Use myEntries to get balance data (EntryWithBalance extends SafeDelayManagerEntry with balance)
+            const entry = myEntries.find(e => e.address === withdrawConfirmAddr || e.address === cancelConfirmAddr);
+            if (!entry) return null;
+            const isWithdraw = !!withdrawConfirmAddr;
+            return (
+              <ConfirmOverlay onClick={() => isWithdraw ? setWithdrawConfirmAddr(null) : setCancelConfirmAddr(null)}>
+                <ConfirmBox>
+                  <ConfirmTitle>{isWithdraw ? '💸 Confirm Withdraw' : '⚠️ Confirm Emergency Cancel'}</ConfirmTitle>
+                  <ConfirmDesc style={{ whiteSpace: 'pre-line', fontSize: '14px', color: 'rgba(255,255,255,0.75)', marginBottom: '20px' }}>
+                    {isWithdraw
+                      ? `Withdraw ${entry.balance.toFixed(4)} BCH from SafeDelay?\n\nContract: ${entry.address}\nOwner PKH: ${entry.ownerPkh}\nLock ended at block: ${entry.lockEndBlock.toLocaleString()}\n\nThis action cannot be undone.`
+                      : `⚠️ EMERGENCY CANCEL — This will reclaim ALL ${entry.balance.toFixed(4)} BCH from this SafeDelay.\n\nThis action CANNOT be undone. The SafeDelay contract will be closed permanently.\n\nContract: ${entry.address}\nOwner PKH: ${entry.ownerPkh}\nLock end: block ${entry.lockEndBlock.toLocaleString()}`
+                    }
+                  </ConfirmDesc>
+                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                    <ModalCancelBtn onClick={() => isWithdraw ? setWithdrawConfirmAddr(null) : setCancelConfirmAddr(null)}>
+                      Cancel
+                    </ModalCancelBtn>
+                    <ModalConfirmBtn
+                      style={{ background: isWithdraw ? '#10b981' : '#ef4444' }}
+                      onClick={() => isWithdraw ? confirmWithdraw(entry) : confirmCancel(entry)}
+                    >
+                      {isWithdraw ? '💸 Withdraw' : '🛑 Cancel Contract'}
+                    </ModalConfirmBtn>
+                  </div>
+                </ConfirmBox>
+              </ConfirmOverlay>
+            );
+          })()}
 
           {allEntries.length > 0 && myEntries.length === 0 && viewMode === 'mine' && !loadingEntries && (
             <EmptyState>No SafeDelay wallets found for your wallet in this registry.</EmptyState>
