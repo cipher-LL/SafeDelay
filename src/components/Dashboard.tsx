@@ -2318,6 +2318,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           >
             {recoveryScanning ? '🔄 Scanning...' : '🔍 Scan for Contracts'}
           </button>
+          {recoveryScanning && recoveryScanProgress && (
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginLeft: '10px', minWidth: '180px' }}>
+              {recoveryScanProgress}
+            </span>
+          )}
           {recoveryScanning && (
             <button
               onClick={abortDiscovery}
