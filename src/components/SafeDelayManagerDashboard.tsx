@@ -31,6 +31,8 @@ import type { SafeDelayManagerEntry } from '../types/index';
 import QrScanner from './QrScanner';
 import { debug } from '../utils/debug';
 import { useOnChainTxHistory, OnChainTx } from '../hooks/useOnChainTxHistory';
+import { useAutoContractVerification } from '../hooks/useAutoContractVerification';
+import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 import { showToast } from './Toast';
 
 function getExplorerAddressUrl(n: 'mainnet' | 'testnet' | 'chipnet', addr: string): string {
@@ -558,6 +560,15 @@ export default function SafeDelayManagerDashboard() {
   const [selectedEntryForTx, setSelectedEntryForTx] = useState<string | null>(null);
   const [txPage, setTxPage] = useState(1);
   const TX_PER_PAGE = 50;
+
+  // Contract verification (orphan + recoverable counts)
+  const { contracts: storedContracts } = useStoredContracts();
+  const { verificationResult: autoVerifyResult, isVerifying, verifyProgress } = useAutoContractVerification(
+    storedContracts,
+    wallet.address,
+    wallet.pubkeyHash,
+    network
+  );
 
   // Lock expiry notifications
   const notifiedRef = useRef<Set<string>>(new Set());
@@ -1335,6 +1346,27 @@ export default function SafeDelayManagerDashboard() {
             <StatCard><StatValue style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>↻ {new Date(lastRefreshed).toLocaleTimeString()}</StatValue><StatLabel>Last Refresh</StatLabel></StatCard>
           )}
         </Grid3>
+      )}
+
+      {/* ── Contract Verification Summary ── */}
+      {wallet.connected && ((autoVerifyResult?.orphaned?.length ?? 0) > 0 || (autoVerifyResult?.recoverable?.length ?? 0) > 0) && (
+        <div style={{ marginBottom: '16px' }}>
+          {(autoVerifyResult?.orphaned?.length ?? 0) > 0 && (
+            <MessageBox $type="error" style={{ marginBottom: '8px' }}>
+              ⚠️ <strong>{autoVerifyResult!.orphaned.length}</strong> stored contract{autoVerifyResult!.orphaned.length !== 1 ? 's' : ''} not found on-chain — may be invalid or from a different network.
+            </MessageBox>
+          )}
+          {(autoVerifyResult?.recoverable?.length ?? 0) > 0 && (
+            <MessageBox $type="success" style={{ marginBottom: '8px' }}>
+              🎉 Found <strong>{autoVerifyResult!.recoverable.length}</strong> on-chain SafeDelay contract{autoVerifyResult!.recoverable.length !== 1 ? 's' : ''} not in local storage — recoverable in the Dashboard tab.
+            </MessageBox>
+          )}
+          {isVerifying && (
+            <MessageBox $type="info">
+              🔍 Verifying contracts… {verifyProgress}
+            </MessageBox>
+          )}
+        </div>
       )}
 
       {/* ── Dashboard Tabs (Wallets | Transactions) ── */}
