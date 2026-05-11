@@ -1149,6 +1149,10 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       setTxStatus({ type: 'error', message: 'No balance to withdraw from this contract.' });
       return;
     }
+    const confirmed = window.confirm(
+      `Withdraw ${contract.balance.toFixed(4)} BCH from this contract?\n\nAddress: ${contract.address.slice(0, 24)}...\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
     setPendingTx({
       id: `withdraw-${contract.address}-${Date.now()}`,
       contractAddress: contract.address,
@@ -1164,6 +1168,10 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
       setTxStatus({ type: 'error', message: 'No balance to cancel from this contract.' });
       return;
     }
+    const confirmed = window.confirm(
+      `Cancel and withdraw ${contract.balance.toFixed(4)} BCH from this contract?\n\nAddress: ${contract.address.slice(0, 24)}...\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
     setPendingTx({
       id: `cancel-${contract.address}-${Date.now()}`,
       contractAddress: contract.address,
