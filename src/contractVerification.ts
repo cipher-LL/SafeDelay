@@ -62,19 +62,19 @@ export async function fetchContractScript(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       id: 0,
-      method: 'get_address_script',
+      method: 'get_address',
       params: [address]
     })
   });
 
-  const result = await response.json() as { error?: { message: string }; result?: string };
+  const result = await response.json() as { error?: { message: string }; result?: { script?: string } };
 
   if (result.error) {
     throw new Error(`Electrum error: ${result.error.message}`);
   }
 
-  // Script is returned as hex
-  return result.result ?? '';
+  // Script is returned as result.result.script (get_address returns { script: string })
+  return result.result?.script ?? '';
 }
 
 /**
