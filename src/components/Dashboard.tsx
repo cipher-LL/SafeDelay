@@ -9,7 +9,7 @@ import { useDepositMilestones } from '../hooks/useDepositMilestones';
 import { useStoredContracts, useElectrumContractData, StoredContract } from '../hooks/useSafeDelayContracts';
 import { useOnChainTxHistory } from '../hooks/useOnChainTxHistory';
 import { useWifSigner } from '../hooks/useWifSigner';
-import { useOnChainContractDiscovery, DiscoveredContract, ScanResult } from '../hooks/useOnChainContractDiscovery';
+import { useOnChainContractDiscovery, DiscoveredContract, ScanResult, clearSavedScanResult } from '../hooks/useOnChainContractDiscovery';
 import { useAutoContractVerification } from '../hooks/useAutoContractVerification';
 import { QRCodeSVG } from 'qrcode.react';
 import QrScanner from './QrScanner';
@@ -773,6 +773,24 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const { discoverContracts, scanning: recoveryScanning, scanProgress: recoveryScanProgress, abort: abortDiscovery } = useOnChainContractDiscovery();
   const [discoveredContracts, setDiscoveredContracts] = useState<DiscoveredContract[]>([]);
   const [recoveryScanDone, setRecoveryScanDone] = useState(false);
+  // Restore saved scan result on mount so results persist across page refresh
+  const savedScan = (() => {
+    try {
+      const raw = localStorage.getItem('safedelay_discovery_results');
+      if (!raw) return null;
+      const { result, timestamp } = JSON.parse(raw);
+      const MAX_AGE = 24 * 60 * 60 * 1000;
+      if (!result || Date.now() - timestamp > MAX_AGE) return null;
+      return result as ScanResult;
+    } catch { return null; }
+  })();
+  // Pre-populate from localStorage so results survive page refresh
+  useEffect(() => {
+    if (savedScan && savedScan.discovered.length > 0) {
+      setDiscoveredContracts(savedScan.discovered);
+      setRecoveryScanDone(true);
+    }
+  }, []);
   const [discoveryResult, setDiscoveryResult] = useState<ScanResult | null>(null);
   const [verifyStartTime, setVerifyStartTime] = useState<number | null>(null);
 
@@ -2349,6 +2367,29 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             </button>
           )}
         </BackupActions>
+
+        {!recoveryScanning && recoveryScanDone && discoveredContracts.length > 0 && (
+          <button
+            onClick={() => {
+              setDiscoveredContracts([]);
+              setRecoveryScanDone(false);
+              setDiscoveryResult(null);
+              clearSavedScanResult();
+            }}
+            style={{
+              padding: '6px 14px',
+              background: 'transparent',
+              color: 'rgba(255,255,255,0.5)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '6px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              marginLeft: '8px',
+            }}
+          >
+            Clear
+          </button>
+        )}
 
         {!wallet.connected && (
           <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '8px' }}>

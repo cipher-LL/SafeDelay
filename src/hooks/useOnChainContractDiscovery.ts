@@ -7,6 +7,9 @@
  * 2. Fetching the full transaction to decode the redeem script
  * 3. Verifying the redeem script matches SafeDelay's ownerPKH + lockEndBlock pattern
  * 4. Returning recoverable contracts that can be merged into localStorage
+ *
+ * Scan results are persisted to localStorage so users don't have to re-scan
+ * if they navigate away before recovering contracts.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -51,25 +54,49 @@ export interface ScanResult {
   errors: string[];
 }
 
-/**
- * Decode a raw hex transaction to find SafeDelay contract deployment parameters.
- * SafeDelay deployments are identified by the OP_RETURN output containing
- * contract constructor parameters (ownerPKH + lockEndBlock).
- *
- * CashScript deployments embed the constructor args after the artifact bytecode.
- * The pattern for a SafeDelay deployment tx is:
- * - Usually has an OP_RETURN output with contract data
- * - Or the first output is the P2SH contract address itself (funding tx)
- *
- * For SafeDelay single-owner, the redeem script format is:
- * [ownerPKH (20 bytes)][lockEndBlock BE (8 bytes)]
- * Which on deployment creates a P2SH with hash160 of this script.
- *
- * Detection approach: Look at funding transactions where BCH is sent to a P2SH address.
- * The SafeDelay constructor args are in the tx that first funded the contract.
- * We parse the tx inputs to find which address funded it, then decode the redeem script
- * from the spending transaction of that UTXO.
- */
+// ─── localStorage persistence ─────────────────────────────────────────────────
+
+const DISCOVERY_STORAGE_KEY = 'safedelay_discovery_results';
+
+/** Max age in ms before a saved scan result is considered stale (24 hours) */
+const SCAN_RESULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/** Load saved scan result + timestamp from localStorage */
+function loadSavedScanResult(): { result: ScanResult; timestamp: number } | null {
+  try {
+    const raw = localStorage.getItem(DISCOVERY_STORAGE_KEY);
+    if (!raw) return null;
+    const { result, timestamp } = JSON.parse(raw);
+    if (!result || typeof timestamp !== 'number') return null;
+    // Expire after 24h
+    if (Date.now() - timestamp > SCAN_RESULT_MAX_AGE_MS) {
+      localStorage.removeItem(DISCOVERY_STORAGE_KEY);
+      return null;
+    }
+    return { result, timestamp };
+  } catch {
+    return null;
+  }
+}
+
+/** Persist scan result + timestamp to localStorage */
+function persistScanResult(result: ScanResult): void {
+  try {
+    localStorage.setItem(DISCOVERY_STORAGE_KEY, JSON.stringify({ result, timestamp: Date.now() }));
+  } catch {
+    // localStorage may be unavailable (private browsing with storage full)
+  }
+}
+
+/** Clear saved scan result from localStorage */
+export function clearSavedScanResult(): void {
+  try {
+    localStorage.removeItem(DISCOVERY_STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
+// ─── Transaction decoding ─────────────────────────────────────────────────────
+
 /** Parse a variable-length integer from hex */
 function parseVarInt(hex: string, offset: number): number {
   const byte = parseInt(hex.slice(offset, offset + 2), 16);
@@ -176,14 +203,19 @@ async function getWalletP2SHUtxos(
   return p2shUtxos;
 }
 
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
 /**
  * Hook for discovering SafeDelay contracts on-chain.
  * Used for recovering contracts when localStorage has been cleared.
  */
 export function useOnChainContractDiscovery() {
+  const saved = loadSavedScanResult();
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<string>('');
-  const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(saved?.result ?? null);
+  /** Unix timestamp (ms) of when the last scan finished */
+  const [scanTimestamp, setScanTimestamp] = useState<number | null>(saved?.timestamp ?? null);
   const cancelledRef = useRef(false);
 
   const abort = useCallback(() => {
@@ -195,7 +227,7 @@ export function useOnChainContractDiscovery() {
 
   /**
    * Scan the blockchain for SafeDelay contracts associated with a wallet.
-   * 
+   *
    * Discovery strategy:
    * 1. Get all P2SH UTXOs for the wallet address (these are potential SafeDelay contracts)
    * 2. For each P2SH UTXO, try to decode the creating transaction for SafeDelay params
@@ -209,6 +241,8 @@ export function useOnChainContractDiscovery() {
   ): Promise<ScanResult> => {
     setScanning(true);
     setScanProgress('Fetching wallet UTXOs...');
+    // Clear any stale saved result when a new scan starts
+    clearSavedScanResult();
 
     const errors: string[] = [];
     const discovered: DiscoveredContract[] = [];
@@ -271,6 +305,8 @@ export function useOnChainContractDiscovery() {
 
     const result: ScanResult = { discovered, errors };
     setLastScanResult(result);
+    setScanTimestamp(Date.now());
+    persistScanResult(result);
     setScanning(false);
     if (!cancelledRef.current) setScanProgress('');
     return result;
@@ -281,9 +317,12 @@ export function useOnChainContractDiscovery() {
     scanning,
     scanProgress,
     lastScanResult,
+    scanTimestamp,
     abort,
   };
 }
+
+// ─── Transaction decoder ───────────────────────────────────────────────────────
 
 /**
  * Decode a SafeDelay funding transaction to extract contract parameters.
