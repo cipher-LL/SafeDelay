@@ -11,6 +11,7 @@ import { showToast } from './Toast';
 import FormSkeleton from './FormSkeleton';
 import { decodePrivateKeyWif } from '@bitauth/libauth';
 import { QRCodeSVG } from 'qrcode.react';
+import QrScanner from './QrScanner';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -503,6 +504,15 @@ export default function SafeDelayForm() {
                 }}
                 disabled={loading}
               />
+              <QrScanner onScan={(data) => {
+                setWifKey(data);
+                try {
+                  decodePrivateKeyWif(data);
+                  setWifError(null);
+                } catch (err) {
+                  setWifError(err instanceof Error ? err.message : 'Invalid WIF key');
+                }
+              }} />
               {wifError && <HelpText style={{ color: '#ef4444' }}>{wifError}</HelpText>}
               <WifWarning>
                 ⚠️ <strong>Security Notice:</strong> Your WIF key is processed entirely client-side and never transmitted to any server. Only use keys you control. Never paste keys from untrusted sources.
