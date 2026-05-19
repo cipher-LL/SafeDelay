@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '../context/WalletContext';
 import { useNetwork } from '../context/NetworkContext';
 import { deploySafeDelayMultiSig, addressToPubkeyHash, fetchCurrentBlockHeight } from '../utils/deployContract';
@@ -253,6 +254,7 @@ export default function SafeDelayMultiSigForm() {
   const [owner2Address, setOwner2Address] = useState('');
   const [owner3Address, setOwner3Address] = useState('');
   const [contractAddress, setContractAddress] = useState<string | null>(null);
+  const [showQrCode, setShowQrCode] = useState(false);
   const [savedLockEndBlock, setSavedLockEndBlock] = useState<number | null>(null);
   const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null);
   const [networkStatus, setNetworkStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
@@ -557,7 +559,40 @@ export default function SafeDelayMultiSigForm() {
             <CopyButton onClick={() => handleCopyAddress(contractAddress!)}>
               {copiedAddress === contractAddress ? '✓ Copied!' : '📋 Copy'}
             </CopyButton>
+            <button
+              onClick={() => setShowQrCode(!showQrCode)}
+              style={{
+                padding: '6px 12px',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                background: showQrCode ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
+                color: showQrCode ? '#10b981' : 'rgba(255,255,255,0.7)',
+                transition: 'all 0.2s',
+              }}
+            >
+              {showQrCode ? '✕ Hide QR' : '📱 QR Code'}
+            </button>
           </div>
+
+          {showQrCode && (
+            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ background: '#fff', borderRadius: '8px', padding: '8px', flexShrink: 0 }}>
+                <QRCodeSVG
+                  value={contractAddress!.replace(/^bitcoincash:/, '')}
+                  size={80}
+                  level="M"
+                />
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+                <div style={{ fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: '0.35rem' }}>Fund this SafeDelay</div>
+                <div>Send BCH to this address to fund your multi-sig wallet. Scan the QR or copy the address above.</div>
+              </div>
+            </div>
+          )}
+
           <HelpText style={{ marginTop: '8px' }}>
             Fund this address to activate the time-lock. Funds can be withdrawn after the lock period with {threshold} of 3 signatures.
           </HelpText>
