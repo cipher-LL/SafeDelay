@@ -16,7 +16,7 @@ import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { getManagerAddress, getServiceProviderPkh, isManagerDeployed } from '../config/contracts';
 import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
-import SafeDelayManagerArtifact from '../../dist/SafeDelayManager.artifact.json';
+import SafeDelayManagerArtifact from '../../artifacts/SafeDelayManager.artifact.json';
 import {
   computeSafeDelayAddress,
   parseManagerCommitment,
