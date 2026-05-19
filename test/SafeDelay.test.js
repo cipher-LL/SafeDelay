@@ -173,4 +173,93 @@ describe('SafeDelay Contract', () => {
       expect(tx).toBeDefined();
     });
   });
+
+  describe('extend', () => {
+    it('should allow owner to extend lock to a later block', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
+
+      // lockEndBlock is 1000, extend to 2000
+      const newLockEndBlock = 2000n;
+
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.extend(ownerKeyPair.publicKey, ownerKeyPair.signer, newLockEndBlock))
+        .addInput(ownerUtxo, ownerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: ownerKeyPair.address, amount: 199000n })
+        .setLocktime(500);
+
+      const tx = await builder.send();
+      expect(tx).toBeDefined();
+    });
+
+    it('should fail if new lock end block is not greater than current', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
+
+      // lockEndBlock is 1000, trying to extend to same value should fail
+      const newLockEndBlock = 1000n;
+
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.extend(ownerKeyPair.publicKey, ownerKeyPair.signer, newLockEndBlock))
+        .addInput(ownerUtxo, ownerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: ownerKeyPair.address, amount: 199000n })
+        .setLocktime(500);
+
+      await expect(builder.send()).rejects.toThrow();
+    });
+
+    it('should fail if called by non-owner', async () => {
+      const attackerUtxo = createUtxo(100000n);
+      provider.addUtxo(attackerKeyPair.address, attackerUtxo);
+
+      const newLockEndBlock = 2000n;
+
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.extend(attackerKeyPair.publicKey, attackerKeyPair.signer, newLockEndBlock))
+        .addInput(attackerUtxo, attackerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: attackerKeyPair.address, amount: 199000n })
+        .setLocktime(500);
+
+      await expect(builder.send()).rejects.toThrow();
+    });
+
+    it('should succeed when extending even before lock has expired', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
+
+      // lockEndBlock is 1000, current locktime is 500 (before expiry), extend to 2000
+      const newLockEndBlock = 2000n;
+
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.extend(ownerKeyPair.publicKey, ownerKeyPair.signer, newLockEndBlock))
+        .addInput(ownerUtxo, ownerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: ownerKeyPair.address, amount: 199000n })
+        .setLocktime(500);
+
+      const tx = await builder.send();
+      expect(tx).toBeDefined();
+    });
+
+    it('should succeed when extending after lock has already expired', async () => {
+      const ownerUtxo = createUtxo(100000n);
+      provider.addUtxo(ownerKeyPair.address, ownerUtxo);
+
+      // lockEndBlock is 1000, extend to 2000, locktime past expiry
+      const newLockEndBlock = 2000n;
+
+      const builder = new TransactionBuilder({ provider });
+      builder
+        .addInput(contractUtxo, contract.unlock.extend(ownerKeyPair.publicKey, ownerKeyPair.signer, newLockEndBlock))
+        .addInput(ownerUtxo, ownerKeyPair.signer.unlockP2PKH())
+        .addOutput({ to: ownerKeyPair.address, amount: 199000n })
+        .setLocktime(1500);
+
+      const tx = await builder.send();
+      expect(tx).toBeDefined();
+    });
+  });
 });
