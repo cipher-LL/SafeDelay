@@ -10,6 +10,7 @@ import { debug } from '../utils/debug';
 import { showToast } from './Toast';
 import FormSkeleton from './FormSkeleton';
 import { decodePrivateKeyWif } from '@bitauth/libauth';
+import { QRCodeSVG } from 'qrcode.react';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -262,6 +263,8 @@ export default function SafeDelayForm() {
   const [useWifKey, setUseWifKey] = useState(false);
   const [wifKey, setWifKey] = useState('');
   const [wifError, setWifError] = useState<string | null>(null);
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
 
   // Track when wallet/network are ready, OR when WIF key mode is active
   useEffect(() => {
@@ -528,7 +531,59 @@ export default function SafeDelayForm() {
       {contractAddress && (
         <ResultBox>
           <ResultLabel>Contract Address</ResultLabel>
-          <ResultValue>{contractAddress}</ResultValue>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <ResultValue style={{ flex: 1 }}>{contractAddress}</ResultValue>
+            <button
+              onClick={async () => {
+                const clean = contractAddress.replace(/^bitcoincash:/, '');
+                await navigator.clipboard.writeText(clean);
+                setAddressCopied(true);
+                setTimeout(() => setAddressCopied(false), 2000);
+              }}
+              style={{
+                padding: '0.2rem 0.5rem',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                color: 'rgba(255,255,255,0.8)',
+              }}
+            >
+              {addressCopied ? '✓ Copied' : '📋 Copy'}
+            </button>
+            <button
+              onClick={() => setShowQrCode(!showQrCode)}
+              style={{
+                padding: '0.2rem 0.5rem',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                background: showQrCode ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                color: 'rgba(255,255,255,0.8)',
+              }}
+            >
+              {showQrCode ? '✕ Hide QR' : '📱 QR Code'}
+            </button>
+          </div>
+
+          {showQrCode && (
+            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ background: '#fff', borderRadius: '8px', padding: '8px', flexShrink: 0 }}>
+                <QRCodeSVG
+                  value={contractAddress.replace(/^bitcoincash:/, '')}
+                  size={80}
+                  level="M"
+                />
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)' }}>
+                <div style={{ fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: '0.35rem' }}>Deposit BCH here</div>
+                <div>Send BCH to this address to fund your SafeDelay wallet. Scan the QR or copy the address above.</div>
+              </div>
+            </div>
+          )}
+
           <ResultLabel style={{ marginTop: '12px' }}>Lock Duration</ResultLabel>
           <ResultValue>{getDurationInBlocks()} blocks (~{lockDuration} {durationUnit})</ResultValue>
           {estimatedUnlockBlock != null && (
