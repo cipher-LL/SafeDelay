@@ -2639,7 +2639,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                       <label style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
                         Enter WIF Private Key:
                       </label>
-                      <QrScanner onScan={handleWifKeyChange} />
+                      <QrScanner onScan={handleWifKeyChange} addressMode={pendingTx.type === 'deposit'} />
                       <ModalInput
                         type="password"
                         placeholder="L1aW4aubWDZB...."
