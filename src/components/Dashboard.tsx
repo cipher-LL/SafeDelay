@@ -2040,6 +2040,14 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                       <div style={{ marginTop: '4px', fontSize: '14px', color: 'rgba(255,255,255,0.6)' }}>
                         {contract.type === 'multisig' ? 'MultiSig (2-of-3)' : 'Single Owner'} •{' '}
                         {getTimeRemaining(contract.lockEndBlock, contract.currentBlock)} remaining
+                        {(() => {
+                          const blocksRemaining = contract.lockEndBlock - contract.currentBlock;
+                          if (blocksRemaining <= 0) return null;
+                          const daysRemaining = blocksRemaining / 144;
+                          if (daysRemaining > 60) return null;
+                          const estDate = new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000);
+                          return <span> (~{estDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})</span>;
+                        })()}
                       </div>
                     </ContractInfo>
                     <ContractBalance>{contract.balance.toFixed(4)} BCH</ContractBalance>
