@@ -84,6 +84,15 @@ export async function fetchContractScript(
   return result.result ?? '';
 }
 
+const VERBOSE = process.argv.includes('--verbose') || process.env.DEBUG === '1';
+
+function log(...args: Parameters<typeof console.log>) {
+  if (VERBOSE) console.log(...args);
+}
+function logError(...args: Parameters<typeof console.error>) {
+  console.error(...args);
+}
+
 /**
  * Full verification: fetch on-chain and compare with artifact
  * 
@@ -102,14 +111,14 @@ export async function verifyContract(
   contractName?: string;
   address?: string;
 }> {
-  console.log(`Verifying ${contractName} at address: ${address}`);
+  log(`Verifying ${contractName} at address: ${address}`);
   
   // Load artifact
   const artifact = loadArtifact(contractName);
-  console.log(`Loaded artifact: ${artifact.contractName}`);
+  log(`Loaded artifact: ${artifact.contractName}`);
   
   // Fetch on-chain script
-  console.log(`Fetching contract script from blockchain...`);
+  log(`Fetching contract script from blockchain...`);
   const onChainScript = await fetchContractScript(address, electrumUrl);
   
   // Compare bytecode
@@ -128,8 +137,9 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   
   if (args.length < 2) {
-    console.log('Usage: ts-node verify-contract.ts <contract-name> <address> [electrum-url]');
-    console.log('Example: ts-node verify-contract.ts SafeDelay qpkq5...');
+    console.log('Usage: npx ts-node verify-contract.ts <contract-name> <address> [electrum-url]');
+    console.log('Example: npx ts-node verify-contract.ts SafeDelay qpkq5...');
+    console.log('Options: --verbose or DEBUG=1 to see detailed logs');
     process.exit(1);
   }
   
