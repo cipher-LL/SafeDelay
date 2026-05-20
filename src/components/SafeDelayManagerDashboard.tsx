@@ -1340,8 +1340,14 @@ export default function SafeDelayManagerDashboard() {
               <StepContent>
                 <StepTitle>Create your first SafeDelay wallet</StepTitle>
                 <StepDesc>
-                  Once the manager is loaded, go to the <strong>Create SafeDelay</strong> tab to deploy a
-                  time-locked wallet and register it with the manager.
+                  Once the manager is loaded, use the <strong>Create SafeDelay</strong> tab.
+                  Fill in the form and click Deploy. Example call:
+                  <StepCommand>manager.createDelay(ownerPkh, lockEndBlock, feeSats)</StepCommand>
+                  <div style={{ marginTop: '6px' }}>
+                    <CopyBtn onClick={() => handleCopy('manager.createDelay(ownerPkh, lockEndBlock, feeSats)')}>
+                      📋 Copy example
+                    </CopyBtn>
+                  </div>
                 </StepDesc>
               </StepContent>
             </OnboardingStepRow>
