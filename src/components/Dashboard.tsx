@@ -2082,7 +2082,22 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             </ContractList>
           ) : (
             <EmptyState>
-              No active time-locks found. Create one to get started!
+              <div style={{ marginBottom: '8px' }}>📭 No time-locked wallets yet</div>
+              <div style={{ fontSize: '13px', marginBottom: '12px', opacity: 0.7 }}>Create your first SafeDelay to get started.</div>
+              <button
+                onClick={() => onNavigateTab?.('create')}
+                style={{
+                  padding: '8px 16px',
+                  background: 'rgba(79, 70, 229, 0.8)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                → Create SafeDelay
+              </button>
             </EmptyState>
           )
         ) : (
@@ -2238,11 +2253,15 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                   </button>
                 </div>
               ))}
-            {sortedContracts.filter(c => c.lockEndBlock > c.currentBlock).length === 0 && (
+            {sortedContracts.length === 0 ? (
               <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-                No locked contracts available — all contracts are currently unlocked.
+                No contracts to recover — you don't have any stored SafeDelay wallets.
               </div>
-            )}
+            ) : sortedContracts.filter(c => c.lockEndBlock > c.currentBlock).length === 0 ? (
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+                ✅ All contracts are currently unlocked. Total: {sortedContracts.reduce((sum, c) => sum + c.balance, 0).toFixed(4)} BCH
+              </div>
+            ) : null}
           </div>
         ) : (
           <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
