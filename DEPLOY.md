@@ -21,13 +21,17 @@ npm install
 npm run build
 ```
 
-This will compile TypeScript contracts and build the React frontend to `dist-frontend/`.
+This will compile TypeScript contracts and build the React frontend to `dist/`.
 
 ### Preview Build Locally
 
 ```bash
-npm run preview
+npx vite preview
 ```
+
+### Deploy `dist/` via Static Hosting
+
+Vite outputs to `dist/` by default. Point your static host (Vercel, Netlify, nginx, etc.) to this directory.
 
 ## Deployment Options
 
@@ -57,14 +61,14 @@ Or connect your GitHub repo to Vercel for automatic deployments.
 
 2. Deploy:
    ```bash
-   netlify deploy --prod --dir=dist-frontend
+   netlify deploy --prod --dir=dist
    ```
 
 Or connect your GitHub repo to Netlify for automatic deployments.
 
 **Build Settings:**
 - Build command: `npm run build`
-- Publish directory: `dist-frontend`
+- Publish directory: `dist`
 
 ### Option 3: Docker
 
@@ -79,7 +83,7 @@ COPY . .
 RUN npm run build
 
 FROM nginx:alpine
-COPY --from=builder /app/dist-frontend /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 ```
@@ -97,7 +101,7 @@ docker run -p 8080:80 safedelay
    npm run build
    ```
 
-2. Upload contents of `dist-frontend/` to your static host.
+2. Upload contents of `dist/` to your static host.
 
 ## Smart Contract Deployment
 
