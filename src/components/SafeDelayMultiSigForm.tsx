@@ -261,6 +261,7 @@ export default function SafeDelayMultiSigForm() {
   const [error, setError] = useState<string | null>(null);
   const [bytecodeError, setBytecodeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [formReady, setFormReady] = useState(false);
 
   // Track when wallet and network are both ready — show skeleton until both confirm
@@ -276,7 +277,6 @@ export default function SafeDelayMultiSigForm() {
   if (!formReady) {
     return <FormSkeleton compileServerStatus={networkStatus === 'checking' ? 'checking' : undefined} />;
   }
-  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   // Fetch current block height on mount and when network changes
   useEffect(() => {
