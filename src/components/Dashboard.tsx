@@ -2267,9 +2267,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
             {wallet.connected ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
-                <span>No active locked contracts found.</span>
+                <span>No time-locked wallets yet.</span>
                 <button
-                  onClick={() => onNavigateTab?.('manager')}
+                  onClick={() => onNavigateTab?.('create')}
                   style={{
                     padding: '6px 14px',
                     background: 'rgba(16, 185, 129, 0.15)',
@@ -2281,7 +2281,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                     cursor: 'pointer',
                   }}
                 >
-                  🔍 Track External SafeDelay
+                  → Create SafeDelay
                 </button>
               </div>
             ) : 'Connect your wallet to manage emergency recovery.'}
