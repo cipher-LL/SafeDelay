@@ -2265,7 +2265,26 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           </div>
         ) : (
           <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-            {wallet.connected ? 'No active locked contracts found.' : 'Connect your wallet to manage emergency recovery.'}
+            {wallet.connected ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+                <span>No active locked contracts found.</span>
+                <button
+                  onClick={() => onNavigateTab?.('manager')}
+                  style={{
+                    padding: '6px 14px',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔍 Track External SafeDelay
+                </button>
+              </div>
+            ) : 'Connect your wallet to manage emergency recovery.'}
           </div>
         )}
       </BackupSection>
