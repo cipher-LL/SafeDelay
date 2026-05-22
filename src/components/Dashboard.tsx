@@ -2288,11 +2288,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               ))}
             {sortedContracts.length === 0 ? (
               <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-                No contracts to recover — you don't have any stored SafeDelay wallets.
+                No SafeDelay wallets yet.
               </div>
             ) : sortedContracts.filter(c => c.lockEndBlock > c.currentBlock).length === 0 ? (
               <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-                ✅ All contracts are currently unlocked. Total: {sortedContracts.reduce((sum, c) => sum + c.balance, 0).toFixed(4)} BCH
+                ✅ All SafeDelay wallets are currently unlocked. Total: {sortedContracts.reduce((sum, c) => sum + c.balance, 0).toFixed(4)} BCH
               </div>
             ) : null}
           </div>
