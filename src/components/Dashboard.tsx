@@ -660,6 +660,7 @@ interface TimeLock {
   currentBlock: number;
   type: 'single' | 'multisig';
   owners?: string[];
+  ownerPkh?: string;
 }
 
 interface Transaction {
@@ -723,6 +724,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [sortBy, setSortBy] = useState<SortOption>(() => {
     try { return (localStorage.getItem('safedelay-sort') as SortOption) || 'amount'; } catch { return 'amount'; }
   });
+  const [walletFilter, setWalletFilter] = useState<'all' | 'mine'>('all');
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [importPassword, setImportPassword] = useState('');
@@ -967,6 +969,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         currentBlock: c.currentBlock,
         type: c.type,
         owners: c.owners,
+        ownerPkh: c.ownerPkh,
       }));
       setContracts(timeLocks);
       setContractsLoaded(true);
@@ -1091,6 +1094,22 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         return a.lockEndBlock - b.lockEndBlock;
     }
   });
+
+  // Filter by wallet (My Wallets vs All Contracts)
+  const userPkh = wallet.pubkeyHash || '';
+  const userAddr = wallet.address || '';
+  const filteredContracts = walletFilter === 'mine' && userPkh
+    ? sortedContracts.filter(c => {
+        // Single-owner: compare ownerPkh directly
+        if (c.type === 'single' && c.ownerPkh) return c.ownerPkh === userPkh;
+        // MultiSig: check if any owner matches user's cash address
+        if (c.type === 'multisig' && c.owners) {
+          const userAddrNorm = userAddr.toLowerCase().replace(/^bitcoincash:/, '');
+          return c.owners.some(owner => owner.toLowerCase().replace(/^bitcoincash:/, '') === userAddrNorm);
+        }
+        return false;
+      })
+    : sortedContracts;
 
   const handleSaveLabel = (address: string) => {
     if (labelInput.trim()) {
@@ -1922,7 +1941,12 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
         {wallet.connected && contracts.length > 0 && (
           <SortBar>
-            <SortLabel>Sort by:</SortLabel>
+            <SortLabel>Filter:</SortLabel>
+            <SortSelect value={walletFilter} onChange={(e) => setWalletFilter(e.target.value as 'all' | 'mine')}>
+              <option value="all">All Contracts</option>
+              <option value="mine">My Wallets</option>
+            </SortSelect>
+            <SortLabel style={{ marginLeft: '12px' }}>Sort by:</SortLabel>
             <SortSelect value={sortBy} onChange={(e) => { const val = e.target.value as SortOption; setSortBy(val); try { localStorage.setItem('safedelay-sort', val); } catch {} }}>
               <option value="date">Unlock Date</option>
               <option value="amount">Amount</option>
@@ -1995,9 +2019,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         )}
 
         {wallet.connected ? (
-          sortedContracts.length > 0 ? (
+          filteredContracts.length > 0 ? (
             <ContractList>
-              {sortedContracts.map((contract) => {
+              {filteredContracts.map((contract) => {
                 const isLocked = contract.lockEndBlock > contract.currentBlock;
                 const existingLabel = getLabel(contract.address);
                 const isEditing = editingLabel === contract.address;
@@ -2222,9 +2246,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             <strong style={{ color: '#ef4444' }}>Warning:</strong> Cancel is immediate and irreversible. Funds are sent to your wallet address and the contract is permanently destroyed. Only use this for emergency recovery.
           </div>
         </div>
-        {wallet.connected && sortedContracts.length > 0 ? (
+        {wallet.connected && filteredContracts.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {sortedContracts
+            {filteredContracts
               .filter(c => c.lockEndBlock > c.currentBlock) // only locked contracts
               .map(c => (
                 <div key={c.address} style={{
