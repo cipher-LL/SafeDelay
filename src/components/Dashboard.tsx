@@ -2296,28 +2296,30 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               </div>
             ) : null}
           </div>
+        ) : wallet.connected ? (
+          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+              <span>No time-locked wallets yet.</span>
+              <button
+                onClick={() => onNavigateTab?.('create')}
+                style={{
+                  padding: '6px 14px',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                → Create SafeDelay
+              </button>
+            </div>
+          </div>
         ) : (
           <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-            {wallet.connected ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
-                <span>No time-locked wallets yet.</span>
-                <button
-                  onClick={() => onNavigateTab?.('create')}
-                  style={{
-                    padding: '6px 14px',
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    color: '#10b981',
-                    border: '1px solid rgba(16, 185, 129, 0.4)',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  → Create SafeDelay
-                </button>
-              </div>
-            ) : 'Connect your wallet to manage emergency recovery.'}
+            Connect your wallet to manage emergency recovery.
           </div>
         )}
       </BackupSection>
