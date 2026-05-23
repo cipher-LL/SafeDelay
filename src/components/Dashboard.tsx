@@ -1080,6 +1080,35 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     };
   }, [wallet.connected, contractsWithData, scanningOnChain, lastOnChainScan]);
 
+  // ─── Keyboard shortcut: W to quick-withdraw first unlocked wallet ─────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Ignore if modifier keys are held
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key !== 'w' && e.key !== 'W') return;
+      e.preventDefault();
+
+      if (!wallet.connected) {
+        setTxStatus({ type: 'error', message: 'Connect your wallet first.' });
+        return;
+      }
+
+      const unlocked = sortedContracts.filter(c => c.balance > 0 && c.lockEndBlock <= c.currentBlock);
+      if (unlocked.length === 0) {
+        setTxStatus({ type: 'info', message: 'No unlocked wallets with balance to withdraw.' });
+        return;
+      }
+
+      handleWithdraw(unlocked[0]);
+      setTxStatus({ type: 'info', message: `↪ Quick-withdraw triggered for ${unlocked[0].address.slice(0, 16)}...` });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [wallet.connected, sortedContracts, handleWithdraw]);
+
   // Sort contracts based on selected option
   const sortedContracts = [...contracts].sort((a, b) => {
     switch (sortBy) {
