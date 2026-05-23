@@ -1267,6 +1267,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
   // ─── Extend lock handler ─────────────────────────────────────────────────
   const [extendDays, setExtendDays] = useState('');
+  const [extendDaysError, setExtendDaysError] = useState('');
   // Ref to track extend days for the current pending tx (avoids stale closure in executePendingTx)
   const extendDaysRef = useRef('');
   const handleExtendRequest = useCallback((contract: TimeLock) => {
@@ -2667,15 +2668,34 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                 <label style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
                   Current lock: block {pendingTx.lockEndBlock} — add days to extend:
                 </label>
-                <ModalInput
-                  type="number"
-                  step="1"
-                  min="1"
-                  placeholder="e.g. 30"
-                  value={extendDays}
-                  onChange={(e) => { setExtendDays(e.target.value); extendDaysRef.current = e.target.value; }}
-                />
-                {extendDays && pendingTx.lockEndBlock && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ModalInput
+                    type="number"
+                    step="1"
+                    min="1"
+                    placeholder="e.g. 30"
+                    value={extendDays}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setExtendDays(val);
+                      extendDaysRef.current = val;
+                      // Real-time validation
+                      if (val && parseInt(val) <= 0) {
+                        setExtendDaysError('Enter a positive number of days');
+                      } else {
+                        setExtendDaysError('');
+                      }
+                    }}
+                    style={extendDaysError ? { borderColor: '#f44336' } : {}}
+                  />
+                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>days</span>
+                </div>
+                {extendDaysError && (
+                  <div style={{ marginTop: '6px', fontSize: '12px', color: '#f44336' }}>
+                    {extendDaysError}
+                  </div>
+                )}
+                {extendDays && pendingTx.lockEndBlock && parseInt(extendDays) > 0 && (
                   <div style={{ marginTop: '8px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
                     New lock end block: {pendingTx.lockEndBlock + (parseInt(extendDays) * 144)} (~{extendDays} days from now)
                   </div>
