@@ -220,7 +220,7 @@ curl -X POST https://bchd.electroncash.net:8335/rpc \
 
 3. Cross-reference with `artifacts/HASHES.json` for known-good hashes:
 ```
-SafeDelay bytecode hash (185 bytes): f68fd15f33a19b50fdbd2e6aa0001d48e40f1f1e094d3a8a883cfea4318d01e6
+SafeDelay bytecode hash (185 bytes): 788a1fb56ebe29fb74562c9c440ad8e73227d22eb0df3aeb7c2cab1924a8449a
 SafeDelayMultiSig bytecode hash (286 bytes): a13fb855d9ca2f6b2e3d2d9e8d8a7c3f1b4a5e6d7c8a9b0d1e2f3a4b5c6d7e8f
 SafeDelayManager bytecode hash (90 bytes): afec3c01444e2ecd922601ea6f0b0a87364f2d360ea347447b39042fd9577a2a
 ```
