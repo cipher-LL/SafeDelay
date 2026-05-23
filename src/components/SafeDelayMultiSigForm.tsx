@@ -10,6 +10,7 @@ import HASHES from '../../artifacts/HASHES.json';
 import { debug } from '../utils/debug';
 import { showToast } from './Toast';
 import FormSkeleton from './FormSkeleton';
+import { decodeCashAddress } from '@bitauth/libauth';
 
 const FormContainer = styled.div`
   background: rgba(255, 255, 255, 0.05);
@@ -253,6 +254,9 @@ export default function SafeDelayMultiSigForm() {
   const [owner1Address, setOwner1Address] = useState('');
   const [owner2Address, setOwner2Address] = useState('');
   const [owner3Address, setOwner3Address] = useState('');
+  const [owner1AddressError, setOwner1AddressError] = useState<string | null>(null);
+  const [owner2AddressError, setOwner2AddressError] = useState<string | null>(null);
+  const [owner3AddressError, setOwner3AddressError] = useState<string | null>(null);
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [showQrCode, setShowQrCode] = useState(false);
   const [savedLockEndBlock, setSavedLockEndBlock] = useState<number | null>(null);
@@ -304,6 +308,37 @@ export default function SafeDelayMultiSigForm() {
       setTimeout(() => setCopiedAddress(null), 2000);
     } catch {}
   };
+
+  // Validate a BCH cashaddress and return an error message or null
+  const validateAddress = (address: string): string | null => {
+    if (!address.trim()) return null; // empty is fine — field is optional
+    const result = decodeCashAddress(address.trim());
+    if (typeof result === 'string') return 'Invalid address format';
+    if (!result.valid) return 'Invalid BCH address';
+    return null;
+  };
+
+  const handleOwner1Change = (value: string) => {
+    setOwner1Address(value);
+    setOwner1AddressError(validateAddress(value));
+  };
+  const handleOwner2Change = (value: string) => {
+    setOwner2Address(value);
+    setOwner2AddressError(validateAddress(value));
+  };
+  const handleOwner3Change = (value: string) => {
+    setOwner3Address(value);
+    setOwner3AddressError(validateAddress(value));
+  };
+
+  // Derived: can submit only if owner1 valid (or empty, which will be caught at submit)
+  const canSubmit = (() => {
+    if (!owner1Address.trim()) return false;
+    if (owner1AddressError) return false;
+    if (owner2AddressError) return false;
+    if (owner3AddressError) return false;
+    return true;
+  })();
 
   // Track dirty state: form is dirty if user changed any field from defaults
   const initialThreshold = useRef('2');
@@ -522,30 +557,33 @@ export default function SafeDelayMultiSigForm() {
                 placeholder="Owner 1 cashaddress (required)"
                 style={{ flex: 1 }}
                 value={owner1Address}
-                onChange={(e) => setOwner1Address(e.target.value)}
+                onChange={(e) => handleOwner1Change(e.target.value)}
                 disabled={loading}
               />
             </OwnerField>
+            {owner1AddressError && <ErrorText style={{ marginLeft: '32px', marginTop: '-4px' }}>{owner1AddressError}</ErrorText>}
             <OwnerField>
               <OwnerNumber>2</OwnerNumber>
               <Input
                 placeholder="Owner 2 cashaddress (optional)"
                 style={{ flex: 1 }}
                 value={owner2Address}
-                onChange={(e) => setOwner2Address(e.target.value)}
+                onChange={(e) => handleOwner2Change(e.target.value)}
                 disabled={loading}
               />
             </OwnerField>
+            {owner2AddressError && <ErrorText style={{ marginLeft: '32px', marginTop: '-4px' }}>{owner2AddressError}</ErrorText>}
             <OwnerField>
               <OwnerNumber>3</OwnerNumber>
               <Input
                 placeholder="Owner 3 cashaddress (optional)"
                 style={{ flex: 1 }}
                 value={owner3Address}
-                onChange={(e) => setOwner3Address(e.target.value)}
+                onChange={(e) => handleOwner3Change(e.target.value)}
                 disabled={loading}
               />
             </OwnerField>
+            {owner3AddressError && <ErrorText style={{ marginLeft: '32px', marginTop: '-4px' }}>{owner3AddressError}</ErrorText>}
           </OwnerList>
           <HelpText>
             Owner 1 is required. Owner 2 & 3 are optional but{' '}
@@ -583,7 +621,7 @@ export default function SafeDelayMultiSigForm() {
         {bytecodeError && <BytecodeErrorBox>{bytecodeError}</BytecodeErrorBox>}
         {error && <ErrorText>{error}</ErrorText>}
 
-        <SubmitButton type="submit" disabled={loading || !wallet.connected || !!bytecodeError}>
+        <SubmitButton type="submit" disabled={loading || !wallet.connected || !!bytecodeError || !canSubmit}>
           {loading ? 'Creating...' : 'Create MultiSig'}
         </SubmitButton>
       </Form>
