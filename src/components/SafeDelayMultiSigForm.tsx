@@ -313,8 +313,7 @@ export default function SafeDelayMultiSigForm() {
   const validateAddress = (address: string): string | null => {
     if (!address.trim()) return null; // empty is fine — field is optional
     const result = decodeCashAddress(address.trim());
-    if (typeof result === 'string') return 'Invalid address format';
-    if (!result.valid) return 'Invalid BCH address';
+    if (typeof result === 'string') return 'Invalid BCH address';
     return null;
   };
 
