@@ -724,7 +724,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [sortBy, setSortBy] = useState<SortOption>(() => {
     try { return (localStorage.getItem('safedelay-sort') as SortOption) || 'amount'; } catch { return 'amount'; }
   });
-  const [walletFilter, setWalletFilter] = useState<'all' | 'mine'>('all');
+  const [walletFilter, setWalletFilter] = useState<'all' | 'mine'>(() => {
+    try { return (localStorage.getItem('safedelay-wallet-filter') as 'all' | 'mine') || 'all'; } catch { return 'all'; }
+  });
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [importPassword, setImportPassword] = useState('');
@@ -1972,7 +1974,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         {wallet.connected && contracts.length > 0 && (
           <SortBar>
             <SortLabel>Filter:</SortLabel>
-            <SortSelect value={walletFilter} onChange={(e) => setWalletFilter(e.target.value as 'all' | 'mine')}>
+            <SortSelect value={walletFilter} onChange={(e) => { const val = e.target.value as 'all' | 'mine'; setWalletFilter(val); try { localStorage.setItem('safedelay-wallet-filter', val); } catch {} }}>
               <option value="all">All Contracts</option>
               <option value="mine">My Wallets</option>
             </SortSelect>
