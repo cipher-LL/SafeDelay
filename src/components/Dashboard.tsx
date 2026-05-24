@@ -1979,7 +1979,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               <option value="mine">My Wallets</option>
             </SortSelect>
             <SortLabel style={{ marginLeft: '12px' }}>Sort by:</SortLabel>
-            <SortSelect value={sortBy} onChange={(e) => { const val = e.target.value as SortOption; setSortBy(val); try { localStorage.setItem('safedelay-sort', val); } catch {} }}>
+            <SortSelect value={sortBy} onChange={(e) => { const val = e.target.value as SortOption; setSortBy(val); try { localStorage.setItem('safedelay-sort', val); } catch {} }} style={{ fontWeight: sortBy !== 'amount' ? 600 : 400 }}>
               <option value="date">Unlock Date</option>
               <option value="amount">Amount</option>
               <option value="unlock">Time Remaining</option>
