@@ -616,6 +616,15 @@ export default function SafeDelayManagerDashboard() {
     try { localStorage.setItem('safedelay-view-mode', val); } catch {}
   };
   const [dashboardTab, setDashboardTab] = useState<'wallets' | 'transactions'>('wallets');
+  // Lock status sub-filter: 'all' | 'locked' | 'unlocked'
+  const [lockStatusFilter, setLockStatusFilterRaw] = useState<'all' | 'locked' | 'unlocked'>(() => {
+    try { return (localStorage.getItem('safedelay-lock-status-filter') as 'all' | 'locked' | 'unlocked') || 'all'; }
+    catch { return 'all'; }
+  });
+  const setLockStatusFilter = (val: 'all' | 'locked' | 'unlocked') => {
+    setLockStatusFilterRaw(val);
+    try { localStorage.setItem('safedelay-lock-status-filter', val); } catch {}
+  };
 
   // Transaction history
   const [txHistory, setTxHistory] = useState<OnChainTx[]>([]);
@@ -849,15 +858,24 @@ export default function SafeDelayManagerDashboard() {
       : allEntries;
   }, [allEntries, wallet.pubkeyHash, viewMode]);
 
+  // Apply lock-status sub-filter (locked/unlocked/all)
+  const filteredByStatus = useMemo(() => {
+    if (lockStatusFilter === 'all' || currentBlock === 0) return filteredWallets;
+    return filteredWallets.filter(entry => {
+      const locked = entry.lockEndBlock > currentBlock;
+      return lockStatusFilter === 'locked' ? locked : !locked;
+    });
+  }, [filteredWallets, lockStatusFilter, currentBlock]);
+
   useEffect(() => {
-    if (filteredWallets.length === 0) { setMyEntries([]); return; }
+    if (filteredByStatus.length === 0) { setMyEntries([]); return; }
 
     // Track cancellation at the effect level so cleanup always refers to the right flag
     let cancelled = false;
 
     async function fetchBalances(provider: InstanceType<typeof ElectrumNetworkProvider>) {
       const results: EntryWithBalance[] = [];
-      for (const entry of filteredWallets) {
+      for (const entry of filteredByStatus) {
         if (!entry.address || cancelled) continue;
         try {
           const utxos = await provider.getUtxos(entry.address);
@@ -876,7 +894,7 @@ export default function SafeDelayManagerDashboard() {
     const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
     fetchBalances(provider);
     return () => { cancelled = true; };
-  }, [filteredWallets, network, currentBlock]);
+  }, [filteredByStatus, network, currentBlock]);
 
   // ─── Auto-refresh registry every 60s ──────────────────────────────────────
   useEffect(() => {
@@ -1466,6 +1484,38 @@ export default function SafeDelayManagerDashboard() {
 
           {loadingEntries && <ScanMessageBox $type="info"><Spinner>🌀</Spinner>Scanning blockchain for registry entries...</ScanMessageBox>}
           {entriesError && !managerAddress && <MessageBox $type="error">{entriesError}</MessageBox>}
+
+          {/* ── Lock Status Filter ── */}
+          {allEntries.length > 0 && (
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              {(['all', 'locked', 'unlocked'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setLockStatusFilter(s)}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid',
+                    borderColor: lockStatusFilter === s ? '#4f46e5' : 'rgba(255,255,255,0.15)',
+                    background: lockStatusFilter === s ? 'rgba(79,70,229,0.2)' : 'transparent',
+                    color: lockStatusFilter === s ? '#a5b4fc' : 'rgba(255,255,255,0.5)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {s === 'all' ? 'All' : s === 'locked' ? '🔒 Locked' : '✅ Unlocked'}
+                  {' '}
+                  <span style={{ opacity: 0.7 }}>
+                    ({s === 'all' ? filteredWallets.length
+                      : s === 'locked' ? filteredWallets.filter(e => e.lockEndBlock > currentBlock).length
+                      : filteredWallets.filter(e => e.lockEndBlock <= currentBlock).length})
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* ── Track External SafeDelay (e.g. from BadgerSurvivors prizes) ── */}
           {wallet.connected && (
