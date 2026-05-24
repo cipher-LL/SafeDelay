@@ -1858,7 +1858,9 @@ export default function SafeDelayManagerDashboard() {
                       </div>
                       <TxMeta>
                         <span>~{new Date(tx.timestamp).toLocaleString()}</span>
-                        <span>Tx: {tx.txHash.slice(0, 12)}...{tx.txHash.slice(-8)}</span>
+                        <span>
+                          Tx: <a href={getExplorerTxUrl(tx.txHash)} target="_blank" rel="noopener noreferrer" style={{color:'rgba(255,255,255,0.6)',textDecoration:'underline'}}>{tx.txHash.slice(0, 12)}...{tx.txHash.slice(-8)}</a>
+                        </span>
                       </TxMeta>
                     </TxInfo>
                     <div style={{ textAlign: 'right' }}>
