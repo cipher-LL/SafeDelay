@@ -607,7 +607,7 @@ export default function SafeDelayManagerDashboard() {
 
   // UI
   const [copied, setCopied] = useState<string | null>(null);
-  const [, setViewModeRaw] = useState<'mine' | 'all'>(() => {
+  const [viewMode, setViewModeRaw] = useState<'mine' | 'all'>(() => {
     try { return (localStorage.getItem('safedelay-view-mode') as 'mine' | 'all') || 'mine'; }
     catch { return 'mine'; }
   });
