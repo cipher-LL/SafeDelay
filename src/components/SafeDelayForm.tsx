@@ -243,11 +243,18 @@ export default function SafeDelayForm() {
   const { wallet } = useWallet();
   const { network } = useNetwork();
   const { addContract } = useStoredContracts();
-  const [lockDuration, setLockDuration] = useState('30'); // days
+  const [lockDuration, setLockDuration] = useState<string>(() => {
+    const saved = localStorage.getItem('safeDelay_lockDuration');
+    return saved || '30';
+  });
   const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>(() => {
     const saved = localStorage.getItem('safeDelay_durationUnit');
     return (saved === 'days' || saved === 'weeks' || saved === 'months' ? saved : 'days');
   });
+
+  useEffect(() => {
+    localStorage.setItem('safeDelay_lockDuration', lockDuration);
+  }, [lockDuration]);
 
   useEffect(() => {
     localStorage.setItem('safeDelay_durationUnit', durationUnit);
