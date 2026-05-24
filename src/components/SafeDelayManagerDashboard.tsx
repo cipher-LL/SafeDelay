@@ -897,15 +897,20 @@ export default function SafeDelayManagerDashboard() {
   }, [filteredByStatus, network, currentBlock]);
 
   // ─── Auto-refresh registry every 60s ──────────────────────────────────────
+  const autoRefreshRef = useRef(false);
   useEffect(() => {
     if (!managerAddress) return;
     const interval = setInterval(async () => {
-      if (loadingEntries) return;
+      // Skip if a load is already in progress — will retry next interval
+      if (autoRefreshRef.current || loadingEntries) return;
+      autoRefreshRef.current = true;
       try {
         await loadRegistry(managerAddress);
         setLastRefreshed(Date.now());
       } catch {
         // silent — non-blocking
+      } finally {
+        autoRefreshRef.current = false;
       }
     }, 60000);
     return () => clearInterval(interval);
