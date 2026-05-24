@@ -10,7 +10,7 @@
  * - Register funded SafeDelay addresses with the manager
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
@@ -607,7 +607,14 @@ export default function SafeDelayManagerDashboard() {
 
   // UI
   const [copied, setCopied] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'mine' | 'all'>('mine');
+  const [, setViewModeRaw] = useState<'mine' | 'all'>(() => {
+    try { return (localStorage.getItem('safedelay-view-mode') as 'mine' | 'all') || 'mine'; }
+    catch { return 'mine'; }
+  });
+  const setViewMode = (val: 'mine' | 'all') => {
+    setViewModeRaw(val);
+    try { localStorage.setItem('safedelay-view-mode', val); } catch {}
+  };
   const [dashboardTab, setDashboardTab] = useState<'wallets' | 'transactions'>('wallets');
 
   // Transaction history
@@ -834,20 +841,23 @@ export default function SafeDelayManagerDashboard() {
   }, [network]);
 
   // ─── Fetch balances for filtered entries ───────────────────────────────────
-  useEffect(() => {
-    if (allEntries.length === 0) { setMyEntries([]); return; }
-
+  const filteredWallets = useMemo(() => {
+    if (allEntries.length === 0) return [];
     const walletPkh = wallet.pubkeyHash?.toLowerCase();
-    const filtered = viewMode === 'mine' && walletPkh
+    return viewMode === 'mine' && walletPkh
       ? allEntries.filter(e => e.ownerPkh.toLowerCase() === walletPkh)
       : allEntries;
+  }, [allEntries, wallet.pubkeyHash, viewMode]);
+
+  useEffect(() => {
+    if (filteredWallets.length === 0) { setMyEntries([]); return; }
 
     // Track cancellation at the effect level so cleanup always refers to the right flag
     let cancelled = false;
 
     async function fetchBalances(provider: InstanceType<typeof ElectrumNetworkProvider>) {
       const results: EntryWithBalance[] = [];
-      for (const entry of filtered) {
+      for (const entry of filteredWallets) {
         if (!entry.address || cancelled) continue;
         try {
           const utxos = await provider.getUtxos(entry.address);
@@ -866,7 +876,7 @@ export default function SafeDelayManagerDashboard() {
     const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
     fetchBalances(provider);
     return () => { cancelled = true; };
-  }, [allEntries, wallet.pubkeyHash, viewMode, network, currentBlock]);
+  }, [filteredWallets, network, currentBlock]);
 
   // ─── Auto-refresh registry every 60s ──────────────────────────────────────
   useEffect(() => {
