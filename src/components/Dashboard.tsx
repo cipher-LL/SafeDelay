@@ -727,6 +727,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [walletFilter, setWalletFilter] = useState<'all' | 'mine'>(() => {
     try { return (localStorage.getItem('safedelay-wallet-filter') as 'all' | 'mine') || 'all'; } catch { return 'all'; }
   });
+  const [unlockedFilter, setUnlockedFilter] = useState<boolean>(() => {
+    try { return localStorage.getItem('safedelay-unlocked-filter') === 'true'; } catch { return false; }
+  });
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [importPassword, setImportPassword] = useState('');
@@ -1100,7 +1103,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   // Filter by wallet (My Wallets vs All Contracts)
   const userPkh = wallet.pubkeyHash || '';
   const userAddr = wallet.address || '';
-  const filteredContracts = walletFilter === 'mine' && userPkh
+  let filteredContracts = walletFilter === 'mine' && userPkh
     ? sortedContracts.filter(c => {
         // Single-owner: compare ownerPkh directly
         if (c.type === 'single' && c.ownerPkh) return c.ownerPkh === userPkh;
@@ -1112,6 +1115,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         return false;
       })
     : sortedContracts;
+
+  // Filter by unlocked status
+  if (unlockedFilter) {
+    filteredContracts = filteredContracts.filter(c => c.lockEndBlock <= c.currentBlock);
+  }
 
   const handleSaveLabel = (address: string) => {
     if (labelInput.trim()) {
@@ -1982,6 +1990,22 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               <option value="amount">Amount</option>
               <option value="unlock">Time Remaining</option>
             </SortSelect>
+            <button
+              onClick={() => { const next = !unlockedFilter; setUnlockedFilter(next); try { localStorage.setItem('safedelay-unlocked-filter', String(next)); } catch {} }}
+              style={{
+                marginLeft: '12px',
+                padding: '4px 10px',
+                fontSize: '0.75rem',
+                background: unlockedFilter ? 'rgba(79, 70, 229, 0.6)' : 'rgba(255,255,255,0.05)',
+                border: '1px solid',
+                borderColor: unlockedFilter ? 'rgba(79, 70, 229, 0.8)' : 'rgba(255,255,255,0.15)',
+                color: unlockedFilter ? '#a5b4fc' : 'rgba(255,255,255,0.5)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              Unlocked Only
+            </button>
           </SortBar>
         )}
 
