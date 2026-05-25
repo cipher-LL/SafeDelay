@@ -599,7 +599,7 @@ export default function SafeDelayManagerDashboard() {
   // Registration
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
-  const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
+  const [registerSuccess, setRegisterSuccess] = useState<React.ReactNode | null>(null);
 
   // Contract verification
   const [verifying, setVerifying] = useState(false);
@@ -1076,9 +1076,12 @@ export default function SafeDelayManagerDashboard() {
         .send();
 
       const txHash = typeof tx === 'string' ? tx : (tx.txid || tx.hash || '');
+      const explorerUrl = getExplorerTxUrl(txHash);
       setFundedAddress('');
       setFundedLockEnd(0);
-      setRegisterSuccess(`✅ Registered! Tx: ${txHash.slice(0, 20)}...`);
+      setRegisterSuccess(
+        <span>✅ Registered! Tx: <a href={explorerUrl} target="_blank" rel="noopener noreferrer" style={{color:'rgba(255,255,255,0.9)',textDecoration:'underline'}}>{txHash.slice(0, 12)}...{txHash.slice(-8)}</a></span>
+      );
       await loadRegistry(managerAddress);
     } catch (err) {
       debug.error('Registration error:', err);
