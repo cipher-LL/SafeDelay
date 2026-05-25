@@ -1572,12 +1572,21 @@ export default function SafeDelayManagerDashboard() {
               {externalError && <MessageBox $type="error" style={{ marginTop: '8px' }}>{externalError}</MessageBox>}
 
               {externalResult && (
-                <AddressBox style={{ marginTop: '12px', borderColor: 'rgba(16,185,129,0.4)' }}>
-                  <span>
-                    <strong>SafeDelay Address:</strong><br />
-                    {externalResult.address}
-                  </span>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <AddressBox style={{ marginTop: '12px', borderColor: 'rgba(16,185,129,0.4)', position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    <span>
+                      <strong>SafeDelay Address:</strong><br />
+                      {externalResult.address}
+                    </span>
+                    <button
+                      onClick={() => { setExternalResult(null); setExternalAddressInput(''); setExternalOwnerPkh(''); setExternalLockEnd(0); }}
+                      style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '11px', padding: '2px 6px', flexShrink: 0 }}
+                      title="Clear tracked result"
+                    >
+                      ✕ Clear
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
                     <CopyBtn onClick={() => handleCopy(externalResult.address)}>
                       {copied === externalResult.address ? '✓' : '📋 Copy'}
                     </CopyBtn>
