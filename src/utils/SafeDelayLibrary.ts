@@ -42,7 +42,7 @@ export interface InsufficientBalanceError extends Error {
 const DEFAULT_ELECTRUM_URLS = {
   mainnet: 'https://bchd.electroncash.net:8335/rpc',
   testnet: 'https://tbchd.electroncash.dk:8335/rpc',
-  chipnet: 'https://bchd.electroncash.dk:8335/rpcpc',
+  chipnet: 'https://bchd.electroncash.dk:8335/rpc',
 };
 
 function toCashScriptNetwork(network: NetworkConfig['network']): Network {
