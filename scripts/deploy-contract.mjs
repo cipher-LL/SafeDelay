@@ -8,6 +8,11 @@
  *   node scripts/deploy-contract.mjs --owner 1a2b3c... --blocks 100 --network chipnet
  *   node scripts/deploy-contract.mjs --multi-sig --owner1 <pkh> --owner2 <pkh> --owner3 <pkh> --threshold 2 --blocks 100
  *
+ * Verification:
+ *   node scripts/deploy-contract.mjs --verify-manager <managerAddress> [--network chipnet|mainnet]
+ *   # Verifies the SafeDelayManager bytecode hash and SP PKH against on-chain data.
+ *   # Set SAFE_DELAY_SP_PKH env var for SP PKH mismatch checking.
+ *
  * Prerequisites:
  *   - paytaca CLI for wallet funding (or fund manually)
  *   - BCH in wallet for gas
@@ -80,6 +85,14 @@ function encodeConstructorArgs(artifact, args) {
       // int: encode as OP_PUSHINTN (VM number format)
       const vmNum = libauth.bigIntToVmNumber(BigInt(arg));
       encoded.push(vmNum);
+    } else if (input.type === 'bytes') {
+      // bytes: push as-is (already a byte array or hex string)
+      if (typeof arg === 'string') {
+        const hex = arg.replace(/^0x/, '');
+        encoded.push(Uint8Array.from(Buffer.from(hex, 'hex')));
+      } else {
+        encoded.push(arg);
+      }
     } else {
       throw new Error(`Unsupported constructor input type: ${input.type}`);
     }
@@ -268,6 +281,82 @@ async function main() {
   console.log(`   SafeDelay Contract Deployment`);
   console.log(`   Network: ${NETWORK}`);
   console.log(`========================================`);
+
+  // Optional: verify SafeDelayManager SP PKH match
+  if (args['verifyManager']) {
+    const managerAddress = args['verifyManager'];
+    console.log(`\n🔍 Verifying manager SP PKH for: ${managerAddress}`);
+    try {
+      const managerArtifact = loadArtifact('SafeDelayManager');
+      const managerBytecodeHex = managerArtifact.debug?.bytecode;
+      if (!managerBytecodeHex) throw new Error('No bytecode in SafeDelayManager artifact');
+
+      // Fetch manager script from chain
+      const contractInfo = await electrumRpc('getcontract', [managerAddress, true]);
+      if (!contractInfo?.bytecode) throw new Error(`getcontract returned no bytecode for ${managerAddress}`);
+
+      // Extract SafeDelayManager bytecode from redeem script
+      const onChainHex = contractInfo.bytecode.toLowerCase();
+      const artifactHex = managerBytecodeHex.toLowerCase();
+      const bytecodeStartIdx = onChainHex.indexOf(artifactHex);
+      let onChainContractBytecode;
+      if (bytecodeStartIdx === -1) {
+        onChainContractBytecode = onChainHex.slice(-artifactHex.length);
+      } else {
+        onChainContractBytecode = onChainHex.slice(bytecodeStartIdx, bytecodeStartIdx + artifactHex.length);
+      }
+
+      // Compute hash256 of on-chain bytecode
+      const bytecodeBytes = Buffer.from(onChainContractBytecode, 'hex');
+      const hash256Bytes = await crypto.subtle.digest('SHA-256', await crypto.subtle.digest('SHA-256', bytecodeBytes));
+      const onChainHash = Array.from(new Uint8Array(hash256Bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Expected hash from HASHES.json
+      const hashes = loadHashes();
+      const expectedHash = hashes.SafeDelayManager?.bytecodeHash;
+
+      console.log(`   On-chain bytecode hash: ${onChainHash}`);
+      console.log(`   Expected bytecode hash:  ${expectedHash || '(not in HASHES.json)'}`);
+
+      if (onChainHash !== expectedHash) {
+        console.error(`\n   ❌ Bytecode MISMATCH for SafeDelayManager at ${managerAddress}`);
+        console.error(`   The on-chain contract bytecode does not match the artifact.`);
+        process.exit(1);
+      }
+
+      // Fetch the manager's stored SP PKH from on-chain data
+      // SafeDelayManager stores SP PKH as the first constructor arg in the redeem script
+      // Redeem script: [spPkh bytes][SafeDelayManager bytecode]
+      // We need to extract the first 20 bytes (spPkh) before the bytecode
+      const spPkhHex = onChainContractBytecode.slice(0, 40); // first 20 bytes = 40 hex chars
+      console.log(`   On-chain SP PKH:         ${spPkhHex.slice(0, 8)}...${spPkhHex.slice(-8)}`);
+
+      // Compare with locally configured SP PKH (from env or args)
+      const localSpPkh = process.env.SAFE_DELAY_SP_PKH || args.spPkh || args.managerSpPkh;
+      if (localSpPkh) {
+        const cleanLocal = localSpPkh.replace(/^0x/, '').toLowerCase();
+        const cleanOnChain = spPkhHex.toLowerCase();
+        if (cleanLocal === cleanOnChain) {
+          console.log(`   Local SP PKH:            ${cleanLocal.slice(0, 8)}...${cleanLocal.slice(-8)}`);
+          console.log(`\n   ✅ SP PKH MATCH — manager is correctly configured`);
+        } else {
+          console.error(`   Local SP PKH:            ${cleanLocal.slice(0, 8)}...${cleanLocal.slice(-8)}`);
+          console.error(`\n   ❌ SP PKH MISMATCH!`);
+          console.error(`   The manager's on-chain SP PKH does not match your local configuration.`);
+          console.error(`   Child SafeDelay addresses computed off-chain will NOT match registered ones.`);
+          console.error(`   Either redeploy the manager with the correct SP PKH, or update your local SAFE_DELAY_SP_PKH.`);
+          process.exit(1);
+        }
+      } else {
+        console.log(`   ℹ️  Set SAFE_DELAY_SP_PKH env var or --sp-pkh arg to enable SP PKH verification`);
+      }
+
+      console.log(`\n   ✅ SafeDelayManager bytecode verified at ${managerAddress}`);
+    } catch (e) {
+      console.error(`\n   ❌ Manager verification failed: ${e.message}`);
+      process.exit(1);
+    }
+  }
 
   // Parse multi-sig mode
   if (args.multiSig) {
