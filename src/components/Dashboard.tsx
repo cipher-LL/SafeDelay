@@ -2022,6 +2022,10 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
           </SortBar>
         )}
 
+        {wallet.connected && contracts.length > 0 && (
+          <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', marginTop: '6px', marginLeft: '8px' }}>Press W to quick-withdraw first unlocked wallet</div>
+        )}
+
         {/* On-chain scan progress indicator */}
         {scanningOnChain && autoScanProgress && (
           <div style={{
