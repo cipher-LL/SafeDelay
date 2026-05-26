@@ -774,19 +774,6 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     localStorage.setItem('safedelay_dismissed_mismatches', JSON.stringify(dismissedMismatches));
   }, [dismissedMismatches]);
 
-  // Keyboard shortcut: Escape to dismiss first active bytecode mismatch warning
-  useEffect(() => {
-    const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a)) || [];
-    if (active.length === 0) return;
-    const handleMismatchKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      setDismissedMismatches(prev => [...prev, active[0]]);
-    };
-    window.addEventListener('keydown', handleMismatchKeyDown);
-    return () => window.removeEventListener('keydown', handleMismatchKeyDown);
-  }, [verificationResult, dismissedMismatches]);
-
   // Auto-scan state for on-chain history scanning
   const [autoScanProgress, setAutoScanProgress] = useState<string>('');
   const [autoScanCancellable, setAutoScanCancellable] = useState(false);
@@ -826,6 +813,19 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     wallet.pubkeyHash,
     network
   );
+
+  // Keyboard shortcut: Escape to dismiss first active bytecode mismatch warning
+  useEffect(() => {
+    const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a)) || [];
+    if (active.length === 0) return;
+    const handleMismatchKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      setDismissedMismatches(prev => [...prev, active[0]]);
+    };
+    window.addEventListener('keydown', handleMismatchKeyDown);
+    return () => window.removeEventListener('keydown', handleMismatchKeyDown);
+  }, [verificationResult, dismissedMismatches]);
 
   // Track verification start time for elapsed display
   useEffect(() => {
