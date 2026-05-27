@@ -28,7 +28,8 @@ import { fileURLToPath } from 'url';
 import * as libauth from '@bitauth/libauth';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ARTIFACTS_DIR = join(__dirname, '..', 'dist');
+// Note: Manager artifact is in artifacts/ (source artifacts dir), not dist/ (Vite build output).
+const ARTIFACTS_DIR = join(__dirname, '..', 'artifacts');
 
 // ============ CLI Args ============
 const args = process.argv.slice(2).reduce((acc, arg, i, arr) => {
