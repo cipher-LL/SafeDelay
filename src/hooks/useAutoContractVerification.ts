@@ -152,8 +152,27 @@ export function useAutoContractVerification(
             const hasHistory = historyResult && historyResult.length > 0;
 
             if (hasUtxos) {
-              // Skip bytecode verification if already verified at this address
-              // Bytecode is deterministic per address, so once verified, no need to re-verify
+              // ---------------------------------------------------------------------------
+              // Bytecode verification caching — WHY this is safe
+              // ---------------------------------------------------------------------------
+              // BCH P2SH (Pay-to-Script-Hash) addresses are deterministic: the script bytecode
+              // is fixed at address-creation time. Once the script is deployed to an address,
+              // the bytecode at that address can NEVER change — spending it requires a
+              // valid signature that satisfies the deployed script, but the script itself
+              // is immutable. This is a fundamental property of P2SH / P2SH32.
+              //
+              // Therefore, if we have previously verified that the bytecode at
+              // `contract.address` matches our HASHES.json record, we can safely cache
+              // that result. On subsequent scans (e.g., every 60 s poll), re-hashing the
+              // on-chain script and re-comparing it against HASHES.json would produce an
+              // identical result — there is no scenario in which bytecode "changes."
+              //
+              // HOW contractVerified is set: After a successful verification in this hook,
+              // the calling component (Dashboard.tsx) receives the result and sets
+              // `contract.contractVerified = true` in its state, which is persisted to
+              // localStorage under the `safedelay-contracts` key. On next load, the hook
+              // initialises with that cached flag and skips re-verification.
+              // ---------------------------------------------------------------------------
               if (contract.contractVerified) {
                 result.confirmed.push(contract.address);
                 debugLog('AutoVerify', `✓ ${contract.address}: confirmed (${utxos.length} UTXO(s), cached verification)`);
