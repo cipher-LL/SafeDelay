@@ -307,9 +307,15 @@ async function main() {
       const contractInfo = await electrumRpc('getcontract', [managerAddress, true]);
       if (!contractInfo?.bytecode) throw new Error(`getcontract returned no bytecode for ${managerAddress}`);
 
-      // Extract SafeDelayManager bytecode from redeem script
+      // Lower-case versions for matching
       const onChainHex = contractInfo.bytecode.toLowerCase();
       const artifactHex = managerBytecodeHex.toLowerCase();
+
+      // Extract SafeDelayManager bytecode from redeem script
+      // Redeem script layout: [spPkh bytes (first 20 bytes = 40 hex chars)][SafeDelayManager bytecode]
+      // Compute SP PKH from the front of the redeem script (before the bytecode)
+      const spPkhHex = onChainHex.slice(0, 40); // first 20 bytes = 40 hex chars
+      // Find SafeDelayManager bytecode within redeem script
       const bytecodeStartIdx = onChainHex.indexOf(artifactHex);
       let onChainContractBytecode;
       if (bytecodeStartIdx === -1) {
@@ -317,30 +323,6 @@ async function main() {
       } else {
         onChainContractBytecode = onChainHex.slice(bytecodeStartIdx, bytecodeStartIdx + artifactHex.length);
       }
-
-      // Compute hash256 of on-chain bytecode
-      const bytecodeBytes = Buffer.from(onChainContractBytecode, 'hex');
-      const hash256Bytes = await crypto.subtle.digest('SHA-256', await crypto.subtle.digest('SHA-256', bytecodeBytes));
-      const onChainHash = Array.from(new Uint8Array(hash256Bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-      // Expected hash from HASHES.json
-      const hashes = loadHashes();
-      const expectedHash = hashes.SafeDelayManager?.bytecodeHash;
-
-      console.log(`   On-chain bytecode hash: ${onChainHash}`);
-      console.log(`   Expected bytecode hash:  ${expectedHash || '(not in HASHES.json)'}`);
-
-      if (onChainHash !== expectedHash) {
-        console.error(`\n   ❌ Bytecode MISMATCH for SafeDelayManager at ${managerAddress}`);
-        console.error(`   The on-chain contract bytecode does not match the artifact.`);
-        process.exit(1);
-      }
-
-      // Fetch the manager's stored SP PKH from on-chain data
-      // SafeDelayManager stores SP PKH as the first constructor arg in the redeem script
-      // Redeem script: [spPkh bytes][SafeDelayManager bytecode]
-      // We need to extract the first 20 bytes (spPkh) before the bytecode
-      const spPkhHex = onChainContractBytecode.slice(0, 40); // first 20 bytes = 40 hex chars
       console.log(`   On-chain SP PKH:         ${spPkhHex.slice(0, 8)}...${spPkhHex.slice(-8)}`);
 
       // Compare with locally configured SP PKH (from env or args)
@@ -361,6 +343,24 @@ async function main() {
         }
       } else {
         console.log(`   ℹ️  Set SAFE_DELAY_SP_PKH env var or --sp-pkh arg to enable SP PKH verification`);
+      }
+
+      // Verify bytecode hash matches HASHES.json
+      const bytecodeBytes = Buffer.from(onChainContractBytecode, 'hex');
+      const hash256Bytes = await crypto.subtle.digest('SHA-256', await crypto.subtle.digest('SHA-256', bytecodeBytes));
+      const onChainHash = Array.from(new Uint8Array(hash256Bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Expected hash from HASHES.json
+      const hashes = loadHashes();
+      const expectedHash = hashes.SafeDelayManager?.bytecodeHash;
+
+      console.log(`   On-chain bytecode hash: ${onChainHash}`);
+      console.log(`   Expected bytecode hash:  ${expectedHash || '(not in HASHES.json)'}`);
+
+      if (onChainHash !== expectedHash) {
+        console.error(`\n   ❌ Bytecode MISMATCH for SafeDelayManager at ${managerAddress}`);
+        console.error(`   The on-chain contract bytecode does not match the artifact.`);
+        process.exit(1);
       }
 
       console.log(`\n   ✅ SafeDelayManager bytecode verified at ${managerAddress}`);

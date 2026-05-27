@@ -583,6 +583,7 @@ export default function SafeDelayManagerDashboard() {
   const [currentBlock, setCurrentBlock] = useState(0);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [entriesError, setEntriesError] = useState<string | null>(null);
+  const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
   const [refreshingEntries, setRefreshingEntries] = useState<Set<string>>(new Set());
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
 
@@ -809,6 +810,7 @@ export default function SafeDelayManagerDashboard() {
     if (!address) return;
     setLoadingEntries(true);
     setEntriesError(null);
+    setLoadingStartTime(Date.now());
     try {
       const provider = new ElectrumNetworkProvider(toCashScriptNetwork(network));
       const bh = await provider.getBlockHeight();
@@ -918,6 +920,18 @@ export default function SafeDelayManagerDashboard() {
     }, 60000);
     return () => clearInterval(interval);
   }, [managerAddress, loadingEntries, loadRegistry]);
+
+  // ─── Network timeout sentinel ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!managerAddress || !loadingStartTime) return;
+    const timeout = setTimeout(() => {
+      if (loadingEntries) {
+        setEntriesError('Network timeout — check your connection and try again.');
+        setLoadingEntries(false);
+      }
+    }, 10000);
+    return () => clearTimeout(timeout);
+  }, [managerAddress, loadingStartTime, loadingEntries]);
 
   // ─── Lock expiry notifications ────────────────────────────────────────────
   useEffect(() => {
