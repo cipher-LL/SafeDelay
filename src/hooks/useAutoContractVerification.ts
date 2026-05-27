@@ -16,6 +16,30 @@ import { binToHex } from '@bitauth/libauth';
 import { StoredContract } from './useSafeDelayContracts';
 import { debug, debugLog } from '../utils/debug';
 
+// Network error messages from Electrum provider — used to detect transient vs fatal errors
+const NETWORK_ERROR_PATTERNS = [
+  'fetch failed',
+  'failed to fetch',
+  'network error',
+  'net::err',
+  'connection refused',
+  'timeout',
+  'econnreset',
+  'enotfound',
+  'eserverfault',
+  'socket hang up',
+  'service unavailable',
+  '503',
+  '502',
+  '504',
+];
+
+function isNetworkError(e: unknown): boolean {
+  if (!e) return false;
+  const msg = String(e).toLowerCase();
+  return NETWORK_ERROR_PATTERNS.some(p => msg.includes(p));
+}
+
 function toCashScriptNetwork(network: 'mainnet' | 'testnet' | 'chipnet'): Network {
   switch (network) {
     case 'mainnet': return Network.MAINNET;
@@ -57,6 +81,8 @@ export interface VerificationResult {
   }>;
   /** Errors encountered during verification */
   errors: string[];
+  /** Transient network errors that may resolve on retry */
+  networkErrors: string[];
   /** Whether the auto-recovery scan ran */
   autoScanDone: boolean;
 }
@@ -125,6 +151,7 @@ export function useAutoContractVerification(
       bytecodeMismatch: [],
       recoverable: [],
       errors: [],
+      networkErrors: [],
       autoScanDone: false,
     };
 
@@ -224,8 +251,14 @@ export function useAutoContractVerification(
               result.errors.push(`Contract ${contract.address.slice(0, 16)}... not found on-chain. It may have been created on a different network or the address is invalid.`);
             }
           } catch (e) {
-            result.errors.push(`Failed to verify ${contract.address}: ${e instanceof Error ? e.message : String(e)}`);
-            debug.warn('AutoVerify', `Error verifying ${contract.address}:`, e);
+            const msg = e instanceof Error ? e.message : String(e);
+            if (isNetworkError(e)) {
+              result.networkErrors.push(`Network error verifying ${contract.address}: ${msg}`);
+              debug.warn('AutoVerify', `Network error for ${contract.address}:`, e);
+            } else {
+              result.errors.push(`Failed to verify ${contract.address}: ${msg}`);
+              debug.warn('AutoVerify', `Error verifying ${contract.address}:`, e);
+            }
           }
 
           // Check for cancellation between contracts

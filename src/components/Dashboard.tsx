@@ -1699,6 +1699,29 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         </MessageBox>
       )}
 
+      {/* Auto-verification results: network errors — may resolve on retry */}
+      {verificationResult?.networkErrors && verificationResult.networkErrors.length > 0 && (
+        <MessageBox $type="warning" style={{ marginBottom: '20px' }}>
+          ⚠️ {verificationResult.networkErrors.length} network error{verificationResult.networkErrors.length !== 1 ? 's' : ''} during verification — data may be incomplete. Connection issue detected.
+          <ul style={{ margin: '8px 0 0 16px', fontSize: '12px', opacity: 0.8 }}>
+            {verificationResult.networkErrors.slice(0, 3).map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+            {verificationResult.networkErrors.length > 3 && (
+              <li>...and {verificationResult.networkErrors.length - 3} more</li>
+            )}
+          </ul>
+          <div style={{ marginTop: '8px' }}>
+            <button
+              onClick={reverify}
+              style={{ padding: '4px 12px', fontSize: '12px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #f59e0b', background: 'transparent', color: '#f59e0b' }}
+            >
+              ↻ Retry Verification
+            </button>
+          </div>
+        </MessageBox>
+      )}
+
       {/* Auto-verification results: bytecode mismatch detected */}
       {(() => {
         const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a.address)) || [];
