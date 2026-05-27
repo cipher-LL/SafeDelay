@@ -285,6 +285,18 @@ async function main() {
   // Optional: verify SafeDelayManager SP PKH match
   if (args['verifyManager']) {
     const managerAddress = args['verifyManager'];
+
+    // Validate address prefix matches the selected network
+    const addrLower = managerAddress.toLowerCase();
+    if ((NETWORK === 'mainnet' && !addrLower.startsWith('bitcoincash:')) ||
+        (NETWORK !== 'mainnet' && !addrLower.startsWith('bchtest:'))) {
+      console.error(`\n❌ Network mismatch: address prefix '${addrLower.split(':')[0]}' does not match --network ${NETWORK}.\n`);
+      console.error(`   Address: ${managerAddress}`);
+      console.error(`   Expected prefix for '${NETWORK}': ${NETWORK === 'mainnet' ? 'bitcoincash' : 'bchtest'}`);
+      console.error(`   Run again with --network ${NETWORK === 'mainnet' ? 'chipnet' : 'mainnet'}, or use an address with '${NETWORK === 'mainnet' ? 'bitcoincash' : 'bchtest'}:' prefix.\n`);
+      process.exit(1);
+    }
+
     console.log(`\n🔍 Verifying manager SP PKH for: ${managerAddress}`);
     try {
       const managerArtifact = loadArtifact('SafeDelayManager');
