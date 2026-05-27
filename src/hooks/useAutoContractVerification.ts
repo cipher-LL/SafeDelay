@@ -44,7 +44,11 @@ export interface VerificationResult {
   /** Contracts from localStorage that have NO on-chain history (may be lost) */
   orphaned: string[];
   /** Contracts with bytecode that does NOT match the expected hash from HASHES.json */
-  bytecodeMismatch: string[];
+  bytecodeMismatch: Array<{
+    address: string;
+    expectedHash: string;
+    actualHash: string;
+  }>;
   /** On-chain contracts NOT in localStorage (recoverable) */
   recoverable: Array<{
     address: string;
@@ -172,7 +176,7 @@ export function useAutoContractVerification(
                     const expectedHash = hashes.SafeDelay?.bytecodeHash;
 
                     if (expectedHash && hashHex !== expectedHash) {
-                      result.bytecodeMismatch.push(contract.address);
+                      result.bytecodeMismatch.push({ address: contract.address, expectedHash, actualHash: hashHex });
                       debugLog('AutoVerify', `⚠️ ${contract.address}: bytecode mismatch (expected ${expectedHash}, got ${hashHex})`);
                       result.errors.push(`Contract ${contract.address.slice(0, 16)}... has mismatched bytecode! The on-chain contract may have been modified or is not a SafeDelay contract.`);
                     } else {

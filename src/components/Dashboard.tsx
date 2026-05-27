@@ -816,12 +816,12 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
   // Keyboard shortcut: Escape to dismiss first active bytecode mismatch warning
   useEffect(() => {
-    const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a)) || [];
+    const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a.address)) || [];
     if (active.length === 0) return;
     const handleMismatchKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      setDismissedMismatches(prev => [...prev, active[0]]);
+      setDismissedMismatches(prev => [...prev, active[0].address]);
     };
     window.addEventListener('keydown', handleMismatchKeyDown);
     return () => window.removeEventListener('keydown', handleMismatchKeyDown);
@@ -1701,14 +1701,19 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
       {/* Auto-verification results: bytecode mismatch detected */}
       {(() => {
-        const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a)) || [];
+        const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a.address)) || [];
         if (active.length === 0) return null;
         return (
           <MessageBox $type="error" style={{ marginBottom: '20px' }}>
             ⚠️ {active.length} contract(s) have bytecode that does NOT match the expected SafeDelay hash — they may be modified or not genuine SafeDelay contracts.
-            {active.map(addr => (
-              <div key={addr} style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                <code style={{ fontSize: '12px' }}>{addr.slice(0, 20)}...</code>
+            {active.map(mismatch => (
+              <div key={mismatch.address} style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <code style={{ fontSize: '12px' }}>{mismatch.address.slice(0, 20)}...</code>
+                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>
+                    expected: {mismatch.expectedHash.slice(0, 10)}… got: {mismatch.actualHash.slice(0, 10)}…
+                  </span>
+                </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
                   <button
                     onClick={reverify}
@@ -1718,7 +1723,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                     Re-verify
                   </button>
                   <button
-                    onClick={() => setDismissedMismatches(prev => [...prev, addr])}
+                    onClick={() => setDismissedMismatches(prev => [...prev, mismatch.address])}
                     style={{ padding: '2px 8px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444' }}
                   >
                     Dismiss
