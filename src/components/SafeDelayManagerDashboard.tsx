@@ -674,6 +674,7 @@ export default function SafeDelayManagerDashboard() {
   const [externalOwnerPkh, setExternalOwnerPkh] = useState('');
   const [externalLockEnd, setExternalLockEnd] = useState<number>(0);
   const [externalError, setExternalError] = useState<string | null>(null);
+  const addressInputRef = useRef<HTMLInputElement>(null);
   const [externalResult, setExternalResult] = useState<{
     address: string;
     locked: boolean;
@@ -692,6 +693,8 @@ export default function SafeDelayManagerDashboard() {
 
     if (!externalAddressInput && !externalOwnerPkh) {
       setExternalError('Enter a SafeDelay address or owner PKH');
+      addressInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      addressInputRef.current?.focus();
       return;
     }
 
@@ -1538,6 +1541,7 @@ export default function SafeDelayManagerDashboard() {
                 <FormGroup style={{ flex: 1 }}>
                   <Label>SafeDelay Address (P2SH32)</Label>
                   <Input
+                    ref={addressInputRef}
                     placeholder="bchtest:pz... or bitcoincash:q..."
                     value={externalAddressInput}
                     onChange={e => setExternalAddressInput(e.target.value)}
