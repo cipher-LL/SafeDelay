@@ -1746,11 +1746,37 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             ⚠️ {active.length} contract(s) have bytecode that does NOT match the expected SafeDelay hash — they may be modified or not genuine SafeDelay contracts.
             {active.map(mismatch => (
               <div key={mismatch.address} style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <code style={{ fontSize: '12px' }}>{mismatch.address.slice(0, 20)}...</code>
-                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>
-                    expected: {mismatch.expectedHash.slice(0, 10)}… got: {mismatch.actualHash.slice(0, 10)}…
-                  </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minWidth: 0 }}>
+                  <code style={{ fontSize: '12px' }}>{mismatch.address}</code>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                      <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>expected</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <code style={{ fontSize: '11px', color: '#86efac', fontFamily: 'monospace' }}>{mismatch.expectedHash.slice(0, 20)}…</code>
+                        <button
+                          onClick={async () => { await navigator.clipboard.writeText(mismatch.expectedHash); }}
+                          title="Copy expected hash"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '10px', padding: '0', lineHeight: 1 }}
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px', alignSelf: 'center' }}>vs</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                      <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>actual</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <code style={{ fontSize: '11px', color: '#fca5a5', fontFamily: 'monospace' }}>{mismatch.actualHash.slice(0, 20)}…</code>
+                        <button
+                          onClick={async () => { await navigator.clipboard.writeText(mismatch.actualHash); }}
+                          title="Copy actual hash"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '10px', padding: '0', lineHeight: 1 }}
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
                   <button
