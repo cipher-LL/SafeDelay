@@ -814,14 +814,18 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     network
   );
 
-  // Keyboard shortcut: Escape to dismiss first active bytecode mismatch warning
+  // Keyboard shortcut: Escape to dismiss first bytecode mismatch; Enter to re-verify first mismatch
   useEffect(() => {
     const active = verificationResult?.bytecodeMismatch.filter(a => !dismissedMismatches.includes(a.address)) || [];
     if (active.length === 0) return;
     const handleMismatchKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      setDismissedMismatches(prev => [...prev, active[0].address]);
+      if (e.key === 'Escape') {
+        setDismissedMismatches(prev => [...prev, active[0].address]);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        reverify();
+      }
     };
     window.addEventListener('keydown', handleMismatchKeyDown);
     return () => window.removeEventListener('keydown', handleMismatchKeyDown);
