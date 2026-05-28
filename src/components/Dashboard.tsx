@@ -1448,6 +1448,19 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     }
   }, [pendingTx, wallet, hasSigner, getContractInstance, storedContracts, addTransactionRecord, network]);
 
+  // Keyboard shortcut: Escape to dismiss pending transaction modal
+  const closePendingTxRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!pendingTx) return;
+    const handlePendingTxKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      closePendingTxRef.current?.();
+    };
+    window.addEventListener('keydown', handlePendingTxKeyDown);
+    return () => window.removeEventListener('keydown', handlePendingTxKeyDown);
+  }, [pendingTx]);
+
   const closePendingTx = useCallback(() => {
     setPendingTx(null);
     setDepositAmount('');
@@ -1455,6 +1468,8 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     setWifMode(false);
     // WIF key/address persist in localStorage so user doesn't re-enter on next transaction
   }, []);
+  // Keep ref in sync so keyboard shortcut can call the latest closePendingTx
+  closePendingTxRef.current = closePendingTx;
 
   // ─── Execute transaction using WIF key ───────────────────────────────────
   const executeWifTx = useCallback(async () => {
