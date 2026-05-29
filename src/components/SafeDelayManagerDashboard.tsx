@@ -1554,24 +1554,70 @@ export default function SafeDelayManagerDashboard() {
               <FormRow>
                 <FormGroup style={{ flex: 1 }}>
                   <Label>SafeDelay Address (P2SH32)</Label>
-                  <Input
-                    ref={addressInputRef}
-                    placeholder="bchtest:pz... or bitcoincash:q..."
-                    value={externalAddressInput}
-                    onChange={e => setExternalAddressInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleTrackExternal()}
-                    style={{ fontFamily: 'monospace', fontSize: '13px' }}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <Input
+                      ref={addressInputRef}
+                      placeholder="bchtest:pz... or bitcoincash:q..."
+                      value={externalAddressInput}
+                      onChange={e => setExternalAddressInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleTrackExternal()}
+                      style={{ fontFamily: 'monospace', fontSize: '13px', paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
+                    />
+                    {externalAddressInput && (
+                      <button
+                        onClick={() => handleCopy(externalAddressInput)}
+                        title="Copy address"
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: copied === externalAddressInput ? '#10b981' : 'rgba(255,255,255,0.4)',
+                          fontSize: '14px',
+                          padding: '4px',
+                          transition: 'color 0.2s',
+                        }}
+                      >
+                        {copied === externalAddressInput ? '✓' : '📋'}
+                      </button>
+                    )}
+                  </div>
                 </FormGroup>
                 <QrScanner onScan={setExternalAddressInput} addressMode />
                 <FormGroup style={{ minWidth: '160px' }}>
                   <Label>Owner PKH (40 hex)</Label>
-                  <Input
-                    placeholder="a1b2c3d4e5..."
-                    value={externalOwnerPkh}
-                    onChange={e => setExternalOwnerPkh(e.target.value.toLowerCase())}
-                    style={{ fontFamily: 'monospace', fontSize: '13px' }}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <Input
+                      placeholder="a1b2c3d4e5..."
+                      value={externalOwnerPkh}
+                      onChange={e => setExternalOwnerPkh(e.target.value.toLowerCase())}
+                      style={{ fontFamily: 'monospace', fontSize: '13px', paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
+                    />
+                    {externalOwnerPkh && (
+                      <button
+                        onClick={() => handleCopy(externalOwnerPkh)}
+                        title="Copy owner PKH"
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: copied === externalOwnerPkh ? '#10b981' : 'rgba(255,255,255,0.4)',
+                          fontSize: '14px',
+                          padding: '4px',
+                          transition: 'color 0.2s',
+                        }}
+                      >
+                        {copied === externalOwnerPkh ? '✓' : '📋'}
+                      </button>
+                    )}
+                  </div>
                 </FormGroup>
                 <FormGroup style={{ minWidth: '160px' }}>
                   <Label>Lock End Block</Label>
