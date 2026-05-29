@@ -1751,6 +1751,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             {active.map(mismatch => (
               <div key={mismatch.address} style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minWidth: 0 }}>
+                  {getLabel(mismatch.address) && (
+                    <span style={{ fontSize: '11px', color: '#818cf8', fontWeight: 600, marginBottom: '2px' }}>{getLabel(mismatch.address)}</span>
+                  )}
                   <code style={{ fontSize: '12px' }}>{mismatch.address}</code>
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
