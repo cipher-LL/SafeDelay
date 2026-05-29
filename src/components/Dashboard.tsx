@@ -1766,7 +1766,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                         </button>
                       </div>
                     </div>
-                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px', alignSelf: 'center' }}>vs</div>
+                    <div style={{ color: '#fff', fontSize: '12px', fontWeight: 600, padding: '0 4px', opacity: 0.7 }}>vs</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                       <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>actual</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1780,6 +1780,15 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                         </button>
                       </div>
                     </div>
+                    <a
+                      href={`https://blockchair.com/bitcoin-cash/address/${mismatch.address.replace('bchtest:', '').replace('bitcoincash:', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: '11px', color: '#818cf8', marginLeft: '4px', textDecoration: 'none' }}
+                      title="View on block explorer"
+                    >
+                      ↗
+                    </a>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
