@@ -677,7 +677,7 @@ export default function SafeDelayMultiSigForm() {
               <HelpText>{getDurationInBlocks()} blocks (~{lockDuration} {durationUnit})</HelpText>
               <ContractAddressLabel style={{ marginTop: '8px' }}>Unlocks at Block</ContractAddressLabel>
               <HelpText>~{savedLockEndBlock.toLocaleString()}{currentBlockHeight != null ? ` (est. ${new Date(Date.now() + ((savedLockEndBlock - currentBlockHeight) * 10 * 60)).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}</HelpText>
-              {currentBlockHeight != null && (
+              {currentBlockHeight != null ? (
                 <>
                   <ContractAddressLabel style={{ marginTop: '8px' }}>Time Remaining</ContractAddressLabel>
                   <HelpText>
@@ -691,6 +691,11 @@ export default function SafeDelayMultiSigForm() {
                       return `~${days} day${days !== 1 ? 's' : ''} (~${blocksLeft.toLocaleString()} blocks)`;
                     })()}
                   </HelpText>
+                </>
+              ) : (
+                <>
+                  <ContractAddressLabel style={{ marginTop: '8px' }}>Time Remaining</ContractAddressLabel>
+                  <HelpText>Loading block height…</HelpText>
                 </>
               )}
             </>
