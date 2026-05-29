@@ -143,6 +143,11 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `;
 
+const pulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+`;
+
 const MessageBox = styled.div<{ $type: 'success' | 'error' | 'info' }>`
   padding: 12px 16px;
   border-radius: 8px;
@@ -176,6 +181,23 @@ const Grid3 = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin-bottom: 20px;
+  align-items: center;
+`;
+
+const AutoRefreshToggle = styled.button<{ $active: boolean; $loading: boolean }>`
+  background: ${({ $active }) => $active ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255,255,255,0.1)'};
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: ${({ $active }) => $active ? '#10b981' : 'rgba(255,255,255,0.6)'};
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  animation: ${({ $loading }) => $loading ? pulse : 'none'} 1.5s ease-in-out infinite;
+  &:hover { background: ${({ $active }) => $active ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.08)'}; }
 `;
 
 const DeploymentStatusBanner = styled.div`
@@ -586,6 +608,9 @@ export default function SafeDelayManagerDashboard() {
   const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
   const [refreshingEntries, setRefreshingEntries] = useState<Set<string>>(new Set());
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
+    try { return localStorage.getItem('safedelay-auto-refresh') !== 'false'; } catch { return true; }
+  });
 
   // Compute address form
   const [lockBlocks, setLockBlocks] = useState('144'); // ~1 day
@@ -904,7 +929,7 @@ export default function SafeDelayManagerDashboard() {
   // ─── Auto-refresh registry every 60s ──────────────────────────────────────
   const autoRefreshRef = useRef(false);
   useEffect(() => {
-    if (!managerAddress) return;
+    if (!managerAddress || !autoRefreshEnabled) return;
     const interval = setInterval(async () => {
       // Skip if a load is already in progress — will retry next interval
       if (autoRefreshRef.current || loadingEntries) return;
@@ -919,7 +944,7 @@ export default function SafeDelayManagerDashboard() {
       }
     }, 60000);
     return () => clearInterval(interval);
-  }, [managerAddress, loadingEntries, loadRegistry]);
+  }, [managerAddress, loadingEntries, loadRegistry, autoRefreshEnabled]);
 
   // ─── Network timeout sentinel ─────────────────────────────────────────────
   useEffect(() => {
@@ -1454,6 +1479,19 @@ export default function SafeDelayManagerDashboard() {
           {lastRefreshed && (
             <StatCard><StatValue style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>↻ {new Date(lastRefreshed).toLocaleTimeString()}</StatValue><StatLabel>Last Refresh</StatLabel></StatCard>
           )}
+          <AutoRefreshToggle
+            $active={autoRefreshEnabled}
+            $loading={loadingEntries}
+            onClick={() => {
+              const next = !autoRefreshEnabled;
+              setAutoRefreshEnabled(next);
+              try { localStorage.setItem('safedelay-auto-refresh', String(next)); } catch {}
+            }}
+            title={autoRefreshEnabled ? 'Auto-refresh ON — click to disable' : 'Auto-refresh OFF — click to enable'}
+          >
+            <Spinner style={{ fontSize: '12px' }}>↻</Spinner>
+            {autoRefreshEnabled ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+          </AutoRefreshToggle>
         </Grid3>
       )}
 
