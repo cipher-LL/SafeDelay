@@ -87,19 +87,30 @@ export interface VerificationResult {
   autoScanDone: boolean;
 }
 
+export interface VerificationProgressDetail {
+  current: number;
+  total: number;
+}
+
 export interface UseAutoContractVerificationResult {
   verificationResult: VerificationResult | null;
   isVerifying: boolean;
   verifyProgress: string;
+  /** Fractional progress (e.g. { current: 3, total: 12 }) */
+  verifyProgressDetail: VerificationProgressDetail | null;
   /** Re-run verification manually */
   reverify: () => void;
   /** Abort the current verification operation */
   abort: () => void;
+  /** Pause verification (can be resumed with reverify) */
+  pause: () => void;
   /** Apply recovered contracts to localStorage */
   applyRecovery: (contracts: VerificationResult['recoverable']) => void;
 }
 
 const RECOVERY_CHECK_KEY = 'safedelay_recovery_verified';
+// Throttle Electrum requests between contracts to avoid rate-limiting
+const VERIFICATION_THROTTLE_MS = 150;
 
 /**
  * Hook that automatically verifies stored contracts on app load.
@@ -123,7 +134,11 @@ export function useAutoContractVerification(
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyProgress, setVerifyProgress] = useState('');
+  const [verifyProgressDetail, setVerifyProgressDetail] = useState<VerificationProgressDetail | null>(null);
   const cancelledRef = useRef(false);
+  const pausedRef = useRef(false);
+  // Track index within the current storedContracts scan for resume support
+  const verifiedCountRef = useRef(0);
 
   const abort = useCallback(() => {
     cancelledRef.current = true;
@@ -138,9 +153,16 @@ export function useAutoContractVerification(
     }, 300);
   }, []);
 
+  const pause = useCallback(() => {
+    pausedRef.current = true;
+    setVerifyProgress('Verification paused. Click "Resume" to continue.');
+  }, []);
+
   const runVerification = useCallback(async () => {
     if (!walletAddress || !walletPubkeyHash) return;
     cancelledRef.current = false;
+    pausedRef.current = false;
+    verifiedCountRef.current = 0;
     setIsVerifying(true);
     setVerifyProgress('');
 
@@ -161,9 +183,24 @@ export function useAutoContractVerification(
       // ── Case 1: localStorage has contracts — verify each one ──────────────
       if (storedContracts.length > 0) {
         setVerifyProgress(`Verifying ${storedContracts.length} stored contract(s)...`);
+        setVerifyProgressDetail({ current: 0, total: storedContracts.length });
 
         for (const contract of storedContracts) {
-          setVerifyProgress(`Checking ${contract.address.slice(0, 12)}...`);
+          // Support pause: stop here and wait for next runVerification() call
+          if (pausedRef.current) {
+            setVerifyProgress('Verification paused. Click "Resume" to continue.');
+            setIsVerifying(false);
+            return;
+          }
+          // Support abort
+          if (cancelledRef.current) {
+            result.errors.push('Verification cancelled by user.');
+            break;
+          }
+
+          verifiedCountRef.current += 1;
+          setVerifyProgressDetail({ current: verifiedCountRef.current, total: storedContracts.length });
+          setVerifyProgress(`Checking ${contract.address.slice(0, 12)}... (${verifiedCountRef.current}/${storedContracts.length})`);
 
           try {
             // Get UTXOs and history for this contract
@@ -264,11 +301,18 @@ export function useAutoContractVerification(
             }
           }
 
-          // Check for cancellation between contracts
+          // Check for cancellation or pause between contracts
           if (cancelledRef.current) {
             result.errors.push('Verification cancelled by user.');
             break;
           }
+          if (pausedRef.current) {
+            setVerifyProgress('Verification paused. Click "Resume" to continue.');
+            setIsVerifying(false);
+            return;
+          }
+          // Throttle: sleep briefly between contracts to avoid Electrum rate limits
+          await new Promise(resolve => setTimeout(resolve, VERIFICATION_THROTTLE_MS));
         }
 
         // ── Case 2: localStorage is empty — auto-scan for on-chain contracts ──
@@ -390,8 +434,10 @@ export function useAutoContractVerification(
     verificationResult,
     isVerifying,
     verifyProgress,
+    verifyProgressDetail,
     reverify: runVerification,
     abort,
+    pause,
     applyRecovery,
   };
 }

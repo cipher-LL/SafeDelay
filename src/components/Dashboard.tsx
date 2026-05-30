@@ -843,7 +843,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const [showSavedBanner, setShowSavedBanner] = useState(false);
 
   // Auto-verify stored contracts against on-chain state on app load
-  const { verificationResult, isVerifying, verifyProgress, abort, reverify } = useAutoContractVerification(
+  const { verificationResult, isVerifying, verifyProgress, verifyProgressDetail, abort, pause, reverify } = useAutoContractVerification(
     storedContracts,
     wallet.address,
     wallet.pubkeyHash,
@@ -1742,23 +1742,18 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
         </MessageBox>
       )}
 
-      {/* Auto-verification progress */}
-      {isVerifying && (
+      {/* Auto-verification paused state */}
+      {!isVerifying && verifyProgress && verifyProgress.includes('paused') && (
         <MessageBox $type="info" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>🔍</span>
-            <span>{verifyProgress || 'Verifying contracts on-chain...'}</span>
-            {verifyStartTime && (
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                ({(Math.round((Date.now() - verifyStartTime) / 1000))}s elapsed)
-              </span>
-            )}
+            <span>⏸️</span>
+            <span>{verifyProgress}</span>
           </div>
           <button
-            onClick={abort}
+            onClick={reverify}
             style={{
               padding: '4px 12px',
-              background: 'rgba(239, 68, 68, 0.8)',
+              background: 'rgba(59, 130, 246, 0.8)',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
@@ -1766,8 +1761,75 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               cursor: 'pointer'
             }}
           >
-            Cancel
+            Resume
           </button>
+        </MessageBox>
+      )}
+
+      {/* Auto-verification progress */}
+      {isVerifying && (
+        <MessageBox $type="info" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>🔍</span>
+            <span>{verifyProgress || 'Verifying contracts on-chain...'}</span>
+            {verifyProgressDetail && (
+              <>
+                <div style={{
+                  width: '80px',
+                  height: '6px',
+                  background: 'rgba(255,255,255,0.15)',
+                  borderRadius: '3px',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    width: `${(verifyProgressDetail.current / verifyProgressDetail.total) * 100}%`,
+                    height: '100%',
+                    background: '#3b82f6',
+                    borderRadius: '3px',
+                    transition: 'width 0.2s ease',
+                  }} />
+                </div>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                  {verifyProgressDetail.current}/{verifyProgressDetail.total}
+                </span>
+              </>
+            )}
+            {verifyStartTime && !verifyProgressDetail && (
+              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                ({(Math.round((Date.now() - verifyStartTime) / 1000))}s elapsed)
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={pause}
+              style={{
+                padding: '4px 12px',
+                background: 'rgba(245, 158, 11, 0.8)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Pause
+            </button>
+            <button
+              onClick={abort}
+              style={{
+                padding: '4px 12px',
+                background: 'rgba(239, 68, 68, 0.8)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
         </MessageBox>
       )}
 
