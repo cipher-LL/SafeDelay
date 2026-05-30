@@ -219,12 +219,15 @@ export function useAutoContractVerification(
 
                     // Import HASHES at runtime to avoid module resolution issues
                     const hashes = await import('../../artifacts/HASHES.json').then(m => m.default);
-                    const expectedHash = hashes.SafeDelay?.bytecodeHash;
+                    // Use contract type to select correct bytecode hash
+                    const artifactKey = contract.type === 'multisig' ? 'SafeDelayMultiSig' : 'SafeDelay';
+                    const expectedHash = hashes[artifactKey]?.bytecodeHash;
 
                     if (expectedHash && hashHex !== expectedHash) {
+                      const label = contract.type === 'multisig' ? 'SafeDelayMultiSig' : 'SafeDelay';
                       result.bytecodeMismatch.push({ address: contract.address, expectedHash, actualHash: hashHex });
                       debugLog('AutoVerify', `⚠️ ${contract.address}: bytecode mismatch (expected ${expectedHash}, got ${hashHex})`);
-                      result.errors.push(`Contract ${contract.address.slice(0, 16)}... has mismatched bytecode! The on-chain contract may have been modified or is not a SafeDelay contract.`);
+                      result.errors.push(`Contract ${contract.address.slice(0, 16)}... has mismatched bytecode (${label}). The on-chain contract may have been modified or is not a genuine ${label} contract.`);
                     } else {
                       result.confirmed.push(contract.address);
                       debugLog('AutoVerify', `✓ ${contract.address}: confirmed (${utxos.length} UTXO(s), bytecode verified)`);
