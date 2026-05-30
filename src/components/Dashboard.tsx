@@ -2696,6 +2696,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
               setDiscoveredContracts([]);
               setRecoveryScanDone(false);
               setDiscoveryResult(null);
+              setShowSavedBanner(false);
               clearSavedScanResult();
             }}
             style={{
