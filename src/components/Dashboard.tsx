@@ -37,6 +37,23 @@ const Description = styled.p`
   margin-bottom: 24px;
 `;
 
+const AutoRefreshToggle = styled.button<{ $active: boolean; $loading: boolean }>`
+  background: ${({ $active }) => $active ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255,255,255,0.1)'};
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: ${({ $active }) => $active ? '#10b981' : 'rgba(255,255,255,0.6)'};
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  animation: ${({ $loading }) => $loading ? 'pulse 1.5s ease-in-out infinite' : 'none'};
+  &:hover { background: ${({ $active }) => $active ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.08)'}; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+`;
+
 const SectionTitle = styled.h3`
   font-size: 18px;
   margin-bottom: 16px;
@@ -756,6 +773,11 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   });
   const [wifError, setWifError] = useState('');
 
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
+    try { return localStorage.getItem('safedelay-auto-refresh') !== 'false'; } catch { return true; }
+  });
+  const autoRefreshRef = useRef(false);
+
   // Persist WIF state to localStorage so it's restored on next session
   useEffect(() => {
     localStorage.setItem('safedelay_wif_mode', wifMode ? 'true' : 'false');
@@ -773,6 +795,20 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   useEffect(() => {
     localStorage.setItem('safedelay_dismissed_mismatches', JSON.stringify(dismissedMismatches));
   }, [dismissedMismatches]);
+
+  // Auto-refresh: poll for updated balances every 60s
+  useEffect(() => {
+    if (!autoRefreshEnabled || !storedContracts.length) return;
+    const interval = setInterval(() => {
+      if (!autoRefreshRef.current) {
+        autoRefreshRef.current = true;
+        refresh();
+        // Reset throttle after a delay to allow the refresh to complete
+        setTimeout(() => { autoRefreshRef.current = false; }, 5000);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [autoRefreshEnabled, storedContracts.length, refresh]);
 
   // Auto-scan state for on-chain history scanning
   const [autoScanProgress, setAutoScanProgress] = useState<string>('');
@@ -1653,10 +1689,27 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
   return (
     <DashboardContainer>
-      <Title>Dashboard</Title>
-      <Description>
-        View and manage your time-locked wallets
-      </Description>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div>
+          <Title>Dashboard</Title>
+          <Description>
+            View and manage your time-locked wallets
+          </Description>
+        </div>
+        <AutoRefreshToggle
+          $active={autoRefreshEnabled}
+          $loading={false}
+          onClick={() => {
+            const next = !autoRefreshEnabled;
+            setAutoRefreshEnabled(next);
+            try { localStorage.setItem('safedelay-auto-refresh', String(next)); } catch {}
+          }}
+          title={autoRefreshEnabled ? 'Auto-refresh ON — click to disable' : 'Auto-refresh OFF — click to enable'}
+        >
+          <span>{autoRefreshEnabled ? '⟳' : '↻'}</span>
+          {autoRefreshEnabled ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+        </AutoRefreshToggle>
+      </div>
 
       {/* Status message banner */}
       {txStatus && (
