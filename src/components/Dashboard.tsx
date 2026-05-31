@@ -1637,10 +1637,12 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
 
       if (errorMsg.includes('not satisfied') || errorMsg.includes('lock') || errorMsg.includes('block')) {
         userMsg = `Transaction failed: ${errorMsg}. Make sure the lock period has expired before withdrawing.`;
-      } else if (errorMsg.includes('UTXO') || errorMsg.includes('funds') || errorMsg.includes('balance')) {
+      } else if (errorMsg.includes('UTXO') || errorMsg.includes('funds') || errorMsg.includes('balance') || errorMsg.includes('insufficient')) {
         userMsg = `UTXO error: ${errorMsg}. Make sure the contract has a balance and your wallet has BCH for miner fees.`;
       } else if (errorMsg.includes('sign') || errorMsg.includes('provider') || errorMsg.includes('wallet')) {
         userMsg = `Signing error: ${errorMsg}. Make sure your WIF key matches your wallet.`;
+      } else if (errorMsg.includes('Invalid WIF') || errorMsg.includes('WIF key')) {
+        userMsg = `WIF key error: ${errorMsg}. Please check that you pasted the correct private key.`;
       }
 
       setPendingTx(prev => prev ? { ...prev, status: 'error', error: userMsg } : null);

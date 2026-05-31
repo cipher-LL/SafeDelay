@@ -259,12 +259,30 @@ export function useWifSigner() {
     // Fetch UTXOs
     const contractUtxos = await provider.getUtxos(contractAddress);
     if (!contractUtxos || contractUtxos.length === 0) {
-      throw new Error('No UTXOs found at contract address. Make sure the contract is funded.');
+      throw new Error(
+        'No UTXOs found at the contract address. ' +
+        'This usually means the contract hasn\'t received any deposits yet, ' +
+        'or the contract address is incorrect. ' +
+        'Verify the contract address and wait for deposits to confirm.'
+      );
     }
 
     const walletUtxos = await getUtxos(walletAddress, network);
     if (walletUtxos.length === 0) {
-      throw new Error('No wallet UTXOs found. Your wallet needs BCH to pay miner fees.');
+      throw new Error(
+        'No wallet UTXOs found. Your wallet needs BCH to pay miner fees (~1,000 sats per transaction). ' +
+        'Please send some BCH to your wallet address and try again.'
+      );
+    }
+
+    // Check wallet has enough for miner fee
+    const walletBalance = walletUtxos.reduce((sum: bigint, u: ElectrumUtxo) => sum + BigInt(u.value), 0n);
+    if (walletBalance < FEE_SATS) {
+      throw new Error(
+        `Insufficient wallet balance. You need at least ~1,000 sats for miner fees, ` +
+        `but your wallet only has ${walletBalance.toString()} sats. ` +
+        `Add funds to your wallet and try again.`
+      );
     }
 
     // Build withdraw transaction using CashScript contract API
@@ -319,12 +337,28 @@ export function useWifSigner() {
 
     const contractUtxos = await provider.getUtxos(contractAddress);
     if (!contractUtxos || contractUtxos.length === 0) {
-      throw new Error('No UTXOs found at contract address.');
+      throw new Error(
+        'No UTXOs found at the contract address. ' +
+        'Verify the contract address is correct and wait for any deposits to confirm.'
+      );
     }
 
     const walletUtxos = await getUtxos(walletAddress, network);
     if (walletUtxos.length === 0) {
-      throw new Error('No wallet UTXOs found.');
+      throw new Error(
+        'No wallet UTXOs found. Your wallet needs BCH to pay miner fees (~1,000 sats). ' +
+        'Send BCH to your wallet address and try again.'
+      );
+    }
+
+    // Check wallet has enough for miner fee
+    const walletBalance = walletUtxos.reduce((sum: bigint, u: ElectrumUtxo) => sum + BigInt(u.value), 0n);
+    if (walletBalance < FEE_SATS) {
+      throw new Error(
+        `Insufficient wallet balance. You need at least ~1,000 sats for miner fees, ` +
+        `but your wallet only has ${walletBalance.toString()} sats. ` +
+        `Add funds to your wallet and try again.`
+      );
     }
 
     // cancel(pubkey ownerPk, sig ownerSig)
@@ -334,7 +368,12 @@ export function useWifSigner() {
     // Calculate amount to send (balance - fee)
     const sendAmount = contractBalance - FEE_SATS;
     if (sendAmount < DUST_SATS) {
-      throw new Error('Insufficient contract balance to cover miner fees.');
+      throw new Error(
+        `Insufficient contract balance to cover miner fees. ` +
+        `The contract has ${contractBalance.toString()} sats but needs at least ${(FEE_SATS + DUST_SATS).toString()} sats ` +
+        `(${FEE_SATS.toString()} sats for the miner fee + ${DUST_SATS.toString()} sats minimum UTXO). ` +
+        `Wait for more deposits to accumulate, or try a smaller cancel amount if supported.`
+      );
     }
 
     const txHex = await cancelTx
