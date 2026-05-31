@@ -611,6 +611,16 @@ export default function SafeDelayManagerDashboard() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
     try { return localStorage.getItem('safedelay-auto-refresh') !== 'false'; } catch { return true; }
   });
+  const [nextRefreshIn, setNextRefreshIn] = useState(60); // seconds until next auto-refresh
+
+  // Countdown to next auto-refresh (decrements every second when enabled)
+  useEffect(() => {
+    if (!autoRefreshEnabled) return;
+    const tick = setInterval(() => {
+      setNextRefreshIn(prev => prev <= 1 ? 60 : prev - 1);
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [autoRefreshEnabled]);
 
   // Compute address form
   const [lockBlocks, setLockBlocks] = useState('144'); // ~1 day
@@ -937,6 +947,7 @@ export default function SafeDelayManagerDashboard() {
       try {
         await loadRegistry(managerAddress);
         setLastRefreshed(Date.now());
+        setNextRefreshIn(60); // reset countdown after refresh
       } catch {
         // silent — non-blocking
       } finally {
@@ -1583,7 +1594,14 @@ export default function SafeDelayManagerDashboard() {
           {/* ── Track External SafeDelay (e.g. from BadgerSurvivors prizes) ── */}
           {wallet.connected && (
             <Section>
-              <SectionTitle>Track External SafeDelay</SectionTitle>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <SectionTitle>Track External SafeDelay</SectionTitle>
+                {autoRefreshEnabled && (
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '10px' }}>
+                    ↻ Refresh in {nextRefreshIn}s
+                  </span>
+                )}
+              </div>
               <Description style={{ fontSize: '14px', marginBottom: '12px' }}>
                 Track a SafeDelay created outside this dashboard — e.g. tournament prize deposits
                 from BadgerSurvivors. Enter the address from your prize claim to view its status.
