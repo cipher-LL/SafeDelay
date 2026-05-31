@@ -706,9 +706,16 @@ export default function SafeDelayManagerDashboard() {
   };
 
   // External SafeDelay tracking (e.g. from BadgerSurvivors prize claims)
-  const [externalAddressInput, setExternalAddressInput] = useState('');
-  const [externalOwnerPkh, setExternalOwnerPkh] = useState('');
-  const [externalLockEnd, setExternalLockEnd] = useState<number>(0);
+  // Persist to localStorage so values survive page refresh
+  const [externalAddressInput, setExternalAddressInput] = useState(() => {
+    try { return localStorage.getItem('safedelay-external-address') || ''; } catch { return ''; }
+  });
+  const [externalOwnerPkh, setExternalOwnerPkh] = useState(() => {
+    try { return localStorage.getItem('safedelay-external-owner-pkh') || ''; } catch { return ''; }
+  });
+  const [externalLockEnd, setExternalLockEnd] = useState<number>(() => {
+    try { return Number(localStorage.getItem('safedelay-external-lock-end')) || 0; } catch { return 0; }
+  });
   const [externalError, setExternalError] = useState<string | null>(null);
   const addressInputRef = useRef<HTMLInputElement>(null);
   const [externalResult, setExternalResult] = useState<{
@@ -721,6 +728,19 @@ export default function SafeDelayManagerDashboard() {
     computedAddress: string | null;
     unlockDate: string | null;
   } | null>(null);
+
+  // Persist external tracking inputs to localStorage
+  useEffect(() => {
+    try { localStorage.setItem('safedelay-external-address', externalAddressInput); } catch {}
+  }, [externalAddressInput]);
+
+  useEffect(() => {
+    try { localStorage.setItem('safedelay-external-owner-pkh', externalOwnerPkh); } catch {}
+  }, [externalOwnerPkh]);
+
+  useEffect(() => {
+    try { localStorage.setItem('safedelay-external-lock-end', String(externalLockEnd)); } catch {}
+  }, [externalLockEnd]);
 
   // ─── Track external SafeDelay address ────────────────────────────────────
   const handleTrackExternal = useCallback(async () => {
@@ -838,6 +858,9 @@ export default function SafeDelayManagerDashboard() {
     if (configSpPkh) {
       setServiceProviderPkh(configSpPkh);
     }
+    // Clear external tracking result when network changes (address validity is network-specific)
+    setExternalResult(null);
+    setExternalError(null);
   }, [network]);
 
   // ─── Load registry ─────────────────────────────────────────────────────────
