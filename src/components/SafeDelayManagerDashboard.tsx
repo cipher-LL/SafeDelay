@@ -602,7 +602,7 @@ interface NftUtxo {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function SafeDelayManagerDashboard() {
+export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'create' | 'multisig' | 'dashboard' | 'manager') => void }) {
   const { network } = useNetwork();
   const { wallet, hasSigner } = useWallet();
 
@@ -1472,7 +1472,7 @@ export default function SafeDelayManagerDashboard() {
                   Fill in the form and click Deploy. Example call:
                   <StepCommand>manager.createDelay(ownerPkh, lockEndBlock, feeSats)</StepCommand>
                   <div style={{ marginTop: '6px' }}>
-                    <CopyBtn onClick={() => handleCopy('manager.createDelay(ownerPkh, lockEndBlock, feeSats)')}>
+                    <CopyBtn onClick={() => { handleCopy('manager.createDelay(ownerPkh, lockEndBlock, feeSats)'); if (onNavigateTab) onNavigateTab('create'); }}>
                       📋 Copy example
                     </CopyBtn>
                   </div>
