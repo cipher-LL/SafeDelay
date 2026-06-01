@@ -35,6 +35,18 @@ import { useAutoContractVerification } from '../hooks/useAutoContractVerificatio
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
 import { showToast } from './Toast';
 
+function formatTimeAgo(ts: number): string {
+  const diffMs = Date.now() - ts;
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 10) return 'just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function getExplorerAddressUrl(n: 'mainnet' | 'testnet' | 'chipnet', addr: string): string {
   const clean = addr.replace(/^(bitcoincash:|bchtest:|bchreg:)/, '');
   if (n === 'mainnet') return `https://blockchair.com/bitcoin-cash/address/${clean}`;
@@ -727,7 +739,10 @@ export default function SafeDelayManagerDashboard() {
     verified: boolean | null;
     computedAddress: string | null;
     unlockDate: string | null;
+    lastCheckedAt: number | null;
   } | null>(null);
+
+  const [lastCheckedAt, setLastCheckedAt] = useState<number | null>(null);
 
   // Persist external tracking inputs to localStorage
   useEffect(() => {
@@ -829,7 +844,8 @@ export default function SafeDelayManagerDashboard() {
       const unlockMs = Date.now() + (remaining * msPerBlock);
       const unlockDate = new Date(unlockMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-      setExternalResult({ address, locked, remaining, days, balance, verified, computedAddress, unlockDate: locked ? unlockDate : null });
+      setExternalResult({ address, locked, remaining, days, balance, verified, computedAddress, unlockDate: locked ? unlockDate : null, lastCheckedAt: null });
+      setLastCheckedAt(Date.now());
     } catch (err) {
       setExternalError(err instanceof Error ? err.message : 'Failed to fetch SafeDelay status');
     }
@@ -1722,7 +1738,7 @@ export default function SafeDelayManagerDashboard() {
                       {externalResult.address}
                     </span>
                     <button
-                      onClick={() => { setExternalResult(null); setExternalAddressInput(''); setExternalOwnerPkh(''); setExternalLockEnd(0); }}
+                      onClick={() => { setExternalResult(null); setExternalAddressInput(''); setExternalOwnerPkh(''); setExternalLockEnd(0); setLastCheckedAt(null); }}
                       style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '11px', padding: '2px 6px', flexShrink: 0 }}
                       title="Clear tracked result"
                     >
@@ -1738,6 +1754,11 @@ export default function SafeDelayManagerDashboard() {
                     </ExternalLinkBtn>
                   </div>
                 </AddressBox>
+              )}
+              {externalResult && lastCheckedAt && (
+                <span style={{ display: 'block', marginTop: '4px', fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
+                  Checked {formatTimeAgo(lastCheckedAt)}
+                </span>
               )}
               {externalResult && externalResult.verified === true && (
                 <MessageBox $type="success" style={{ marginTop: '8px', fontSize: '13px' }}>
