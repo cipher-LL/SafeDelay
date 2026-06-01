@@ -725,6 +725,14 @@ function getExplorerUrl(network: 'mainnet' | 'testnet' | 'chipnet', txHash: stri
   return `https://chipnet.blockchair.com/bitcoin-cash/transaction/${txHash}`;
 }
 
+function getExplorerAddressUrl(network: 'mainnet' | 'testnet' | 'chipnet', addr: string): string {
+  const clean = addr.replace(/^(bchtest:|bitcoincash:)/, '');
+  if (network === 'mainnet') {
+    return `https://blockchair.com/bitcoin-cash/address/${clean}`;
+  }
+  return `https://chipnet.blockchair.com/bitcoin-cash/address/${clean}`;
+}
+
 export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'create' | 'multisig' | 'dashboard' | 'manager') => void }) {
   const { network } = useNetwork();
   const { wallet, hasSigner } = useWallet();
@@ -2325,7 +2333,18 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                           </LabelButton>
                         </LabelDisplay>
                       )}
-                      <ContractAddress style={{ marginTop: '8px' }}>{contract.address}</ContractAddress>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px' }}>
+                        <ContractAddress>{contract.address}</ContractAddress>
+                        <a
+                          href={getExplorerAddressUrl(network, contract.address.replace(/^(bchtest:|bitcoincash:)/, ''))}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: '11px', color: '#818cf8', textDecoration: 'none', flexShrink: 0 }}
+                          title="View on block explorer"
+                        >
+                          ↗
+                        </a>
+                      </div>
                       <QRCodeSection>
                         <CopyButton onClick={() => handleCopyAddress(contract.address)}>
                           {copiedAddress === contract.address ? '✓ Copied!' : '📋 Copy Address'}
