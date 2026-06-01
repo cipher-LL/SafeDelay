@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import styled from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
@@ -741,6 +741,15 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   const { contracts: contractsWithData, currentBlock, refresh } = useElectrumContractData(storedContracts, network);
   const { signWithdraw, signCancel, getAddressFromWif } = useWifSigner();
   const [contracts, setContracts] = useState<TimeLock[]>([]);
+
+  // Apply wallet labels atomically with contract data to prevent label flash during on-chain scans
+  const labeledContracts = useMemo(() => {
+    return contracts.map(c => ({
+      ...c,
+      displayLabel: getLabel(c.address) ?? undefined,
+    }));
+  }, [contracts, getLabel]);
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [contractsLoaded, setContractsLoaded] = useState(false);
   const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'withdraw' | 'cancel' | 'create'>(() => {
@@ -1147,7 +1156,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
   }, [wallet.connected, contractsWithData, scanningOnChain, lastOnChainScan]);
 
   // Sort contracts based on selected option
-  const sortedContracts = [...contracts].sort((a, b) => {
+  const sortedContracts = [...labeledContracts].sort((a, b) => {
     switch (sortBy) {
       case 'amount':
         return b.balance - a.balance;
@@ -2304,7 +2313,7 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
             <ContractList>
               {filteredContracts.map((contract) => {
                 const isLocked = contract.lockEndBlock > contract.currentBlock;
-                const existingLabel = getLabel(contract.address);
+                const existingLabel = (contract as any).displayLabel as string | undefined;
                 const isEditing = editingLabel === contract.address;
 
                 return (
