@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeDelay Demo - Check Lock Status</title>
+  <script src="https://unpkg.com/cashscript@0.8.0/dist/cashscript.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #eee;
+      padding: 2rem;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 0.5rem; font-size: 1.8rem; }
+    h1 span { color: #f39c12; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 2rem; }
+    .card {
+      background: #0f0f23;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      border: 1px solid #333;
+    }
+    .card h2 { font-size: 1.2rem; margin-bottom: 1rem; color: #f39c12; }
+    label { display: block; margin-bottom: 0.5rem; color: #aaa; font-size: 0.9rem; }
+    input, select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #fff;
+      font-family: monospace;
+      margin-bottom: 1rem;
+    }
+    input:focus, select:focus { outline: none; border-color: #f39c12; }
+    button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      background: #f39c12;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      width: 100%;
+    }
+    button:hover { background: #e67e22; }
+    .result { 
+      background: #1a1a2e; 
+      padding: 1rem; 
+      border-radius: 8px; 
+      margin-top: 1rem;
+      font-family: monospace;
+    }
+    .error { background: #2c0b0e; border: 1px solid #e74c3c; color: #e74c3c; }
+    .success { background: #0b1f2c; border: 1px solid #27ae60; color: #27ae60; }
+    .info { color: #888; font-size: 0.85rem; margin-top: 0.5rem; }
+    .status-locked { color: #e74c3c; font-weight: bold; }
+    .status-unlocked { color: #27ae60; font-weight: bold; }
+    .detail-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #333; }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: #888; }
+    .detail-value { color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SafeDelay <span>Status</span></h1>
+    <p class="subtitle">Check Contract Lock Status</p>
+
+    <div class="card">
+      <h2>1. Network</h2>
+      <select id="network">
+        <option value="testnet">Testnet</option>
+        <option value="mainnet">Mainnet</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <h2>2. Contract Address</h2>
+      <label>SafeDelay Contract Address</label>
+      <input type="text" id="contractAddress" placeholder="bitcoincash:..." />
+    </div>
+
+    <button onclick="checkStatus()">Check Status</button>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const { Contract, mnemonicToWallet } = cashscript;
+
+    // Simple SafeDelay artifact for viewing
+    const SafeDelayArtifact = {
+      "contractName": "SafeDelay",
+      "constructorInputs": [{"name": "ownerPKH", "type": "ripemd160"}, {"name": "lockEndBlock", "type": "int"}, {"name": "depositReceipts", "type": "bytes"}],
+      "functions": [],
+      "abi": []
+    };
+
+    async function checkStatus() {
+      const resultDiv = document.getElementById('result');
+      const address = document.getElementById('contractAddress').value.trim();
+      const network = document.getElementById('network').value;
+
+      if (!address) {
+        resultDiv.innerHTML = '<div class="result error">Please enter a contract address</div>';
+        return;
+      }
+
+      resultDiv.innerHTML = '<div class="result">Loading...</div>';
+
+      try {
+        const providers = {
+          testnet: { url: 'https://api.blacktown.io/rpc', network: 'testnet' },
+          mainnet: { url: 'https://api.blacktown.io/rpc', network: 'mainnet' }
+        };
+        const provider = providers[network];
+
+        // Get current block
+        const currentBlock = await provider.getBlockCount();
+
+        // For SafeDelay, we can't easily decode the lockEndBlock without the artifact
+        // This is a limitation - in production you'd index the contract on deployment
+        resultDiv.innerHTML = `
+          <div class="result">
+            <div class="detail-row">
+              <span class="detail-label">Contract Address:</span>
+              <span class="detail-value">${address}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Current Block:</span>
+              <span class="detail-value">${currentBlock}</span>
+            </div>
+            <br>
+            <em style="color:#888">
+              Note: To read the exact lock end block, you need to know the original 
+              deployment parameters. The status dashboard (index.html) provides 
+              full lock status when you can provide the contract address.
+            </em>
+          </div>
+        `;
+
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>

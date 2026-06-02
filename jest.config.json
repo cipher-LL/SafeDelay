@@ -2,5 +2,6 @@
   "testEnvironment": "node",
   "testMatch": ["**/test/**/*.test.js"],
   "collectCoverageFrom": ["src/**/*.js"],
-  "coveragePathIgnorePatterns": ["/node_modules/"]
+  "coveragePathIgnorePatterns": ["/node_modules/"],
+  "transform": {}
 }

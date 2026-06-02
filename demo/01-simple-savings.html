@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeDelay Demo - Simple Savings</title>
+  <script src="https://unpkg.com/cashscript@0.8.0/dist/cashscript.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #eee;
+      padding: 2rem;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 0.5rem; font-size: 1.8rem; }
+    h1 span { color: #f39c12; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 2rem; }
+    .card {
+      background: #0f0f23;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      border: 1px solid #333;
+    }
+    .card h2 { font-size: 1.2rem; margin-bottom: 1rem; color: #f39c12; }
+    label { display: block; margin-bottom: 0.5rem; color: #aaa; font-size: 0.9rem; }
+    input, select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #fff;
+      font-family: monospace;
+      margin-bottom: 1rem;
+    }
+    input:focus, select:focus { outline: none; border-color: #f39c12; }
+    button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      background: #f39c12;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      width: 100%;
+    }
+    button:hover { background: #e67e22; }
+    button:disabled { background: #666; cursor: not-allowed; }
+    .result { 
+      background: #1a1a2e; 
+      padding: 1rem; 
+      border-radius: 8px; 
+      margin-top: 1rem;
+      font-family: monospace;
+      word-break: break-all;
+    }
+    .error { background: #2c0b0e; border: 1px solid #e74c3c; color: #e74c3c; }
+    .success { background: #0b1f2c; border: 1px solid #27ae60; color: #27ae60; }
+    .info { color: #888; font-size: 0.85rem; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SafeDelay <span>Demo</span></h1>
+    <p class="subtitle">Simple Time-Locked Savings Wallet</p>
+
+    <div class="card">
+      <h2>1. Network</h2>
+      <select id="network">
+        <option value="testnet">Testnet</option>
+        <option value="mainnet">Mainnet</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <h2>2. Your Wallet</h2>
+      <label>Mnemonic (12 words)</label>
+      <input type="text" id="mnemonic" placeholder="enter your twelve word mnemonic..." />
+      <p class="info">This will be used to deploy and control the contract.</p>
+    </div>
+
+    <div class="card">
+      <h2>3. Lock Settings</h2>
+      <label>Lock Period (blocks, ~10 min each)</label>
+      <input type="number" id="lockBlocks" value="144" min="1" />
+      <p class="info">144 blocks ≈ 24 hours. Default: 144 (1 day)</p>
+    </div>
+
+    <button id="deployBtn" onclick="deployContract()">Deploy Contract</button>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const { Contract, mnemonicToWallet } = cashscript;
+
+    // Load artifact inline (compiled contract ABI)
+    const SafeDelayArtifact = {
+      "contractName": "SafeDelay",
+      "constructorInputs": [{"name": "ownerPKH", "type": "ripemd160"}, {"name": "lockEndBlock", "type": "int"}, {"name": "depositReceipts", "type": "bytes"}],
+      "functions": [
+        {"name": "deposit", "outputs": [{"name": "receiver", "type": "addr"}], "value": 0},
+        {"name": "withdraw", "outputs": [{"name": "recipient", "type": "addr"}], "value": 0},
+        {"name": "cancel", "outputs": [], "value": 0}
+      ],
+      "abi": []
+    };
+
+    async function deployContract() {
+      const resultDiv = document.getElementById('result');
+      const mnemonic = document.getElementById('mnemonic').value.trim();
+      const network = document.getElementById('network').value;
+      const lockBlocks = parseInt(document.getElementById('lockBlocks').value);
+
+      if (!mnemonic) {
+        resultDiv.innerHTML = '<div class="result error">Please enter your mnemonic</div>';
+        return;
+      }
+
+      resultDiv.innerHTML = '<div class="result">Loading...</div>';
+
+      try {
+        // Derive wallet
+        const keystore = await mnemonicToWallet(mnemonic);
+        const ownerAddress = keystore.getAddress();
+        const ownerPublicKeyHash = ownerAddress.toHash();
+
+        // Get network provider
+        const providers = {
+          testnet: { url: 'https://api.blacktown.io/rpc', network: 'testnet' },
+          mainnet: { url: 'https://api.blacktown.io/rpc', network: 'mainnet' }
+        };
+        const provider = providers[network];
+
+        // Get current block height
+        const currentBlock = await provider.getBlockCount();
+        const lockEndBlock = currentBlock + lockBlocks;
+
+        resultDiv.innerHTML = `
+          <div class="result">
+            <strong>Wallet:</strong> ${ownerAddress}<br>
+            <strong>Current Block:</strong> ${currentBlock}<br>
+            <strong>Lock Ends:</strong> Block ${lockEndBlock} (~${lockBlocks} blocks)<br>
+            <br><em>Note: In browser, you need a CashScript-compatible signer. 
+            See the Node.js examples for full deployment.</em>
+          </div>
+        `;
+
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>

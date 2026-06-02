@@ -28,7 +28,8 @@ import { fileURLToPath } from 'url';
 import * as libauth from '@bitauth/libauth';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ARTIFACTS_DIR = join(__dirname, '..', 'dist');
+// Note: Manager artifact is in artifacts/ (source artifacts dir), not dist/ (Vite build output).
+const ARTIFACTS_DIR = join(__dirname, '..', 'artifacts');
 
 // ============ CLI Args ============
 const args = process.argv.slice(2).reduce((acc, arg, i, arr) => {
@@ -42,14 +43,9 @@ const args = process.argv.slice(2).reduce((acc, arg, i, arr) => {
 const NETWORK = args.network || 'chipnet';
 const IS_MAINNET = NETWORK === 'mainnet';
 const NETWORK_PREFIX = IS_MAINNET ? 'bitcoincash' : 'bchtest';
-const RPC_URLS = IS_MAINNET
-  ? ['https://bchd.electroncash.net:8335/rpc']
-  : [
-      'https://tbchd.electroncash.dk:8335/rpc',
-      'https://chipnet.electroncash.dk:8335/rpc',
-      'https://tbchd.electroncash.net:8335/rpc',
-    ];
-let RPC_URL = RPC_URLS[0];
+const RPC_URL = IS_MAINNET
+  ? 'https://bchd.electroncash.net:8335/rpc'
+  : 'https://tbchd.electroncash.dk:8335/rpc';
 
 const DUST_SATS = 546;
 
@@ -116,34 +112,8 @@ function computeAddress(artifact, args) {
 
 // ============ Electrum RPC Helpers ============
 
-async function findWorkingRpc() {
-  for (const url of RPC_URLS) {
-    try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'get_block_count', params: [] }),
-      });
-      if (resp.ok) {
-        console.log(`   ✅ Connected to RPC: ${url}`);
-        return url;
-      }
-    } catch (e) {
-      // try next
-    }
-  }
-  throw new Error('No working RPC endpoints found');
-}
-
-let rpcInit = null;
-async function getRpcUrl() {
-  if (!rpcInit) rpcInit = findWorkingRpc();
-  return rpcInit;
-}
-
 async function electrumRpc(method, params = []) {
-  const url = await getRpcUrl();
-  const resp = await fetch(url, {
+  const resp = await fetch(RPC_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
@@ -278,8 +248,9 @@ async function main() {
     return;
   }
 
-  const rawSpPkh = args['sp-pkh'] || args['spPkh'] || process.env.SAFE_DELAY_SP_PKH;
-  if (!rawSpPkh) {
+  const { spPkh: argSpPkh } = args;
+  const spPkh = argSpPkh || process.env.SAFE_DELAY_SP_PKH;
+  if (!spPkh) {
     console.error(`
 ❌ Missing required arguments.
 
@@ -307,10 +278,27 @@ Child SafeDelay Address Computation (for off-chain use):
   }
 
   // Validate spPkh
-  const cleanSpPkh = rawSpPkh.replace(/^0x/, '');
+  const cleanSpPkh = spPkh.replace(/^0x/, '');
   if (!/^[0-9a-f]{40}$/i.test(cleanSpPkh)) {
-    console.error(`\n❌ Invalid spPkh: must be 40 hex chars (20 bytes). Got: ${rawSpPkh}`);
+    console.error(`\n❌ Invalid spPkh: must be 40 hex chars (20 bytes). Got: ${spPkh}`);
     process.exit(1);
+  }
+
+  // Check for compute-child mode
+  if (args['compute-child']) {
+    const { owner, blocks } = args;
+    if (!owner || !blocks) {
+      console.error(`\n❌ --compute-child requires --owner and --blocks`);
+      process.exit(1);
+    }
+    const cleanOwner = owner.replace(/^0x/, '');
+    const lockEndBlock = parseInt(blocks);
+    const childAddress = computeChildSafeDelayAddress(cleanOwner, lockEndBlock);
+    console.log(`\n📦 Computed SafeDelay address:`);
+    console.log(`   Owner PKH:      ${cleanOwner}`);
+    console.log(`   Lock end block: ${lockEndBlock}`);
+    console.log(`   Address:        ${childAddress}`);
+    return;
   }
 
   // Deploy manager

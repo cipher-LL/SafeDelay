@@ -18,16 +18,18 @@ export interface NetworkAddresses {
   serviceProviderPkh: string;
 }
 
-// SP PKH derived from wallet address: bitcoincash:qqhsm5etvc47ejepu2mjaqg6trmqt08ntuhsea7xa5
-// Run: node scripts/deploy-manager.mjs --sp-pkh 2f0dd32b662beccb21e2b72e811a58f605bcf35f --network mainnet
 export const CONTRACT_ADDRESSES: Record<'mainnet' | 'chipnet' | 'testnet', NetworkAddresses> = {
   mainnet: {
-    safeDelayManager: 'bitcoincash:pvzyrvp7upq28nhp7hyrkkd62m77uxhckk0fnsnsv8lfgtwztvhcwav370lca',
-    serviceProviderPkh: '2f0dd32b662beccb21e2b72e811a58f605bcf35f',
+    // TODO: Deploy SafeDelayManager to mainnet and fill this in.
+    // Run: node scripts/deploy-manager.mjs --sp-pkh <your_pkh> --network mainnet
+    safeDelayManager: '',
+    serviceProviderPkh: '',
   },
   chipnet: {
-    safeDelayManager: 'bchtest:pvzyrvp7upq28nhp7hyrkkd62m77uxhckk0fnsnsv8lfgtwztvhcwav370lca',
-    serviceProviderPkh: '2f0dd32b662beccb21e2b72e811a58f605bcf35f',
+    // TODO: Deploy SafeDelayManager to chipnet and fill this in.
+    // Run: node scripts/deploy-manager.mjs --sp-pkh <your_pkh> --network chipnet
+    safeDelayManager: '',
+    serviceProviderPkh: '',
   },
   testnet: {
     safeDelayManager: '',

@@ -112,7 +112,7 @@ const ErrorText = styled.div`
 interface QrScannerProps {
   onScan: (data: string) => void;
   disabled?: boolean;
-  /** When true, accept any non-empty BCH address QR. When false (default), validate as WIF. */
+  /** When true, accept any non-empty string (e.g. BCH address). When false, validate as WIF. */
   addressMode?: boolean;
 }
 
@@ -281,7 +281,7 @@ export default function QrScanner({ onScan, disabled, addressMode }: QrScannerPr
       ) : (
         <ScannerBox>
           <ScannerHeader>
-            <ScannerTitle>📷 {addressMode ? 'Scanning Address QR' : 'Scanning WIF QR'}...</ScannerTitle>
+            <ScannerTitle>📷 {addressMode ? 'Scanning Address QR...' : 'Scanning WIF QR...'}</ScannerTitle>
             <CloseScannerBtn onClick={stopScanner}>✕ Stop</CloseScannerBtn>
           </ScannerHeader>
           <ScannerRegion id={containerIdRef.current} />

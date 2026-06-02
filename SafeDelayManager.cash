@@ -1,0 +1,76 @@
+/**
+ * SafeDelayManager.cash - SafeDelay Registry
+ *
+ * Tracks all SafeDelay wallets created through the platform.
+ *
+ * Commitment format: [entry1_pkh(20)][entry1_lockEndBlock(8)][entry2_pkh(20)][entry2_lockEndBlock(8)]...
+ *
+ * Off-chain computation (to find the user's SafeDelay address):
+ *   SafeDelay address = hash256(ownerPKH_le || lockEndBlock_le || SafeDelayBytecode)
+ *   Use the SafeDelay bytecode from the artifacts directory.
+ *
+ * Note: lockEndBlock is stored as 8 bytes big-endian. Off-chain must use the
+ * same encoding when computing the child address.
+ *
+ * Bytecode estimate: ~550 bytes (well under 1650 BCH limit)
+ */
+pragma cashscript ^0.12.0;
+
+contract SafeDelayManager(
+    bytes20 serviceProviderPkh           // Service provider PKH for fee collection
+) {
+    /**
+     * Register a new SafeDelay wallet
+     *
+     * User must deploy and fund the SafeDelay separately.
+     * The manager only tracks the entry in its NFT commitment.
+     *
+     * inputs:
+     *   0   Manager UTXO       [NFT]         (this manager contract)
+     *   1   Creator BCH        [BCH]         (from creator, for fees)
+     * outputs:
+     *   0   Manager UTXO       [NFT]         (with updated commitment)
+     *   1   Service provider   [BCH]         (fee to service provider)
+     *   2   Creator change     [BCH]         (optional)
+     */
+    function createDelay(
+        bytes20 ownerPkh,
+        bytes lockEndBlock,    // 8 bytes big-endian encoding of block height
+        int feeSats
+    ) {
+        // Verify BCH input for fee payment
+        require(tx.inputs.length >= 2);
+        require(tx.inputs[1].tokenCategory == 0x);
+
+        // Fee to service provider (output 1)
+        require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(serviceProviderPkh));
+        require(tx.outputs[1].tokenCategory == 0x);
+        require(tx.outputs[1].value == feeSats);
+
+        // Manager UTXO (output 0) - append new delay entry
+        require(tx.inputs[0].tokenCategory != 0x);
+
+        bytes existingCommitment = tx.inputs[0].nftCommitment;
+
+        // New entry: ownerPkh(20) + lockEndBlock(8)
+        bytes newEntry = ownerPkh + lockEndBlock;
+
+        // Append new entry to existing commitment
+        bytes newCommitment = existingCommitment + newEntry;
+
+        // Verify manager output preserves contract state
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].tokenCategory == tx.inputs[0].tokenCategory);
+        require(tx.outputs[0].value == tx.inputs[0].value);
+        require(tx.outputs[0].nftCommitment == newCommitment);
+
+        // Change output (output 2)
+        int totalIn = tx.inputs[1].value;
+        int change = totalIn - feeSats - 1000;
+        if (change >= 1000) {
+            require(tx.outputs[2].lockingBytecode == tx.inputs[1].lockingBytecode);
+            require(tx.outputs[2].tokenCategory == 0x);
+            require(tx.outputs[2].value == change);
+        }
+    }
+}

@@ -1,63 +1,31 @@
-# SafeDelay Demo Examples
+# SafeDelay Demo Files
 
-Interactive demonstrations of the SafeDelay time-locked wallet contract.
+Standalone HTML demos for testing SafeDelay contracts.
 
-## Available Demos
+## Files
 
-### 1. Create Time Lock (`create-lock.html`)
-Create a new time-locked wallet that locks your BCH until a specified block height.
+| File | Description |
+|------|-------------|
+| [01-simple-savings.html](./01-simple-savings.html) | Deploy a basic time-locked wallet |
+| [02-multisig-wallet.html](./02-multisig-wallet.html) | Create a 2-of-3 or 3-of-3 MultiSig wallet |
+| [03-check-status.html](./03-check-status.html) | Check contract lock status |
 
-**Features:**
-- Select lock period (1 week to 5 years)
-- Enter your wallet address
-- Specify deposit amount
-- Shows estimated unlock date
+## Usage
 
-**Use case:** Savings accounts, emergency funds, gift locks
+1. Open any `.html` file in a browser
+2. Enter your mnemonic (testnet recommended)
+3. Configure lock period
+4. Click the button
 
-### 2. Extend Lock (`extend-lock.html`)
-Extend your existing time lock to a later block height.
+## Notes
 
-**Features:**
-- Enter contract address and current expiry
-- Choose additional lock time
-- One-way extension warning
+- **Testnet recommended** - These demos interact with the BCH network
+- Mnemonics are processed locally - never share your real mnemonics
+- For full deployment with transaction signing, use the Node.js examples in `/examples`
+- The demos calculate contract addresses but full on-chain deployment requires a signer
 
-**Use case:** Want to keep funds locked longer
+## Network
 
-### 3. Cancel & Refund (`cancel-refund.html`)
-Cancel your time lock and get an immediate full refund.
+Default network: Testnet (via Blacktown RPC)
 
-**Features:**
-- Works before OR after lock expiry
-- No waiting period
-- Full balance returned
-
-**Use case:** Emergency access, changed mind
-
-## Contract Functions Reference
-
-| Function | Description |
-|----------|-------------|
-| `deposit()` | Add more funds to locked wallet (anyone can deposit) |
-| `withdraw()` | Withdraw any amount after lock expires (owner only) |
-| `extend()` | Extend lock to later block (owner only, one-way) |
-| `cancel()` | Cancel and get full refund immediately (owner only) |
-
-## Running Locally
-
-Serve the demo folder:
-```bash
-npx serve .
-# or
-python3 -m http.server 8080
-```
-
-Then open `http://localhost:8080/demo/create-lock.html`
-
-## Production Use
-
-In production, these demos would integrate with:
-- CashScript library for contract compilation
-- ElectrumX for current block height
-- Wallet signing (WalletConnect, CashID, or private key)
+To switch to mainnet, select "Mainnet" from the dropdown.
