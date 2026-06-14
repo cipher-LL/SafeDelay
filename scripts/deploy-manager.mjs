@@ -31,6 +31,44 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Note: Manager artifact is in artifacts/ (source artifacts dir), not dist/ (Vite build output).
 const ARTIFACTS_DIR = join(__dirname, '..', 'artifacts');
 
+// ============ WIF Key Utilities ============
+
+/**
+ * Derive SP PKH (20-byte hash160 of public key) from a WIF private key.
+ * Throws a descriptive error if the WIF is invalid.
+ */
+async function deriveSpPkhFromWif(wifKey) {
+  const decoded = libauth.decodePrivateKeyWif(wifKey);
+  if (typeof decoded === 'string') {
+    throw new Error(`Invalid WIF key: ${decoded}`);
+  }
+
+  const { privateKey, type: wifType } = decoded;
+
+  // Validate network: chipnet/testnet WIFs start with 'c'
+  const isTestnet = wifType === 'testnet' || wifType === 'testnetUncompressed';
+  if (NETWORK !== 'mainnet' && !isTestnet) {
+    throw new Error(
+      `Network mismatch: this WIF key is for mainnet (starts with K/L), ` +
+      `but deployment target is ${NETWORK}. Please use a chipnet/testnet WIF key ` +
+      `or switch --network to mainnet.`
+    );
+  }
+  if (NETWORK === 'mainnet' && (wifType === 'testnet' || wifType === 'testnetUncompressed')) {
+    throw new Error(
+      `Network mismatch: this WIF key is for testnet/chipnet (starts with 'c'), ` +
+      `but deployment target is mainnet. Please use a mainnet WIF key ` +
+      `or switch --network to chipnet.`
+    );
+  }
+
+  // Derive public key from private key using secp256k1
+  const secp256k1 = await libauth.instantiateSecp256k1();
+  const publicKey = secp256k1.derivePublicKeyCompressed(privateKey);
+  const pkhResult = libauth.hash160(publicKey);
+  return Buffer.from(pkhResult).toString('hex');
+}
+
 // ============ CLI Args ============
 const args = process.argv.slice(2).reduce((acc, arg, i, arr) => {
   if (arg.startsWith('--')) {
@@ -248,28 +286,47 @@ async function main() {
     return;
   }
 
-  const { spPkh: argSpPkh } = args;
-  const spPkh = argSpPkh || process.env.SAFE_DELAY_SP_PKH;
+  const { spPkh: argSpPkh, wif: wifKey } = args;
+  let spPkh = argSpPkh || process.env.SAFE_DELAY_SP_PKH;
+
+  // Auto-derive PKH from WIF key if --wif is provided
+  if (wifKey) {
+    if (spPkh) {
+      console.error(`\n❌ Conflicting options: both --sp-pkh and --wif provided. Please use one or the other.`);
+      process.exit(1);
+    }
+    try {
+      spPkh = await deriveSpPkhFromWif(wifKey);
+      console.log(`   ✅ Derived SP PKH from WIF: ${spPkh.slice(0, 8)}...${spPkh.slice(-8)}`);
+    } catch (e) {
+      console.error(`\n❌ Failed to derive PKH from WIF: ${e.message}`);
+      process.exit(1);
+    }
+  }
+
   if (!spPkh) {
     console.error(`
 ❌ Missing required arguments.
 
 Usage:
+  node scripts/deploy-manager.mjs --wif <wif_key> [--network chipnet|mainnet]
   node scripts/deploy-manager.mjs --sp-pkh <pkh_hex> [--network chipnet|mainnet]
   Or set SAFE_DELAY_SP_PKH environment variable.
 
 Options:
+  --wif      WIF private key (auto-derives SP PKH — recommended)
   --sp-pkh   Service provider public key hash (40 hex chars = 20 bytes)
   --network  chipnet (default) or mainnet
 
-Example (chipnet):
+Examples:
+  # Recommended — just pass your WIF key directly:
+  node scripts/deploy-manager.mjs --wif cN4LrKLBv4zXvP4MHYjV3qJKM3L9qCtT4rLxR1W9qXzU3vB2mN8k --network chipnet
+
+  # Or manually specify PKH:
   node scripts/deploy-manager.mjs --sp-pkh 1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b --network chipnet
 
-Or use environment variable:
+  # Environment variable:
   SAFE_DELAY_SP_PKH=1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b npm run deploy:chipnet
-
-To get your PKH from a BCH address:
-  Use @bitauth/libauth or any BCH utility to derive the hash160 of a P2PKH address.
 
 Child SafeDelay Address Computation (for off-chain use):
   node scripts/deploy-manager.mjs --compute-child --owner <pkh> --blocks <endBlock> [--network chipnet]
