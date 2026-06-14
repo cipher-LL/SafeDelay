@@ -1226,9 +1226,9 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     return `${days} days`;
   };
 
-  const estimateUnlockDate = (lockEnd: number, current: number): string | null => {
-    if (current === 0 || lockEnd <= current) return null;
-    const blocksRemaining = lockEnd - current;
+  const estimateUnlockDate = (lockEnd: number, currentBlock: number | undefined): string | null => {
+    if (currentBlock == null || lockEnd <= currentBlock) return null;
+    const blocksRemaining = lockEnd - currentBlock;
     const daysRemaining = blocksRemaining / 144;
     if (daysRemaining > 60) return null;
     return new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000)
@@ -2748,11 +2748,14 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
                     </div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
                       Unlocks at block {c.lockEndBlock.toLocaleString()}
-                      {estimateUnlockDate(c.lockEndBlock, currentBlock ?? 0) && (
-                        <span style={{ marginLeft: 8, color: 'rgba(255,255,255,0.5)' }}>
-                          (~{estimateUnlockDate(c.lockEndBlock, currentBlock ?? 0)})
-                        </span>
-                      )}
+                      {(() => {
+                        const unlockDate = estimateUnlockDate(c.lockEndBlock, currentBlock ?? undefined);
+                        return unlockDate && (
+                          <span style={{ marginLeft: 8, color: 'rgba(255,255,255,0.5)' }}>
+                            (~{unlockDate})
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                   <button
