@@ -23,13 +23,24 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
    * Deposit BCH onto a new NFT
    * Creates a new NFT with the deposited BCH value
    * The NFT starts with FLAG_DEFAULT (cannot withdraw immediately)
+   * 
+   * Transaction construction (off-chain):
+   * - Input: BCH from user's wallet (value >= deposit amount)
+   * - Output[0]: NFT UTXO with bytecode encoding:
+   *     - amount (satoshis)
+   *     - userPkh (20 bytes)
+   *     - createdAtBlock (current block number)
+   *     - flag = 0x00 (default)
+   *   The NFT should be sent to the contract address so subsequent
+   *   calls (startWithdraw, withdraw) can find it in tx.inputs.
    */
   function deposit(pubkey userPk) {
     require(checkSig(userPk, userPkh));
     
-    // Create NFT with deposited value, default flag
-    // The NFT goes to the contract (implicit)
-    // Value is provided by the transaction input
+    // The transaction builder must create an NFT output with:
+    // - LockingBytecode: P2PKH to contract address with NFT data encoded
+    // - Value: the deposited amount
+    // This cannot be enforced purely in CashScript - requires off-chain logic
   }
 
   /**
