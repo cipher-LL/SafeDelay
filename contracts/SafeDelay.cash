@@ -47,10 +47,8 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
     // Verify current flag is default (00) - hasn't started withdraw yet
     require(currentFlag == FLAG_DEFAULT);
     
-    // Verify signature from user
-    // The output will have the same NFT but with flag flipped to 01
-    // We don't require checkSig here since the NFT is already in the contract
-    // The user controls which NFT they submit
+    // Verify caller owns the NFT via signature
+    require(checkSig(s, userPkh));
   }
 
   /**
