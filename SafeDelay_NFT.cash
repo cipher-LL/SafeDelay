@@ -33,6 +33,10 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, bytes20 recoverPkh, in
   function deposit(pubkey userPk, sig s) {
     require(checkSig(s, userPk));
     
+    // Output 0 must be an NFT at the contract address with the deposited value
+    require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+    require(tx.outputs[0].value == tx.inputs[0].value + tx.inputs[1].value - 1000);
+    
     // Verify output 0 is an NFT with the default flag (0x00)
     require(tx.outputs[0].nftCommitment.length > 0);
     require(tx.outputs[0].nftCommitment.slice(tx.outputs[0].nftCommitment.length - 1, 1) == 0x00);
