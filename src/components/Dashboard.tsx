@@ -16,6 +16,7 @@ import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
 import { deposit, waitForTxConfirmation, extend } from '../utils/SafeDelayLibrary';
+import { estimateUnlockDate } from '../utils/dateUtils';
 import {
   DashboardContainer, Title, Description, AutoRefreshToggle,
   SectionTitle, StatsGrid, StatCard, StatSkeleton, StatLabelSkeleton,
@@ -592,15 +593,6 @@ export default function Dashboard({ onNavigateTab }: { onNavigateTab?: (tab: 'cr
     const days = Math.floor(blocksRemaining / 144);
     if (days === 0) return `${blocksRemaining} blocks`;
     return `${days} days`;
-  };
-
-  const estimateUnlockDate = (lockEnd: number, currentBlock: number | undefined): string | null => {
-    if (currentBlock == null || lockEnd <= currentBlock) return null;
-    const blocksRemaining = lockEnd - currentBlock;
-    const daysRemaining = blocksRemaining / 144;
-    if (daysRemaining > 60) return null;
-    return new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000)
-      .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const formatDate = (timestamp: number) => {

@@ -27,12 +27,13 @@ import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
 import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
 import { verifyContract } from '../contractVerification';
+import { estimateUnlockDate } from '../utils/dateUtils';
 import type { SafeDelayManagerEntry } from '../types/index';
 import QrScanner from './QrScanner';
 import { debug } from '../utils/debug';
-import { useOnChainTxHistory, OnChainTx } from '../hooks/useOnChainTxHistory';
 import { useAutoContractVerification } from '../hooks/useAutoContractVerification';
 import { useStoredContracts } from '../hooks/useSafeDelayContracts';
+import TxHistoryList from './TxHistoryList';
 import { showToast } from './Toast';
 
 function formatTimeAgo(ts: number): string {
@@ -526,66 +527,6 @@ const TabBtn = styled.button<{ $active: boolean }>`
   &:hover { background: ${({ $active }) => $active ? 'rgba(79, 70, 229, 0.45)' : 'rgba(255, 255, 255, 0.08)'}; }
 `;
 
-const TxList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-
-const TxCard = styled.div`
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
-  padding: 14px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-`;
-
-const TxInfo = styled.div`flex: 1;`;
-
-const TxType = styled.span<{ $type: OnChainTx['type'] }>`
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  background: ${({ $type }) => {
-    switch ($type) {
-      case 'deposit': return 'rgba(16, 185, 129, 0.25)';
-      case 'withdraw': return 'rgba(239, 68, 68, 0.25)';
-      case 'cancel': return 'rgba(245, 158, 11, 0.25)';
-      case 'receive': return 'rgba(59, 130, 246, 0.25)';
-      case 'send': return 'rgba(156, 163, 175, 0.25)';
-      default: return 'rgba(156, 163, 175, 0.15)';
-    }
-  }};
-  color: ${({ $type }) => {
-    switch ($type) {
-      case 'deposit': return '#10b981';
-      case 'withdraw': return '#ef4444';
-      case 'cancel': return '#f59e0b';
-      case 'receive': return '#3b82f6';
-      case 'send': return '#9ca3af';
-      default: return '#9ca3af';
-    }
-  }};
-`;
-
-const TxAmount = styled.span<{ $type: OnChainTx['type'] }>`
-  font-size: 16px;
-  font-weight: 700;
-  color: ${({ $type }) =>
-    $type === 'deposit' || $type === 'receive' ? '#10b981' :
-    $type === 'withdraw' || $type === 'cancel' || $type === 'send' ? '#ef4444' :
-    'rgba(255,255,255,0.7)'};
-`;
-
-const TxMeta = styled.div`
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-top: 4px;
-  display: flex;
-  gap: 12px;
-`;
-
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface EntryWithBalance extends SafeDelayManagerEntry {
@@ -674,13 +615,7 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
     try { localStorage.setItem('safedelay-lock-status-filter', val); } catch {}
   };
 
-  // Transaction history
-  const [txHistory, setTxHistory] = useState<OnChainTx[]>([]);
-  const [txHistoryLoading, setTxHistoryLoading] = useState(false);
-  const [txHistoryError, setTxHistoryError] = useState<string | null>(null);
-  const [selectedEntryForTx, setSelectedEntryForTx] = useState<string | null>(null);
-  const [txPage, setTxPage] = useState(1);
-  const TX_PER_PAGE = 50;
+  
 
   // Contract verification (orphan + recoverable counts)
   const { contracts: storedContracts } = useStoredContracts();
@@ -694,28 +629,6 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
   // Lock expiry notifications
   const notifiedRef = useRef<Set<string>>(new Set());
   const [expiringEntries, setExpiringEntries] = useState<string[]>([]);
-
-  // CSV export for transaction history
-  const handleExportTxCSV = () => {
-    const headers = ['Type', 'Block Height', 'Timestamp', 'Tx Hash', 'Amount (BCH)'];
-    const rows = txHistory.map(tx => [
-      tx.type,
-      tx.blockHeight.toString(),
-      new Date(tx.timestamp).toISOString(),
-      tx.txHash,
-      tx.amount > 0 ? tx.amount.toFixed(8) : '0',
-    ]);
-    const csvContent = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `safedelay-tx-history-${selectedEntryForTx?.slice(0, 8) || 'wallet'}-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   // External SafeDelay tracking (e.g. from BadgerSurvivors prize claims)
   // Persist to localStorage so values survive page refresh
@@ -1299,25 +1212,6 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
     setTimeout(() => setCopied(null), 2000);
   };
 
-  // ─── Transaction History ──────────────────────────────────────────────────
-  const { fetchHistory } = useOnChainTxHistory();
-
-  const handleFetchTxHistory = useCallback(async (address: string) => {
-    setSelectedEntryForTx(address);
-    setTxPage(1);
-    setTxHistoryLoading(true);
-    setTxHistoryError(null);
-    setTxHistory([]);
-    try {
-      const txs = await fetchHistory(address, network as 'mainnet' | 'testnet' | 'chipnet');
-      setTxHistory(txs);
-    } catch (err) {
-      setTxHistoryError(err instanceof Error ? err.message : 'Failed to load transaction history');
-    } finally {
-      setTxHistoryLoading(false);
-    }
-  }, [network, fetchHistory]);
-
   const getExplorerTxUrl = (txHash: string) => {
     const clean = txHash.replace(/^0x/, '');
     const n = network as 'mainnet' | 'testnet' | 'chipnet';
@@ -1804,10 +1698,7 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
                 {myEntries.map((entry, i) => {
                   const locked = entry.lockEndBlock > entry.currentBlock;
                   const remaining = entry.lockEndBlock - entry.currentBlock;
-                  // Estimate unlock date based on ~10 min per block
-                  const msPerBlock = 10 * 60 * 1000;
-                  const estimatedUnlockDate = new Date(Date.now() + remaining * msPerBlock);
-                  const dateStr = estimatedUnlockDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                  const dateStr = estimateUnlockDate(entry.lockEndBlock, entry.currentBlock);
                   return (
                     <WalletCard key={entry.address || i}>
                       <WalletInfo>
@@ -1815,7 +1706,7 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
                         <WalletMeta>
                           Lock end: block {entry.lockEndBlock.toLocaleString()} •{' '}
                           {locked
-                            ? `🔒 ~${dateStr} (${remaining.toLocaleString()} blocks)`
+                            ? `🔒 ${dateStr ? `~${dateStr}` : `(${remaining.toLocaleString()} blocks)`} (${remaining.toLocaleString()} blocks)`
                             : '✅ Unlocked'}
                         </WalletMeta>
                         {viewMode === 'all' && (
@@ -1907,167 +1798,11 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
 
       {/* ── Transactions Tab ── */}
       {dashboardTab === 'transactions' && (
-        <Section>
-          <SectionTitle>Transaction History</SectionTitle>
-          <Description style={{ fontSize: '14px', marginBottom: '16px' }}>
-            View on-chain transaction history for any registered SafeDelay wallet.
-            Select a wallet below to load its transaction history.
-          </Description>
-
-          {/* Wallet Selector */}
-          {myEntries.length > 0 && (
-            <FormGroup style={{ marginBottom: '16px' }}>
-              <Label>Select Wallet</Label>
-              <FormRow>
-                <select
-                  value={selectedEntryForTx || ''}
-                  onChange={e => {
-                    const addr = e.target.value;
-                    if (addr) handleFetchTxHistory(addr);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '10px 14px',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: 'white',
-                    fontSize: '14px',
-                    fontFamily: 'monospace',
-                  }}
-                >
-                  <option value="">— Choose a wallet —</option>
-                  {myEntries.map(e => (
-                    <option key={e.address} value={e.address!}>
-                      {e.address?.slice(0, 20)}... ({e.balance.toFixed(4)} BCH)
-                    </option>
-                  ))}
-                </select>
-                <SecondaryBtn
-                  onClick={() => selectedEntryForTx && handleFetchTxHistory(selectedEntryForTx)}
-                  disabled={!selectedEntryForTx || txHistoryLoading}
-                >
-                  {txHistoryLoading ? '⏳ Loading...' : '🔄 Refresh'}
-                </SecondaryBtn>
-              </FormRow>
-            </FormGroup>
-          )}
-
-          {txHistoryError && <MessageBox $type="error">{txHistoryError}</MessageBox>}
-
-          {txHistoryLoading && (
-            <ScanMessageBox $type="info"><Spinner>🌀</Spinner>Fetching transaction history from Electrum...</ScanMessageBox>
-          )}
-
-          {!txHistoryLoading && txHistory.length === 0 && selectedEntryForTx && (
-            <EmptyState>No transactions found for this wallet.</EmptyState>
-          )}
-
-          {!txHistoryLoading && txHistory.length === 0 && !selectedEntryForTx && (
-            <EmptyState>Select a wallet above to view its transaction history.</EmptyState>
-          )}
-
-          {txHistory.length > 0 && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '0 4px' }}>
-                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
-                  {txHistory.length} transaction{txHistory.length !== 1 ? 's' : ''}
-                </span>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button
-                    onClick={handleExportTxCSV}
-                    style={{
-                      padding: '4px 12px',
-                      background: 'rgba(255,255,255,0.1)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      borderRadius: '6px',
-                      color: 'white',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                    }}
-                  >
-                    📥 Export CSV
-                  </button>
-                </div>
-              </div>
-              {txHistory.length > TX_PER_PAGE && (
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button
-                      onClick={() => setTxPage(p => Math.max(1, p - 1))}
-                      disabled={txPage === 1}
-                      style={{
-                        padding: '4px 12px',
-                        background: 'rgba(255,255,255,0.1)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        borderRadius: '6px',
-                        color: 'white',
-                        cursor: txPage === 1 ? 'not-allowed' : 'pointer',
-                        opacity: txPage === 1 ? 0.4 : 1,
-                      }}
-                    >
-                      ← Prev
-                    </button>
-                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                      {txPage} / {Math.ceil(txHistory.length / TX_PER_PAGE)}
-                    </span>
-                    <button
-                      onClick={() => setTxPage(p => Math.min(Math.ceil(txHistory.length / TX_PER_PAGE), p + 1))}
-                      disabled={txPage >= Math.ceil(txHistory.length / TX_PER_PAGE)}
-                      style={{
-                        padding: '4px 12px',
-                        background: 'rgba(255,255,255,0.1)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        borderRadius: '6px',
-                        color: 'white',
-                        cursor: txPage >= Math.ceil(txHistory.length / TX_PER_PAGE) ? 'not-allowed' : 'pointer',
-                        opacity: txPage >= Math.ceil(txHistory.length / TX_PER_PAGE) ? 0.4 : 1,
-                      }}
-                    >
-                      Next →
-                    </button>
-                  </div>
-                )}
-              <TxList>
-                {txHistory.slice((txPage - 1) * TX_PER_PAGE, txPage * TX_PER_PAGE).map(tx => (
-                  <TxCard key={tx.txHash}>
-                    <TxInfo>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <TxType $type={tx.type}>{tx.type}</TxType>
-                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>
-                          #{tx.blockHeight.toLocaleString()}
-                        </span>
-                      </div>
-                      <TxMeta>
-                        <span>~{new Date(tx.timestamp).toLocaleString()}</span>
-                        <span>
-                          Tx: <a href={getExplorerTxUrl(tx.txHash)} target="_blank" rel="noopener noreferrer" style={{color:'rgba(255,255,255,0.6)',textDecoration:'underline'}}>{tx.txHash.slice(0, 12)}...{tx.txHash.slice(-8)}</a>
-                        </span>
-                      </TxMeta>
-                    </TxInfo>
-                    <div style={{ textAlign: 'right' }}>
-                      <TxAmount $type={tx.type}>
-                        {tx.amount > 0 ? (
-                          <>
-                            {tx.type === 'deposit' || tx.type === 'receive' ? '+' : ''}
-                            {tx.amount.toFixed(4)} BCH
-                          </>
-                        ) : '—'}
-                      </TxAmount>
-                      <ExternalLinkBtn
-                        href={getExplorerTxUrl(tx.txHash)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ marginTop: '4px', display: 'inline-block' }}
-                      >
-                        🔗 Explorer
-                      </ExternalLinkBtn>
-                    </div>
-                  </TxCard>
-                ))}
-              </TxList>
-            </>
-          )}
-        </Section>
+        <TxHistoryList
+          myEntries={myEntries}
+          network={network}
+          getExplorerTxUrl={getExplorerTxUrl}
+        />
       )}
 
       {/* ── Create + Register ── */}
