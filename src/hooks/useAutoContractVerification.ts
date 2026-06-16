@@ -60,6 +60,28 @@ async function addressToScripthash(address: string): Promise<string> {
   return binToHex(scriptHash);
 }
 
+/**
+ * Check if a BCH address is a P2SH or P2SH32 address by examining its locking bytecode.
+ * This replaces the fragile string-prefix check that missed mainnet addresses (3...)
+ * and testnet addresses (2...).
+ */
+async function isP2SHAddress(address: string): Promise<boolean> {
+  try {
+    const { cashAddressToLockingBytecode } = await import('@bitauth/libauth');
+    const addr = address.replace(/^(bitcoincash:|bchtest:|bchreg:)/i, '');
+    const result = await cashAddressToLockingBytecode(`bitcoincash:${addr}`);
+    if (typeof result === 'string' || !result.bytecode) return false;
+    const scriptHex = binToHex(result.bytecode);
+    // P2SH locking script: OP_HASH160 <20-byte-hash> OP_EQUAL = a914...87 (23 bytes = 46 hex chars)
+    const isP2SH = scriptHex.startsWith('a914') && scriptHex.endsWith('87') && scriptHex.length === 46;
+    // P2SH32 locking script: OP_HASH256 <32-byte-hash> OP_EQUAL = aa20...8e (34 bytes = 68 hex chars)
+    const isP2SH32 = scriptHex.startsWith('aa20') && scriptHex.endsWith('8e') && scriptHex.length === 68;
+    return isP2SH || isP2SH32;
+  } catch {
+    return false;
+  }
+}
+
 export interface VerificationResult {
   /** Contracts from localStorage that are confirmed on-chain */
   confirmed: string[];
@@ -354,12 +376,16 @@ export function useAutoContractVerification(
             ) as Array<{ tx_hash: string; tx_pos: number; value: number; address?: string }> | null;
 
             if (unspent && Array.isArray(unspent)) {
-              for (const utxo of unspent) {
+              // Check each address for P2SH/P2SH32 format using proper address decoding.
+              // This replaces the fragile string-prefix check which missed mainnet P2SH
+              // addresses (prefixed with '3') and testnet P2SH addresses (prefixed with '2').
+              const results = await Promise.all(unspent.map(async (utxo) => {
                 const addr = (utxo.address as string | undefined) || '';
-                const isP2SH = addr.toLowerCase().includes(':p') || addr.toLowerCase().includes(':q') ||
-                  (!addr.toLowerCase().includes(':') && (addr.toLowerCase().startsWith('p') || addr.toLowerCase().startsWith('q')));
-
-                if (isP2SH && addr) {
+                const detectedP2SH = await isP2SHAddress(addr);
+                return { utxo, addr, detectedP2SH };
+              }));
+              for (const { utxo, addr, detectedP2SH } of results) {
+                if (detectedP2SH && addr) {
                   p2shUtxos.push({
                     address: addr,
                     satoshis: BigInt(utxo.value),
