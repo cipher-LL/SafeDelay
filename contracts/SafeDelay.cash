@@ -45,8 +45,12 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
 
   /**
    * Start withdrawal process
-   * Takes an NFT deposit and flips the flag to 01 (withdraw enabled)
+   * Takes an NFT deposit and flips the flag to FLAG_ENABLED (0x01)
    * This starts the countdown for the blockDelay
+   * 
+   * The output must contain FLAG_ENABLED to prove the state transition occurred.
+   * This uses covenant enforcement - the output's value field encodes the new flag.
+   * - Value ends with ...01 = FLAG_ENABLED (satoshis end byte)
    */
   function startWithdraw(bytes memoryId, bytes1 currentFlag, sig s) {
     require(tx.inputs.length >= 1);
@@ -60,6 +64,11 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
     
     // Verify caller owns the NFT via signature
     require(checkSig(s, userPkh));
+    
+    // FIX: Enforce covenant that output has FLAG_ENABLED
+    // The output value's last byte must be FLAG_ENABLED (0x01)
+    // This proves the state transition occurred on-chain
+    require(tx.outputs[0].value.toBytes()[31] == FLAG_ENABLED);
   }
 
   /**
@@ -71,8 +80,11 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
     require(tx.inputs.length >= 1);
     require(tx.outputs.length >= 1);
     
-    // Verify the input contains an NFT with the enabled flag
-    // The NFT must have been created at least blockDelay blocks ago
+    // FIX: Verify startWithdraw was called (flag must be FLAG_ENABLED)
+    // The input value's last byte indicates the flag state
+    require(tx.inputs[0].value.toBytes()[31] == FLAG_ENABLED);
+    
+    // Verify the time lock has elapsed
     require(tx.time >= createdAtBlock + blockDelay);
     
     // Verify the output sends BCH to user's P2PKH address
