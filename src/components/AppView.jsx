@@ -3,6 +3,7 @@ import { useAccount, useConnect, useDisconnect, useBalance, useChainId, useSwitc
 import { formatEther } from 'viem'
 import { CONTRACT_CONFIG } from '../config'
 import WalletButton from './WalletButton'
+import { generateMemoryId, formatMemoryId } from '../utils'
 
 // Simulated current block — in production this would come from a blockchain provider
 const BLOCK_DELAY = 10 // blocks before withdraw is enabled after startWithdraw
@@ -55,11 +56,17 @@ function AppView({ onBack }) {
       // Simulate wallet interaction delay
       await new Promise(resolve => setTimeout(resolve, 2000))
       
+      // Generate memoryId for this deposit (per NFT_SPEC.md)
+      const amountSatoshis = Math.round(parseFloat(depositAmount) * 100000000)
+      const memoryId = await generateMemoryId(address, currentBlock, amountSatoshis)
+      console.log('Generated memoryId:', memoryId)
+      
       setTxStatus('success')
       setTxHash('simulated_tx_hash_' + Date.now())
       
       setDeposits(prev => [...prev, {
         id: Date.now(),
+        memoryId,
         amount: depositAmount,
         status: 'locked',
         createdAtBlock: currentBlock,
@@ -405,6 +412,11 @@ function DepositsList({ deposits, currentBlock, onStartWithdraw, onWithdraw }) {
                 <span>Created at block {deposit.createdAtBlock}</span>
                 {deposit.status !== 'withdrawn' && (
                   <span>Block delay: {deposit.blockDelay}</span>
+                )}
+                {deposit.memoryId && (
+                  <span className="memory-id" title={deposit.memoryId}>
+                    ID: {formatMemoryId(deposit.memoryId)}
+                  </span>
                 )}
               </div>
 

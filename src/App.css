@@ -864,6 +864,14 @@ footer {
   font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.memory-id {
+  font-family: monospace;
+  color: var(--bch-blue);
+  opacity: 0.8;
 }
 
 .deposit-progress {
