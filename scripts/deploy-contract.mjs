@@ -30,12 +30,13 @@ import * as libauth from '@bitauth/libauth';
 import * as crypto from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ARTIFACTS_DIR = join(__dirname, '..', 'artifacts');
+const ARTIFACTS_DIR = join(__dirname, '..', 'dist');
+const HASHES_PATH = join(__dirname, '..', 'artifacts', 'HASHES.json');
 
 // ============ HASHES ============
 
 function loadHashes() {
-  const hashesPath = join(ARTIFACTS_DIR, 'HASHES.json');
+  const hashesPath = HASHES_PATH;
   if (existsSync(hashesPath)) {
     return JSON.parse(readFileSync(hashesPath, 'utf8'));
   }

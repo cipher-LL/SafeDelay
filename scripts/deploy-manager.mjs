@@ -28,8 +28,8 @@ import { fileURLToPath } from 'url';
 import * as libauth from '@bitauth/libauth';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// Note: Manager artifact is in artifacts/ (source artifacts dir), not dist/ (Vite build output).
-const ARTIFACTS_DIR = join(__dirname, '..', 'artifacts');
+// Note: Contract artifacts are in dist/ (Vite build output directory).
+const ARTIFACTS_DIR = join(__dirname, '..', 'dist');
 
 // ============ WIF Key Utilities ============
 
