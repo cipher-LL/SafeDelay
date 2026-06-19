@@ -36,9 +36,15 @@ function LandingPage({ onGetStarted }) {
                 <path d="M4 10H16M16 10L11 5M16 10L11 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
-            <button className="btn btn-secondary btn-large">
+            <a
+              href="https://github.com/LifestoneLabs/SafeDelay/blob/main/contracts/SafeDelay.cash"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary btn-large"
+              style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
+            >
               View Contract
-            </button>
+            </a>
           </div>
           <div className="hero-stats">
             <div className="stat">
