@@ -32,9 +32,29 @@ SafeDelay is a smart contract that allows users to deposit BCH onto NFTs with bu
 # Install dependencies
 npm install
 
+# Configure environment
+cp .env.example .env
+# Edit .env and set VITE_WALLETCONNECT_PROJECT_ID (see Environment Setup below)
+
 # Start development server
 npm run dev
 ```
+
+### Environment Setup
+
+**WalletConnect Project ID**
+
+WalletConnect provides secure wallet connections. To use it in production:
+
+1. Sign up at [cloud.walletconnect.com](https://cloud.walletconnect.com/)
+2. Create a new project and copy your Project ID
+3. Set `VITE_WALLETCONNECT_PROJECT_ID` in your `.env` file
+
+> **Note:** The default value (`demo`) works for local testing but has rate limits and may not support all wallet connectors in production. You need your own Project ID for a real deployment.
+
+**Contract Address**
+
+Set `VITE_CONTRACT_ADDRESS` to the deployed SafeDelay contract address on Bitcoin Cash mainnet or chipnet. See the [contracts/README.md](contracts/README.md) for deployment instructions.
 
 ## Contract Functions
 

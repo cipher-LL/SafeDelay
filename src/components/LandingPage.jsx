@@ -37,7 +37,7 @@ function LandingPage({ onGetStarted }) {
               </svg>
             </button>
             <a
-              href="https://github.com/LifestoneLabs/SafeDelay/blob/main/contracts/SafeDelay.cash"
+              href={`https://explorer.bitcoin.com/bch/address/${import.meta.env.VITE_CONTRACT_ADDRESS || 'bitcoincash:pqnqu9zqwpw6zqyn3jkrmd35mh7e6vlt5rwnpr73rg'}`}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-secondary btn-large"
