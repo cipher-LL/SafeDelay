@@ -1,5 +1,12 @@
 # SafeDelay
 
+> ⚠️ **DEMO MODE — NO REAL BLOCKCHAIN INTERACTION**
+>
+> This application is a **proof-of-concept / demo**. All deposit, startWithdraw, and withdraw
+> operations are fully simulated in-memory. No transactions are signed, no NFTs are created,
+> and no funds are actually handled. See [Production Checklist](#production-checklist) below
+> for what would be required for a real deployment.
+
 A Bitcoin Cash CashScript contract for time-locked NFT deposits with emergency withdrawal protection.
 
 ## Overview
@@ -23,8 +30,8 @@ SafeDelay is a smart contract that allows users to deposit BCH onto NFTs with bu
 
 - **CashScript** - Smart contract development
 - **React + Vite** - Web UI
-- **WalletConnect (AppKit)** - Wallet connection
-- **@electrum-cash/protocol** - Blockchain access
+- **wagmi v2 + viem** - Ethereum-compatible wallet abstraction (used here for UI state)
+- **WalletConnect** - Wallet connection (requires a real project ID for production use)
 
 ## Getting Started
 
@@ -69,6 +76,29 @@ Withdraw BCH after blockDelay has passed. Burns the NFT and sends BCH to user's 
 
 ### emergencyWithdraw(bytes memoryId, sig s)
 Emergency withdrawal to emergency address. Ignores blockDelay requirement.
+
+## Production Checklist
+
+This app is a demo. Before production use, the following are required:
+
+- [ ] **Blockchain integration** — Replace simulated state in `AppView.jsx` with real Electrum or
+  BitDB calls. The current wagmi/viem stack is EVM-oriented; BCH requires an Electrum-based
+  transport (e.g. `@electrum-cash/protocol` or a custom Electrum wrapper).
+- [ ] **Wallet integration** — Connect a real BCH wallet (e.g. Badger, CashApp) via WalletConnect
+  v2 or an Electrum-compatible signer. MetaMask does not support BCH natively.
+- [ ] **Real contract artifact** — Compile `SafeDelay.cash` with `npx cashcompile` and replace the
+  placeholder ABI/address in `src/config.js`.
+- [ ] **NFT UTXO tracking** — Implement an off-chain indexer to track deposit NFTs at the contract
+  address, since the contract cannot enumerate its own UTXOs on-chain.
+- [ ] **Off-chain transaction construction** — `deposit()` cannot be enforced purely on-chain.
+  Wallets must construct the NFT-bearing transaction themselves. This is completely undocumented
+  for integrators (see [NFT_SPEC.md](NFT_SPEC.md) for the format spec).
+- [ ] **WalletConnect Project ID** — Replace `'demo'` with a real project ID from
+  [cloud.walletconnect.com](https://cloud.walletconnect.com/).
+- [ ] **memoryId generation** — The UI does not generate or store `memoryId`. A production wallet
+  must generate and track this per deposit to identify UTXOs.
+- [ ] **Block height oracle** — Replace the simulated `currentBlock` in `AppView.jsx` with a
+  reliable Electrum `blockchain.blocks.subscribe` or similar real-time block feed.
 
 ## License
 
