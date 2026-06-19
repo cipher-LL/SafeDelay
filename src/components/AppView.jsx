@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAccount, useConnect, useDisconnect, useBalance, useChainId, useSwitchChain } from 'wagmi'
 import { formatEther } from 'viem'
 import { CONTRACT_CONFIG } from '../config'
 import WalletButton from './WalletButton'
+
+// Simulated current block — in production this would come from a blockchain provider
+const BLOCK_DELAY = 10 // blocks before withdraw is enabled after startWithdraw
+const BLOCK_TIME_MS = 5 * 60 * 1000 // ~5 min per block
 
 function AppView({ onBack }) {
   const { address, isConnected, connector } = useAccount()
@@ -13,10 +17,21 @@ function AppView({ onBack }) {
   const { switchChain } = useSwitchChain()
 
   const [depositAmount, setDepositAmount] = useState('')
+  const [blockDelay, setBlockDelay] = useState('10')
   const [txStatus, setTxStatus] = useState(null)
   const [txHash, setTxHash] = useState(null)
   const [errorMessage, setErrorMessage] = useState(null)
   const [deposits, setDeposits] = useState([])
+  // Simulated current block — advances over time to mimic real chain
+  const [currentBlock, setCurrentBlock] = useState(850000)
+
+  // Advance simulated block height over time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentBlock(b => b + 1)
+    }, 5000) // +1 block every 5 seconds (faster than real ~5min for demo)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleConnect = (connector) => {
     setErrorMessage(null)
@@ -35,7 +50,9 @@ function AppView({ onBack }) {
 
     try {
       console.log('Deposit amount:', depositAmount)
+      console.log('Block delay:', blockDelay)
       console.log('Contract:', CONTRACT_CONFIG.address)
+      // Simulate wallet interaction delay
       await new Promise(resolve => setTimeout(resolve, 2000))
       
       setTxStatus('success')
@@ -44,8 +61,9 @@ function AppView({ onBack }) {
       setDeposits(prev => [...prev, {
         id: Date.now(),
         amount: depositAmount,
-        status: 'pending_withdrawal',
-        createdAtBlock: 850000 + Math.floor(Math.random() * 1000)
+        status: 'locked',
+        createdAtBlock: currentBlock,
+        blockDelay: parseInt(blockDelay),
       }])
       
       setDepositAmount('')
@@ -55,6 +73,36 @@ function AppView({ onBack }) {
       setErrorMessage(err.message || 'Transaction failed')
     }
   }
+
+  const handleStartWithdraw = useCallback(async (depositId) => {
+    setErrorMessage(null)
+    try {
+      // Simulate calling contract.startWithdraw(memoryId, 0x00, signature)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      setDeposits(prev => prev.map(d => {
+        if (d.id !== depositId) return d
+        return { ...d, status: 'waiting', withdrawalStartBlock: currentBlock }
+      }))
+    } catch (err) {
+      setErrorMessage('Failed to start withdrawal: ' + (err.message || 'unknown error'))
+    }
+  }, [currentBlock])
+
+  const handleWithdraw = useCallback(async (depositId) => {
+    setErrorMessage(null)
+    const deposit = deposits.find(d => d.id === depositId)
+    if (!deposit) return
+    try {
+      // Simulate calling contract.withdraw(memoryId, createdAtBlock, signature)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      setDeposits(prev => prev.map(d => {
+        if (d.id !== depositId) return d
+        return { ...d, status: 'withdrawn' }
+      }))
+    } catch (err) {
+      setErrorMessage('Failed to withdraw: ' + (err.message || 'unknown error'))
+    }
+  }, [deposits])
 
   const handleSwitchChain = (chain) => {
     switchChain({ chainId: chain.id })
@@ -93,12 +141,19 @@ function AppView({ onBack }) {
         <DepositPanel
           depositAmount={depositAmount}
           onDepositAmountChange={setDepositAmount}
+          blockDelay={blockDelay}
+          onBlockDelayChange={setBlockDelay}
           txStatus={txStatus}
           txHash={txHash}
           errorMessage={errorMessage}
           onDeposit={handleDeposit}
         />
-        <DepositsList deposits={deposits} />
+        <DepositsList 
+          deposits={deposits} 
+          currentBlock={currentBlock}
+          onStartWithdraw={handleStartWithdraw}
+          onWithdraw={handleWithdraw}
+        />
       </main>
     </div>
   )
@@ -195,7 +250,7 @@ function WalletInfo({ address, balance }) {
   )
 }
 
-function DepositPanel({ depositAmount, onDepositAmountChange, txStatus, txHash, errorMessage, onDeposit }) {
+function DepositPanel({ depositAmount, onDepositAmountChange, blockDelay, onBlockDelayChange, txStatus, txHash, errorMessage, onDeposit }) {
   return (
     <div className="deposit-panel">
       <h2>Deposit BCH</h2>
@@ -219,11 +274,11 @@ function DepositPanel({ depositAmount, onDepositAmountChange, txStatus, txHash, 
 
         <div className="form-group">
           <label>Block Delay</label>
-          <select defaultValue="10">
-            <option value="10">10 blocks (~1.5 hours)</option>
-            <option value="100">100 blocks (~15 hours)</option>
-            <option value="500">500 blocks (~3 days)</option>
-            <option value="1000">1000 blocks (~7 days)</option>
+          <select value={blockDelay} onChange={e => onBlockDelayChange(e.target.value)}>
+            <option value="10">10 blocks (~demo)</option>
+            <option value="100">100 blocks</option>
+            <option value="500">500 blocks</option>
+            <option value="1000">1000 blocks</option>
           </select>
         </div>
 
@@ -277,30 +332,111 @@ function TxStatus({ txStatus, txHash, errorMessage }) {
   return null
 }
 
-function DepositsList({ deposits }) {
+function DepositsList({ deposits, currentBlock, onStartWithdraw, onWithdraw }) {
+  const [pendingAction, setPendingAction] = useState(null)
+
+  const handleStartWithdraw = async (depositId) => {
+    setPendingAction(depositId + '_start')
+    try {
+      await onStartWithdraw(depositId)
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  const handleWithdraw = async (depositId) => {
+    setPendingAction(depositId + '_withdraw')
+    try {
+      await onWithdraw(depositId)
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
   if (deposits.length === 0) return null
 
   return (
     <div className="deposits-panel">
-      <h2>Your Deposits</h2>
+      <div className="deposits-header">
+        <h2>Your Deposits</h2>
+        <span className="block-height">Block: {currentBlock}</span>
+      </div>
       <div className="deposits-list">
-        {deposits.map((deposit) => (
-          <div key={deposit.id} className="deposit-card">
-            <div className="deposit-header">
-              <span className="deposit-amount">{deposit.amount} BCH</span>
-              <span className={`deposit-status ${deposit.status}`}>
-                {deposit.status === 'pending_withdrawal' ? '🔒 Locked' : '✓ Withdrawn'}
-              </span>
+        {deposits.map((deposit) => {
+          const isStartPending = pendingAction === deposit.id + '_start'
+          const isWithdrawPending = pendingAction === deposit.id + '_withdraw'
+
+          let blocksRemaining = null
+          let progress = 0
+          let statusLabel = ''
+          let statusClass = ''
+
+          if (deposit.status === 'locked') {
+            statusLabel = '🔒 Locked'
+            statusClass = 'locked'
+            progress = 0
+          } else if (deposit.status === 'waiting') {
+            const waited = currentBlock - (deposit.withdrawalStartBlock || deposit.createdAtBlock)
+            blocksRemaining = Math.max(0, deposit.blockDelay - waited)
+            progress = Math.min(100, (waited / deposit.blockDelay) * 100)
+            if (blocksRemaining > 0) {
+              statusLabel = `⏳ Waiting (${blocksRemaining} blocks left)`
+              statusClass = 'waiting'
+            } else {
+              statusLabel = '✅ Ready to Withdraw!'
+              statusClass = 'ready'
+            }
+          } else if (deposit.status === 'withdrawn') {
+            statusLabel = '✓ Withdrawn'
+            statusClass = 'withdrawn'
+            progress = 100
+          }
+
+          const canStartWithdraw = deposit.status === 'locked'
+          const canWithdraw = deposit.status === 'waiting' && blocksRemaining === 0
+
+          return (
+            <div key={deposit.id} className="deposit-card">
+              <div className="deposit-header">
+                <span className="deposit-amount">{deposit.amount} BCH</span>
+                <span className={`deposit-status ${statusClass}`}>{statusLabel}</span>
+              </div>
+              <div className="deposit-info">
+                <span>Created at block {deposit.createdAtBlock}</span>
+                {deposit.status !== 'withdrawn' && (
+                  <span>Block delay: {deposit.blockDelay}</span>
+                )}
+              </div>
+
+              {deposit.status !== 'withdrawn' && (
+                <div className="deposit-progress">
+                  <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+                </div>
+              )}
+
+              <div className="deposit-actions">
+                {canStartWithdraw && (
+                  <button
+                    className="btn btn-secondary btn-small"
+                    onClick={() => handleStartWithdraw(deposit.id)}
+                    disabled={isStartPending}
+                  >
+                    {isStartPending ? 'Starting...' : '⏱ Start Withdrawal'}
+                  </button>
+                )}
+                {canWithdraw && (
+                  <button
+                    className="btn btn-primary btn-small"
+                    onClick={() => handleWithdraw(deposit.id)}
+                    disabled={isWithdrawPending}
+                  >
+                    {isWithdrawPending ? 'Withdrawing...' : '💸 Withdraw'}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="deposit-info">
-              <span>Created at block {deposit.createdAtBlock}</span>
-              <span>10 blocks remaining</span>
-            </div>
-            <div className="deposit-progress">
-              <div className="progress-bar" style={{width: '20%'}}></div>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
