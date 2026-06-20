@@ -52,7 +52,7 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
    * This uses covenant enforcement - the output's value field encodes the new flag.
    * - Value ends with ...01 = FLAG_ENABLED (satoshis end byte)
    */
-  function startWithdraw(bytes memoryId, bytes1 currentFlag, sig s) {
+  function startWithdraw(bytes1 currentFlag, sig s) {
     require(tx.inputs.length >= 1);
     require(tx.outputs.length >= 1);
     
@@ -76,7 +76,7 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
    * Burns the NFT and sends BCH to user's address
    * Only works after the NFT has had FLAG_ENABLED for blockDelay blocks
    */
-  function withdraw(bytes memoryId, int createdAtBlock, sig s) {
+  function withdraw(int createdAtBlock, sig s) {
     require(tx.inputs.length >= 1);
     require(tx.outputs.length >= 1);
     
@@ -103,7 +103,7 @@ contract SafeDelay(bytes20 userPkh, bytes20 emergencyPkh, int blockDelay) {
    * Ignores the blockDelay requirement
    * This is a safety mechanism for stuck funds
    */
-  function emergencyWithdraw(bytes memoryId, sig s) {
+  function emergencyWithdraw(sig s) {
     require(tx.inputs.length >= 1);
     require(tx.outputs.length >= 1);
     
