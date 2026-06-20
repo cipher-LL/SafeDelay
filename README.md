@@ -83,7 +83,8 @@ This app is a demo. Before production use, the following are required:
 
 - [ ] **Blockchain integration** — Replace simulated state in `AppView.jsx` with real Electrum or
   BitDB calls. The current wagmi/viem stack is EVM-oriented; BCH requires an Electrum-based
-  transport (e.g. `@electrum-cash/protocol` or a custom Electrum wrapper).
+  transport (e.g. a custom Electrum wrapper using `blockchain.blocks.subscribe`). Note:
+  `@electrum-cash/protocol` does not exist on npm — do not attempt to install it.
 - [ ] **Wallet integration** — Connect a real BCH wallet (e.g. Badger, CashApp) via WalletConnect
   v2 or an Electrum-compatible signer. MetaMask does not support BCH natively.
 - [ ] **Real contract artifact** — Compile `SafeDelay.cash` with `npx cashcompile` and replace the
