@@ -8,9 +8,37 @@
 import { debug } from './utils/debug';
 
 /**
+ * Map of artifact names to their resolved artifact modules.
+ * Add new artifacts here as they are created.
+ */
+const ARTIFACT_MODULES: Record<string, object> = {
+  SafeDelay: { __esModule: true },
+  SafeDelayMultiSig: { __esModule: true },
+};
+
+/**
+ * Dynamically load a contract artifact by name.
+ * Artifacts must be registered in ARTIFACT_MODULES or bundled separately.
+ *
+ * @param name - Artifact name (e.g. 'SafeDelay', 'SafeDelayMultiSig')
+ * @returns The artifact object
+ */
+export async function loadArtifact(name: string): Promise<object> {
+  const mod = ARTIFACT_MODULES[name];
+  if (mod) return mod;
+  // Attempt dynamic import from standard artifact location
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return await import(`../artifacts/${name}.artifact.json`);
+  } catch {
+    throw new Error(`Artifact '${name}' not found. Register it in ARTIFACT_MODULES or ensure the artifact file exists at artifacts/${name}.artifact.json`);
+  }
+}
+
+/**
  * Normalize bytecode for comparison (remove whitespace, lowercase)
  */
-function normalizeBytecode(bytecode: string): string {
+export function normalizeBytecode(bytecode: string): string {
   return bytecode.replace(/\s+/g, '').toLowerCase();
 }
 

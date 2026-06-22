@@ -7,132 +7,35 @@
  *
  * This fixes the bug where clearing localStorage loses the UI's awareness
  * of on-chain contracts — instead, the app now auto-discovers and recovers.
+ *
+ * Pure utility functions are extracted to:
+ *   src/utils/contractVerificationUtils.ts  — isNetworkError, toCashScriptNetwork,
+ *                                             addressToScripthash, isP2SHAddress,
+ *                                             decodeSafeDelayFundingTx, parseVarInt, skipVarInt
+ *   src/types/contractVerification.ts        — VerificationResult, VerificationProgressDetail,
+ *                                             UseAutoContractVerificationResult, constants
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ElectrumNetworkProvider, Network } from 'cashscript';
+import { ElectrumNetworkProvider } from 'cashscript';
 import { sha256 } from '@cashscript/utils';
 import { binToHex } from '@bitauth/libauth';
 import { StoredContract } from './useSafeDelayContracts';
 import { debug, debugLog } from '../utils/debug';
-
-// Network error messages from Electrum provider — used to detect transient vs fatal errors
-const NETWORK_ERROR_PATTERNS = [
-  'fetch failed',
-  'failed to fetch',
-  'network error',
-  'net::err',
-  'connection refused',
-  'timeout',
-  'econnreset',
-  'enotfound',
-  'eserverfault',
-  'socket hang up',
-  'service unavailable',
-  '503',
-  '502',
-  '504',
-];
-
-function isNetworkError(e: unknown): boolean {
-  if (!e) return false;
-  const msg = String(e).toLowerCase();
-  return NETWORK_ERROR_PATTERNS.some(p => msg.includes(p));
-}
-
-function toCashScriptNetwork(network: 'mainnet' | 'testnet' | 'chipnet'): Network {
-  switch (network) {
-    case 'mainnet': return Network.MAINNET;
-    case 'testnet': return Network.TESTNET3;
-    case 'chipnet': return Network.CHIPNET;
-    default: return Network.TESTNET3;
-  }
-}
-
-async function addressToScripthash(address: string): Promise<string> {
-  const { cashAddressToLockingBytecode } = await import('@bitauth/libauth');
-  const addr = address.replace(/^(bitcoincash:|bchtest:|bchreg:)/i, '');
-  const result = await cashAddressToLockingBytecode(`bitcoincash:${addr}`);
-  if (typeof result === 'string' || !result.bytecode) throw new Error('Invalid address');
-  const lockScript = result.bytecode;
-  const scriptHash = sha256(lockScript);
-  scriptHash.reverse();
-  return binToHex(scriptHash);
-}
-
-/**
- * Check if a BCH address is a P2SH or P2SH32 address by examining its locking bytecode.
- * This replaces the fragile string-prefix check that missed mainnet addresses (3...)
- * and testnet addresses (2...).
- */
-async function isP2SHAddress(address: string): Promise<boolean> {
-  try {
-    const { cashAddressToLockingBytecode } = await import('@bitauth/libauth');
-    const addr = address.replace(/^(bitcoincash:|bchtest:|bchreg:)/i, '');
-    const result = await cashAddressToLockingBytecode(`bitcoincash:${addr}`);
-    if (typeof result === 'string' || !result.bytecode) return false;
-    const scriptHex = binToHex(result.bytecode);
-    // P2SH locking script: OP_HASH160 <20-byte-hash> OP_EQUAL = a914...87 (23 bytes = 46 hex chars)
-    const isP2SH = scriptHex.startsWith('a914') && scriptHex.endsWith('87') && scriptHex.length === 46;
-    // P2SH32 locking script: OP_HASH256 <32-byte-hash> OP_EQUAL = aa20...8e (34 bytes = 68 hex chars)
-    const isP2SH32 = scriptHex.startsWith('aa20') && scriptHex.endsWith('8e') && scriptHex.length === 68;
-    return isP2SH || isP2SH32;
-  } catch {
-    return false;
-  }
-}
-
-export interface VerificationResult {
-  /** Contracts from localStorage that are confirmed on-chain */
-  confirmed: string[];
-  /** Contracts from localStorage that appear empty (fully withdrawn) */
-  empty: string[];
-  /** Contracts from localStorage that have NO on-chain history (may be lost) */
-  orphaned: string[];
-  /** Contracts with bytecode that does NOT match the expected hash from HASHES.json */
-  bytecodeMismatch: Array<{
-    address: string;
-    expectedHash: string;
-    actualHash: string;
-  }>;
-  /** On-chain contracts NOT in localStorage (recoverable) */
-  recoverable: Array<{
-    address: string;
-    ownerPkh: string;
-    lockEndBlock: number;
-  }>;
-  /** Errors encountered during verification */
-  errors: string[];
-  /** Transient network errors that may resolve on retry */
-  networkErrors: string[];
-  /** Whether the auto-recovery scan ran */
-  autoScanDone: boolean;
-}
-
-export interface VerificationProgressDetail {
-  current: number;
-  total: number;
-}
-
-export interface UseAutoContractVerificationResult {
-  verificationResult: VerificationResult | null;
-  isVerifying: boolean;
-  verifyProgress: string;
-  /** Fractional progress (e.g. { current: 3, total: 12 }) */
-  verifyProgressDetail: VerificationProgressDetail | null;
-  /** Re-run verification manually */
-  reverify: () => void;
-  /** Abort the current verification operation */
-  abort: () => void;
-  /** Pause verification (can be resumed with reverify) */
-  pause: () => void;
-  /** Apply recovered contracts to localStorage */
-  applyRecovery: (contracts: VerificationResult['recoverable']) => void;
-}
-
-const RECOVERY_CHECK_KEY = 'safedelay_recovery_verified';
-// Throttle Electrum requests between contracts to avoid rate-limiting
-const VERIFICATION_THROTTLE_MS = 150;
+import {
+  VerificationResult,
+  VerificationProgressDetail,
+  UseAutoContractVerificationResult,
+  RECOVERY_CHECK_KEY,
+  VERIFICATION_THROTTLE_MS,
+} from '../types/contractVerification';
+import {
+  isNetworkError,
+  toCashScriptNetwork,
+  addressToScripthash,
+  isP2SHAddress,
+  decodeSafeDelayFundingTx,
+} from '../utils/contractVerificationUtils';
 
 /**
  * Hook that automatically verifies stored contracts on app load.
@@ -466,77 +369,4 @@ export function useAutoContractVerification(
     pause,
     applyRecovery,
   };
-}
-
-/**
- * Decode a SafeDelay funding transaction to extract contract parameters.
- * SafeDelay deployments embed constructor args in the OP_RETURN output:
- * [artifactHash(32 bytes)][ownerPKH(20 bytes)][lockEndBlock(8 bytes, big-endian)]
- */
-function decodeSafeDelayFundingTx(txHex: string): { ownerPkh: string; lockEndBlock: number } | null {
-  try {
-    let offset = 4; // version
-
-    // Parse inputs
-    const inputCount = parseVarInt(txHex, offset);
-    offset = skipVarInt(txHex, offset);
-
-    for (let i = 0; i < inputCount; i++) {
-      offset += 36;
-      const scriptLen = parseVarInt(txHex, offset);
-      offset = skipVarInt(txHex, offset);
-      offset += scriptLen * 2;
-      offset += 8;
-    }
-
-    // Parse outputs
-    const outputCount = parseVarInt(txHex, offset);
-    offset = skipVarInt(txHex, offset);
-
-    for (let i = 0; i < outputCount; i++) {
-      offset += 8;
-      const scriptLen = parseVarInt(txHex, offset);
-      offset = skipVarInt(txHex, offset);
-      const scriptHex = txHex.slice(offset, offset + scriptLen * 2);
-      offset += scriptLen * 2;
-
-      if (scriptHex.startsWith('6a')) {
-        // OP_RETURN found — parse pushdata
-        const pushDataOffset = offset - scriptLen * 2 + 2;
-        const pushLen = parseVarInt(txHex, pushDataOffset);
-        const opReturnData = scriptHex.slice(2, 2 + pushLen * 2);
-
-        // CashScript SafeDelay deployment: [artifactHash(32)][ownerPKH(20)][lockEndBlock(8)]
-        if (opReturnData.length >= 120) {
-          const ownerPkh = opReturnData.slice(64, 104);
-          const lockEndBlockHex = opReturnData.slice(104, 120);
-          const lockEndBlock = parseInt(lockEndBlockHex, 16);
-
-          if (ownerPkh.length === 40 && lockEndBlock > 0) {
-            return { ownerPkh, lockEndBlock };
-          }
-        }
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function parseVarInt(hex: string, offset: number): number {
-  const byte = parseInt(hex.slice(offset, offset + 2), 16);
-  if (byte < 0xfd) return byte;
-  if (byte === 0xfd) return parseInt(hex.slice(offset + 2, offset + 6), 16);
-  if (byte === 0xfe) return parseInt(hex.slice(offset + 2, offset + 10), 16);
-  return parseInt(hex.slice(offset + 2, offset + 18), 16);
-}
-
-function skipVarInt(hex: string, offset: number): number {
-  const byte = parseInt(hex.slice(offset, offset + 2), 16);
-  if (byte < 0xfd) return offset + 2;
-  if (byte === 0xfd) return offset + 6;
-  if (byte === 0xfe) return offset + 10;
-  return offset + 18;
 }
