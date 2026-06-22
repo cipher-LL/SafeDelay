@@ -1,4 +1,4 @@
-import { Utxo } from 'cashscript';
+import { Utxo, Contract } from 'cashscript';
 
 /**
  * SafeDelay Contract Types
@@ -224,4 +224,89 @@ export interface SafeDelayManagerArtifact {
   }>;
   bytecode: string;
   compiler: { name: string; version: string };
+}
+
+// ============================================================
+// Contract Interface Types (for TypeScript-safe CashScript usage)
+// ============================================================
+
+/**
+ * Safely typed interface for SafeDelayManager contract functions.
+ * Use `toArtifact()` from deployContract.ts to create a typed artifact,
+ * then cast contracts to this type to avoid `as any` casts.
+ */
+export interface SafeDelayManagerFunctions {
+  createDelay(
+    ownerPkh: Uint8Array,
+    lockEndBlock: Uint8Array,
+    feeSats: bigint
+  ): // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    | any;
+}
+
+/**
+ * Typed SafeDelayManager contract instance.
+ * Use `toArtifact(artifact)` before passing to `new Contract(...)`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SafeDelayManagerContract = Contract & { functions: SafeDelayManagerFunctions };
+
+/**
+ * Safely typed interface for SafeDelay contract functions.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SafeDelayFunctions = Record<string, (...args: any[]) => any>;
+
+/**
+ * Typed SafeDelay contract instance.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SafeDelayContract = Contract & { functions: SafeDelayFunctions };
+
+/**
+ * Safely typed interface for SafeDelayMultiSig contract functions.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SafeDelayMultiSigFunctions = Record<string, (...args: any[]) => any>;
+
+/**
+ * Typed SafeDelayMultiSig contract instance.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SafeDelayMultiSigContract = Contract & { functions: SafeDelayMultiSigFunctions };
+
+/**
+ * Extended artifact interface that includes the optional debug property.
+ * CashScript artifact JSON files include a `debug` field with bytecode info.
+ */
+export interface SafeDelayArtifactJson {
+  contractName: string;
+  constructorInputs: readonly { name: string; type: string }[];
+  abi: readonly { name: string; inputs: readonly { name: string; type: string }[] }[];
+  bytecode: string;
+  compiler: { name: string; version: string };
+  source?: string;
+  updatedAt?: string;
+  debug?: {
+    bytecode: string;
+    sourceMap: string;
+    logs: readonly unknown[];
+    requires: readonly unknown[];
+  };
+}
+
+export interface SafeDelayMultiSigArtifactJson {
+  contractName: string;
+  constructorInputs: readonly { name: string; type: string }[];
+  abi: readonly { name: string; inputs: readonly { name: string; type: string }[] }[];
+  bytecode: string;
+  compiler: { name: string; version: string };
+  source?: string;
+  updatedAt?: string;
+  debug?: {
+    bytecode: string;
+    sourceMap: string;
+    logs: readonly unknown[];
+    requires: readonly unknown[];
+  };
 }

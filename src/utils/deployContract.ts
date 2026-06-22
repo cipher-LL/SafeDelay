@@ -9,6 +9,18 @@ import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
 
 // Map our network strings to CashScript Network type
+/**
+ * Cast a raw CashScript artifact JSON to its TypeScript interface.
+ * Eliminates the need for `as any` casts when passing artifacts to `new Contract(...)`.
+ *
+ * Usage:
+ *   const artifact = toArtifact(SafeDelayManagerArtifact);
+ *   const contract = new Contract(artifact, [...args], { provider });
+ */
+export function toArtifact<T extends object>(artifact: T): T {
+  return artifact;
+}
+
 function toCashScriptNetwork(network: string): Network {
   switch (network) {
     case 'mainnet':

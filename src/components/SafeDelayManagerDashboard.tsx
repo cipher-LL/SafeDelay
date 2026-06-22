@@ -15,7 +15,7 @@ import styled, { keyframes } from 'styled-components';
 import { useNetwork } from '../context/NetworkContext';
 import { useWallet } from '../context/WalletContext';
 import { getManagerAddress, getServiceProviderPkh, isManagerDeployed } from '../config/contracts';
-import { ElectrumNetworkProvider, Network, Contract } from 'cashscript';
+import { ElectrumNetworkProvider, Network, Contract, Utxo } from 'cashscript';
 import SafeDelayManagerArtifact from '../../artifacts/SafeDelayManager.artifact.json';
 import {
   computeSafeDelayAddress,
@@ -25,10 +25,10 @@ import {
 } from '../utils/SafeDelayManagerLibrary';
 import SafeDelayArtifact from '../../artifacts/SafeDelay.artifact.json';
 import SafeDelayMultiSigArtifact from '../../artifacts/SafeDelayMultiSig.artifact.json';
-import { deploySafeDelay, addressToPubkeyHash } from '../utils/deployContract';
+import { deploySafeDelay, addressToPubkeyHash, toArtifact } from '../utils/deployContract';
 import { verifyContract } from '../contractVerification';
 import { estimateUnlockDate } from '../utils/dateUtils';
-import type { SafeDelayManagerEntry } from '../types/index';
+import type { SafeDelayManagerEntry, SafeDelayManagerContract, SafeDelayArtifactJson, SafeDelayMultiSigArtifactJson } from '../types/index';
 import QrScanner from './QrScanner';
 import { debug } from '../utils/debug';
 import { useAutoContractVerification } from '../hooks/useAutoContractVerification';
@@ -766,7 +766,7 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
 
   // ─── Initialize SafeDelay bytecode ─────────────────────────────────────────
   useEffect(() => {
-    const bytecode = (SafeDelayArtifact as any).debug?.bytecode;
+    const bytecode = (SafeDelayArtifact as SafeDelayArtifactJson).debug?.bytecode;
     if (bytecode) {
       setSafeDelayBytecode(bytecode);
     }
@@ -1051,9 +1051,9 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
 
       // Build createDelay transaction using CashScript Contract
       const manager = new Contract(
-        SafeDelayManagerArtifact as any,
+        toArtifact(SafeDelayManagerArtifact),
         [serviceProviderPkh],
-        { provider } as any
+        { provider }
       );
 
       const feeSats = BigInt(parseInt(registerFee) || 1000);
@@ -1070,14 +1070,14 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
       const nftUtxo = nftUtxos[0];
       const feeUtxo = walletUtxos[0];
 
-      const createDelayFn = (manager as any).functions.createDelay(
+      const createDelayFn = (manager as unknown as SafeDelayManagerContract).functions.createDelay(
         ownerPkhBytes,
         Uint8Array.from(lockEndBuf),
         feeSats
       );
 
       const tx = await createDelayFn
-        .from([nftUtxo as any, feeUtxo as any])
+        .from([nftUtxo as unknown as Utxo, feeUtxo as unknown as Utxo])
         .send();
 
       const txHash = typeof tx === 'string' ? tx : (tx.txid || tx.hash || '');
@@ -1263,7 +1263,7 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
             try {
               const result = await verifyContract(
                 managerAddressInput.trim(),
-                SafeDelayManagerArtifact as any,
+                toArtifact(SafeDelayManagerArtifact),
                 'https://electrumx.lifestone.cash'
               );
               setVerificationResult(result);
@@ -1295,9 +1295,9 @@ export default function SafeDelayManagerDashboard({ onNavigateTab }: { onNavigat
             The SafeDelayManager registry contract is not deployed on this network.
             Fill in the Manager Address above to connect to an existing deployment, or deploy your own:
             <br /><br />
-            <strong>SafeDelay bytecode:</strong> <code>{(SafeDelayArtifact as any).debug?.bytecode?.slice(0, 16) || 'f68fd15f33a19b50f'}... ({(SafeDelayArtifact as any).debug?.bytecode?.length || 185} bytes)</code>
+            <strong>SafeDelay bytecode:</strong> <code>{(SafeDelayArtifact as SafeDelayArtifactJson).debug?.bytecode?.slice(0, 16) || 'f68fd15f33a19b50f'}... ({(SafeDelayArtifact as SafeDelayArtifactJson).debug?.bytecode?.length || 185} bytes)</code>
             <br />
-            <strong>SafeDelayMultiSig bytecode:</strong> <code>{(SafeDelayMultiSigArtifact as any).debug?.bytecode?.slice(0, 16) || 'a13fb855218f3fc0'}... ({(SafeDelayMultiSigArtifact as any).debug?.bytecode?.length || 286} bytes)</code>
+            <strong>SafeDelayMultiSig bytecode:</strong> <code>{(SafeDelayMultiSigArtifact as SafeDelayMultiSigArtifactJson).debug?.bytecode?.slice(0, 16) || 'a13fb855218f3fc0'}... ({(SafeDelayMultiSigArtifact as SafeDelayMultiSigArtifactJson).debug?.bytecode?.length || 286} bytes)</code>
             <br /><br />
             See{' '}
             <a
