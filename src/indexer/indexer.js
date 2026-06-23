@@ -325,7 +325,7 @@ export class SafeDelayIndexer {
 
       for (const txHash of txHashes) {
         const tx = await this.electrum.getTransaction(txHash)
-        const deposits = parseTransactionForDeposits(tx, this.contractAddress, this._blockHeight)
+        const deposits = parseTransactionForDeposits(tx.hex, txHash, this.contractAddress, this._blockHeight)
         for (const deposit of deposits) {
           await this.store.upsertDeposit(deposit)
         }

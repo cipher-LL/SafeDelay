@@ -26,7 +26,9 @@ let _indexerApiInstance = null
 export async function createIndexerApi(contractAddress, electrumEndpoint) {
   if (_indexerApiInstance) return _indexerApiInstance
 
-  const indexer = new SafeDelayIndexer(contractAddress, electrumEndpoint)
+  // Allow VITE_ELECTRUM_ENDPOINT env var to override the default endpoint
+  const endpoint = electrumEndpoint || import.meta.env.VITE_ELECTRUM_ENDPOINT || null
+  const indexer = new SafeDelayIndexer(contractAddress, endpoint)
   try {
     await indexer.start()
     _indexerInstance = indexer

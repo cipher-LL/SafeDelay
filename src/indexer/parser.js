@@ -144,7 +144,7 @@ function readUInt8LE(buf, offset) {
  * This gives us: amount (from output value), beneficiaryPKH (from commitment),
  * createdAtBlock (from on-chain data or estimated from tx position).
  */
-export function parseTransactionForDeposits(txHex, contractAddress, currentBlockHeight) {
+export function parseTransactionForDeposits(txHex, txid, contractAddress, currentBlockHeight) {
   const deposits = []
 
   try {
@@ -168,7 +168,7 @@ export function parseTransactionForDeposits(txHex, contractAddress, currentBlock
             const status = flag === 0x01 ? 'waiting' : 'locked'
 
             deposits.push({
-              txid: hash256LEToHex(txHex.slice(0, 80)), // Approximate; real txid from Electrum
+              txid, // Real txid passed from caller (Electrum)
               vout: i,
               amount: satoshisToBCH(output.value),
               amountSatoshis: output.value,
@@ -262,10 +262,6 @@ function extractNftCommitment(tx, nftOutputIndex) {
           lockEnd,
           beneficiaryPKH,
         }
-      } else if (commitment.length === 64) {
-        // Already parsed above, but handle shorter/longer commitments
-        // For SafeDelay, we expect exactly 64 bytes
-      }
     }
 
     // Fallback: raw 64-byte commitment without CashTokens prefix
